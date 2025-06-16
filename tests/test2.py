@@ -10,7 +10,7 @@ cursor.execute("PRAGMA foreign_keys = ON")
 # REGIONS jadvali
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS regions (
-    region_id INTEGER PRIMARY KEY,
+    region_id INTEGER UNIQUE,
     region_name TEXT UNIQUE
 )
 ''')
@@ -25,8 +25,7 @@ CREATE TABLE IF NOT EXISTS universities (
     un_selected TEXT,
     un_text TEXT,
     un_id TEXT UNIQUE,
-    UNIQUE(region_id, un_text, un_id),
-    FOREIGN KEY(region_id) REFERENCES regions(region_id)
+    UNIQUE(region_id, un_text, un_id)
 )
 ''')
 
@@ -35,13 +34,13 @@ cursor.execute('''
 CREATE TABLE IF NOT EXISTS gettypes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     region_id INTEGER,
+    un_id INTEGER,
     ty_disabled TEXT,
     ty_group TEXT,
     ty_selected TEXT,
     ty_text TEXT,
-    ty_id TEXT UNIQUE,
-    UNIQUE(region_id, ty_text, ty_id),
-    FOREIGN KEY(region_id) REFERENCES regions(region_id)
+    ty_id TEXT,
+    UNIQUE(region_id, un_id, ty_text, ty_id)
 )
 ''')
 
@@ -50,15 +49,15 @@ cursor.execute('''
 CREATE TABLE IF NOT EXISTS getlangs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     region_id INTEGER,
+    un_id INTEGER,
+    ty_id INTEGER,
     lan_disabled TEXT,
     lan_group TEXT,
     lan_selected TEXT,
     lan_text TEXT,
-    lan_id TEXT UNIQUE, -- <<< shu yerda UNIQUE qo'shildi
-    UNIQUE(region_id, lan_text, lan_id),
-    FOREIGN KEY(region_id) REFERENCES regions(region_id)
+    lan_id TEXT, -- <<< shu yerda UNIQUE qo'shildi
+    UNIQUE(region_id, un_id, ty_id, lan_text, lan_id)
 )
-
 ''')
 
 # MANDAT jadvali
@@ -75,11 +74,7 @@ CREATE TABLE IF NOT EXISTS mandat (
     gr_b REAL,
     con_b REAL,
     olimp INTEGER,
-    UNIQUE(mvdir, nomi),
-    FOREIGN KEY(region_id) REFERENCES regions(region_id),
-    FOREIGN KEY(un_id) REFERENCES universities(un_id),
-    FOREIGN KEY(ty_id) REFERENCES gettypes(ty_id),
-    FOREIGN KEY(lan_id) REFERENCES getlangs(lan_id)
+    UNIQUE(region_id, un_id, ty_id, lan_id, mvdir, nomi)
 )
 ''')
 
@@ -93,9 +88,9 @@ regions = response.json()
 shifr = []
 for region in regions:
     region_name = region['region_name']
-    region_id = region['region_id']
+    region_id = region['region_id'] # OR IGNORE
     cursor.execute('''
-        INSERT OR IGNORE INTO regions (region_id, region_name)
+        INSERT INTO regions (region_id, region_name)
         VALUES (?, ?)
         ''', (region_id, region_name))
     conn.commit()
@@ -110,7 +105,7 @@ for region in regions:
         un_text = univer["text"]
         un_id = univer["value"]
         cursor.execute('''
-            INSERT OR IGNORE INTO universities (region_id, un_disabled, un_group, un_selected, un_text, un_id)
+            INSERT INTO universities (region_id, un_disabled, un_group, un_selected, un_text, un_id)
             VALUES (?, ?, ?, ?, ?, ?)
             ''', (region_id, un_disabled, un_group, un_selected, un_text, un_id))
         conn.commit()
@@ -125,9 +120,9 @@ for region in regions:
             ty_text = get_type['text']
             ty_id = get_type['value']
             cursor.execute('''
-                INSERT OR IGNORE INTO gettypes (region_id, ty_disabled, ty_group, ty_selected, ty_text, ty_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ''', (region_id, ty_disabled, ty_group, ty_selected, ty_text, ty_id))
+                INSERT INTO gettypes (region_id, un_id, ty_disabled, ty_group, ty_selected, ty_text, ty_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (region_id, un_id, ty_disabled, ty_group, ty_selected, ty_text, ty_id))
             conn.commit()
 
             url4 = f"https://mandat.uzbmb.uz/BallVuz2024/GetLangs?UniversityID={un_id}"
@@ -141,9 +136,9 @@ for region in regions:
                 lan_id = get_lang['value']
 
                 cursor.execute('''
-                    INSERT OR IGNORE INTO getlangs (region_id, lan_disabled, lan_group, lan_selected, lan_text, lan_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (region_id, lan_disabled, lan_group, lan_selected, lan_text, lan_id))
+                    INSERT INTO getlangs (region_id, un_id, ty_id, lan_disabled, lan_group, lan_selected, lan_text, lan_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (region_id, un_id, ty_id, lan_disabled, lan_group, lan_selected, lan_text, lan_id))
 
                 # so'nggi API chaqiruv:
                 url5 = f"https://mandat.uzbmb.uz/BallVuz2024/GetAll?RegionID={region_id}&UniversityID={un_id}&EdTypeID={ty_id}&EdLangID={lan_id}"
@@ -159,10 +154,7 @@ for region in regions:
                     olimp = get_data["olimp"]
 
                     cursor.execute('''
-                        INSERT OR IGNORE INTO mandat (
-                            region_id, un_id, ty_id, lan_id,
-                            mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp
-                        )
+                        INSERT INTO mandat (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp))
 
