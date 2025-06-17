@@ -50,6 +50,7 @@ async def enter_direction(message: Message, state: FSMContext):
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
                              reply_markup=await CheckData.channels_btn(channels))
 
+
 @reg_router.callback_query(F.data == "to_back", FormReg.reg1)
 async def handle_hello(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
@@ -57,7 +58,7 @@ async def handle_hello(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                          reply_markup=await UserPanels.main_manu())
 
-# Region izlash
+
 @reg_router.inline_query(FormReg.reg1)
 async def inline_search_region(inline_query: InlineQuery):
     text = inline_query.query.lower()
@@ -115,7 +116,7 @@ async def chosen_university(message: Message, state: FSMContext):
         await message.answer(f"<b>Siz tanlagan hududda {len(un_id)} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=btn)
         await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
 
-# Universitet izlash
+
 @reg_router.inline_query(FormReg.reg2)
 async def inline_search_university(inline_query: InlineQuery, state: FSMContext):
     text = inline_query.query.lower()
@@ -141,7 +142,8 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
     ]
 
     await inline_query.answer(results, cache_time=1, is_personal=True)
-# 
+
+
 @reg_router.message(FormReg.reg2)
 async def chosen_university(message: Message, state: FSMContext):
     if message.text == "🔙 Ortga":
@@ -279,6 +281,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
             await state.set_state(FormReg.reg5)
 
+
 @reg_router.inline_query(FormReg.reg5)
 async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
     text = inline_query.query.lower()
@@ -307,6 +310,7 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
         ) for id, mvdir, nomi in facs
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
+
 
 @reg_router.message(FormReg.reg5)
 async def chosen_lang(message: Message, state: FSMContext):

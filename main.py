@@ -9,6 +9,7 @@ from src.handlers.admins.messages import msg_router
 from src.handlers.others.groups import group_router
 from src.handlers.others.channels import channel_router
 from src.handlers.others.other import other_router
+from src.handlers.users.filter_ball import ball_router
 from src.handlers.users.filter_fac import fac_router
 from src.handlers.users.filter_reg import reg_router
 from src.handlers.users.users import user_router
@@ -31,6 +32,7 @@ async def main():
     dp.include_router(user_router)
     dp.include_router(fac_router)
     dp.include_router(reg_router)
+    dp.include_router(ball_router)
     dp.include_router(group_router)
     dp.include_router(channel_router)
     dp.include_router(other_router)
