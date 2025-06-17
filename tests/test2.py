@@ -10,6 +10,7 @@ cursor.execute("PRAGMA foreign_keys = ON")
 # REGIONS jadvali
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS regions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     region_id INTEGER UNIQUE,
     region_name TEXT UNIQUE
 )
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS getlangs (
 # MANDAT jadvali
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS mandat (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     region_id INTEGER,
     un_id TEXT,
     ty_id TEXT,

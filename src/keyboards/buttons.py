@@ -150,7 +150,6 @@ class UserPanels:
     async def regions_btn():
         cursor.execute("SELECT region_name FROM regions")
         rows = cursor.fetchall()
-        conn.close()
 
         # Har bir region_name uchun tugma yaratamiz
         keyboard = []
