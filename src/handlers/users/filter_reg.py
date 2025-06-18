@@ -80,6 +80,11 @@ async def chosen_university(message: Message, state: FSMContext):
         await state.clear()
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                                       reply_markup=await UserPanels.main_manu())
+    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                      reply_markup=await UserPanels.main_manu())
     else:
         region_name = message.text
         region_id = (cursor.execute("SELECT region_id FROM regions where region_name = ?", (region_name, ))).fetchone()[0]
@@ -88,6 +93,7 @@ async def chosen_university(message: Message, state: FSMContext):
         if un_id:
             await state.update_data(region_name=region_name)
             await state.update_data(region_id=region_id)
+            await state.update_data(un_number=len(un_id))
             await state.set_state(FormReg.reg2)
 
             kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -138,6 +144,37 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
 @reg_router.message(FormReg.reg2)
 async def chosen_university(message: Message, state: FSMContext):
     if message.text == "🔙 Ortga":
+        data = await state.get_data()
+        region_name = data.get("region_name")
+        cursor.execute(
+            "SELECT u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = ? ORDER BY u.un_text",
+            (region_name,))
+        un_id = cursor.fetchall()
+        try:
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+            ])
+            keyboard = []
+            for row in un_id:
+                keyboard.append([KeyboardButton(text=row[0])])
+
+            # Ortga tugmasini eng pastga qo‘shamiz
+            keyboard.append([KeyboardButton(text="🔙 Ortga")])
+
+            btn = ReplyKeyboardMarkup(
+                keyboard=keyboard,
+                resize_keyboard=True,
+            )
+            await message.answer(f"<b>Siz tanlagan hududda {len(un_id)} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>",
+                                 parse_mode="html", reply_markup=btn)
+            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+        except:
+            await message.delete()
+            await state.clear()
+            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                 reply_markup=await UserPanels.main_manu())
+
+    elif message.text == "🔙 Bosh menu":
         await message.delete()
         await state.clear()
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
@@ -185,6 +222,11 @@ async def chosen_type(message: Message, state: FSMContext):
             resize_keyboard=True,
         )
         await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                      reply_markup=await UserPanels.main_manu())
     else:
         name = message.text.lower()
         cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text)=?", (name,))
@@ -240,6 +282,11 @@ async def chosen_lang(message: Message, state: FSMContext):
         )
         await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
         await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                      reply_markup=await UserPanels.main_manu())
     else:
         cursor.execute("SELECT lan_id FROM getlangs WHERE lower(lan_text)=?", (lan_text,))
         lan_id = cursor.fetchall()
@@ -328,6 +375,11 @@ async def chosen_lang(message: Message, state: FSMContext):
             resize_keyboard=True,
         )
         await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
+    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                      reply_markup=await UserPanels.main_manu())
     else:
         galyan = message.text.split(" - ")
         mvdir = galyan[0]

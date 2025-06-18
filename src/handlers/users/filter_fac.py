@@ -76,6 +76,11 @@ async def chosen_university(message: Message, state: FSMContext):
         await state.clear()
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                                       reply_markup=await UserPanels.main_manu())
+    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                      reply_markup=await UserPanels.main_manu())
     else:
         mvdir = int(message.text.split(" - ")[0])
         cursor.execute('''
@@ -146,6 +151,11 @@ async def chosen_university(message: Message, state: FSMContext):
         await state.clear()
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                              reply_markup=await UserPanels.main_manu())
+    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                      reply_markup=await UserPanels.main_manu())
     else:
         name = message.text.lower()
         cursor.execute("SELECT un_id FROM universities WHERE lower(un_text)=?", (name,))
@@ -226,6 +236,11 @@ async def chosen_type(message: Message, state: FSMContext):
         await message.answer(f"<b>Siz tanlagan yo'nalish {un_id} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>",
                              parse_mode="html", reply_markup=await UserPanels.to_back())
         await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                      reply_markup=await UserPanels.main_manu())
     else:
         name = message.text.lower()
         cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text)=?", (name,))
@@ -283,6 +298,11 @@ async def chosen_lang(message: Message, state: FSMContext):
         )
         await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
         await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                      reply_markup=await UserPanels.main_manu())
     else:
         cursor.execute("SELECT lan_id FROM getlangs WHERE lower(lan_text)=?", (lan_text,))
         lan_id = cursor.fetchall()
