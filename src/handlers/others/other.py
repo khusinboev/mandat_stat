@@ -8,7 +8,7 @@ from src.keyboards.buttons import UserPanels
 other_router = Router()
 # some code...
 
-@other_router.message(F.text == "🔙 Ortga")
+@other_router.message()
 async def chosen_lang(message: Message, state: FSMContext):
     try:
         await message.delete()
