@@ -297,6 +297,7 @@ async def chosen_university(message: Message, state: FSMContext):
                 keyboard.append([KeyboardButton(text=row[0])])
 
             keyboard.append([KeyboardButton(text="🔙 Ortga")])
+            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -328,6 +329,7 @@ async def chosen_type(message: Message, state: FSMContext):
             keyboard.append([KeyboardButton(text=row[0])])
 
         keyboard.append([KeyboardButton(text="🔙 Ortga")])
+        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
 
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,
@@ -371,6 +373,7 @@ async def chosen_type(message: Message, state: FSMContext):
                 keyboard.append([KeyboardButton(text=row2[:60])])
 
             keyboard.append([KeyboardButton(text="🔙 Ortga")])
+            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -409,6 +412,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             keyboard.append([KeyboardButton(text=row2[:60])])
 
         keyboard.append([KeyboardButton(text="🔙 Ortga")])
+        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
 
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,
@@ -447,6 +451,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             for mvdir, nomi in rows:
                 keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
             keyboard.append([KeyboardButton(text="🔙 Ortga")])
+            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
                 resize_keyboard=True,
@@ -527,6 +532,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
 
         keyboard.append([KeyboardButton(text="🔙 Ortga")])
+        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,
             resize_keyboard=True,

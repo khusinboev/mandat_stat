@@ -168,6 +168,7 @@ async def chosen_university(message: Message, state: FSMContext):
 
             # Ortga tugmasini eng pastga qo‘shamiz
             keyboard.append([KeyboardButton(text="🔙 Ortga")])
+            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -250,6 +251,7 @@ async def chosen_type(message: Message, state: FSMContext):
 
                 # Ortga tugmasini eng pastga qo‘shamiz
                 keyboard.append([KeyboardButton(text="🔙 Ortga")])
+                keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
 
                 btn = ReplyKeyboardMarkup(
                     keyboard=keyboard,
@@ -277,6 +279,7 @@ async def chosen_lang(message: Message, state: FSMContext):
 
         # Ortga tugmasini eng pastga qo‘shamiz
         keyboard.append([KeyboardButton(text="🔙 Ortga")])
+        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
 
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,
