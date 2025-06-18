@@ -1,12 +1,16 @@
+import os
+
 from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.filters import CommandStart
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \
-    InlineQueryResultArticle, InputTextMessageContent, ChosenInlineResult, KeyboardButton, ReplyKeyboardMarkup
+    InlineQueryResultArticle, InputTextMessageContent, ChosenInlineResult, KeyboardButton, ReplyKeyboardMarkup, \
+    FSInputFile
 
 from config import sql, bot, ADMIN_ID, cursor, conn
+from src.handlers.users.users import create_card
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 
@@ -104,8 +108,7 @@ async def chosen_university(message: Message, state: FSMContext):
                 keyboard.append([KeyboardButton(text=row[0])])
 
             # Ortga tugmasini eng pastga qo‘shamiz
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -160,8 +163,7 @@ async def chosen_university(message: Message, state: FSMContext):
                 keyboard.append([KeyboardButton(text=row[0])])
 
             # Ortga tugmasini eng pastga qo‘shamiz
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -195,8 +197,7 @@ async def chosen_university(message: Message, state: FSMContext):
             for row in rows:
                 keyboard.append([KeyboardButton(text=row[1])])
 
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -250,8 +251,7 @@ async def chosen_type(message: Message, state: FSMContext):
             for row1, row2 in rows:
                 keyboard.append([KeyboardButton(text=row2[:60])])
 
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -310,8 +310,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             for mvdir, nomi in rows:
                 keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
 
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
                 resize_keyboard=True,
@@ -406,4 +405,8 @@ async def chosen_lang(message: Message, state: FSMContext):
                 f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text[0]}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
                 f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
                 f"<b>© <a href='https://t.me/mandatjavobbot?start=share'>@mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>")
-            await message.answer(message_text, parse_mode="html")
+            user_id = message.from_user.id
+            if create_card(univer=un_name[0], faculty=str(mvdir) + ' - ' + nomi, lang=lan_text[0], edu=ty_text[0], grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
+                await message.answer_photo(photo=FSInputFile(f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"), caption=message_text, parse_mode="html")
+            else:
+                await message.answer(message_text, parse_mode="html")
