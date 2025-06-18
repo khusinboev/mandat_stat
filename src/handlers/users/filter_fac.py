@@ -1,12 +1,15 @@
+import os
 from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.filters import CommandStart
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \
-    InlineQueryResultArticle, InputTextMessageContent, ChosenInlineResult, KeyboardButton, ReplyKeyboardMarkup
+    InlineQueryResultArticle, InputTextMessageContent, ChosenInlineResult, KeyboardButton, ReplyKeyboardMarkup, \
+    FSInputFile
 
 from config import sql, bot, ADMIN_ID, cursor, conn
+from src.handlers.users.users import create_card
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 
@@ -315,6 +318,27 @@ async def chosen_lang(message: Message, state: FSMContext):
                            f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text[0]}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
                            f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
                            f"<b>© <a href='https://t.me/mandatjavobbot?start=share'>@mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>")
-            await message.answer(message_text, parse_mode="html")
-
+            # await message.answer(message_text, parse_mode="html")
+            user_id = message.from_user.id
+            old = cursor.execute(
+                """ SELECT file_id FROM photos WHERE un_id = ? AND ty_id = ? AND lan_id = ? AND mvdir = ? """,
+                (un_id, ty_id, lan_id, mvdir)).fetchone()
+            if old:
+                await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
+            else:
+                if create_card(univer=un_name[0], faculty=str(mvdir) + ' - ' + nomi, lang=lan_text[0], edu=ty_text[0],
+                               grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
+                    sent_message = await message.answer_photo(
+                        photo=FSInputFile(f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"),
+                        caption=message_text, parse_mode="html")
+                    file_id = sent_message.photo[-1].file_id
+                    cursor.execute("""
+                                            INSERT OR IGNORE INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
+                                            VALUES (?, ?, ?, ?, ?)
+                                        """, (un_id, ty_id, lan_id, mvdir, file_id))
+                    conn.commit()
+                    if os.path.exists(f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"):
+                        os.remove(f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg")
+                else:
+                    await message.answer(message_text, parse_mode="html")
 

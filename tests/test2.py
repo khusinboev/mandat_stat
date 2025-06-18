@@ -80,6 +80,17 @@ CREATE TABLE IF NOT EXISTS mandat (
 )
 ''')
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    un_id TEXT NOT NULL,
+    ty_id TEXT NOT NULL,
+    lan_id TEXT NOT NULL,
+    mvdir TEXT NOT NULL,
+    file_id TEXT NOT NULL,
+    UNIQUE(un_id, ty_id, lan_id, mvdir, file_id)
+);
+""")
 conn.commit()
 
 
