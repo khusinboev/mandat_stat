@@ -102,11 +102,11 @@ async def enter_direction(message: Message, state: FSMContext):
                     cursor.execute(
                         "SELECT r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id WHERE m.con_b <= ? AND m.con_b != 0",
                         (message.text,))
-                    regions = cursor.fetchall()
+                    regions = set(cursor.fetchall())
                     if regions:
                         keyboard = []
                         for row in regions:
-                            keyboard.append([KeyboardButton(text=row)])
+                            keyboard.append([KeyboardButton(text=row[0])])
 
                         # Ortga tugmasini eng pastga qo‘shamiz
                         keyboard.append([KeyboardButton(text="🔙 Ortga")])
@@ -123,13 +123,13 @@ async def enter_direction(message: Message, state: FSMContext):
                         kb = InlineKeyboardMarkup(inline_keyboard=[
                             [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
                         ])
-                        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+                        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html",
+                                             reply_markup=kb)
                         await state.set_state(FormBall.ball2)
                     else:
                         await message.answer("<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>", parse_mode="html")
                         await message.answer("<b>Saralash uchun ballni kiriting:</b>", parse_mode="html",
                                              reply_markup=await UserPanels.to_back())
-                await state.update_data(ball=message.text)
 
 
 @ball_router.inline_query(FormBall.ball2)
