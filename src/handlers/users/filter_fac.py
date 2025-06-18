@@ -27,8 +27,7 @@ async def enter_direction(message: Message, state: FSMContext):
         cursor.execute("SELECT region_id, un_id, ty_id, lan_id, mvdir, nomi FROM mandat")
         row = len(set(cursor.fetchall()))
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-            [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
+            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
         await message.answer(f"<b>{row} ta yo'nalish mavjud \n\n📚 Ta'lim yo'nalishini tanlang:</b>",
                              parse_mode="html", reply_markup=await UserPanels.to_back())
@@ -54,19 +53,20 @@ async def inline_search_region(inline_query: InlineQuery):
         cursor.execute("SELECT id, region_id, un_id, ty_id, lan_id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ?", (f"%{text}%",))
     else:
         cursor.execute("SELECT id, region_id, un_id, ty_id, lan_id, mvdir, nomi FROM mandat")
-
-    facs = list(dict.fromkeys(cursor.fetchall()))[:50]
-    results = [
-        InlineQueryResultArticle(
-            id=str(id),  # Ensure ID is string
-            title=f"{mvdir} - {nomi}",
-            input_message_content=InputTextMessageContent(
-                message_text=f'{mvdir} - {nomi}',
-                parse_mode="HTML"
-            )
-        ) for id, region_id, un_id, ty_id, lan_id, mvdir, nomi in facs
-    ]
-    await inline_query.answer(results, cache_time=1, is_personal=True)
+    facs = cursor.fetchall()
+    if facs:
+        facs = list(dict.fromkeys(facs))[:50]
+        results = [
+            InlineQueryResultArticle(
+                id=str(id),  # Ensure ID is string
+                title=f"{mvdir} - {nomi}",
+                input_message_content=InputTextMessageContent(
+                    message_text=f'{mvdir} - {nomi}',
+                    parse_mode="HTML"
+                )
+            ) for id, region_id, un_id, ty_id, lan_id, mvdir, nomi in facs
+        ]
+        await inline_query.answer(results, cache_time=1, is_personal=True)
 
 
 @fac_router.message(FormFac.fac1)
@@ -86,16 +86,17 @@ async def chosen_university(message: Message, state: FSMContext):
                     GROUP BY u.un_id, u.un_text
                     ORDER BY u.un_text
                 ''', (mvdir,))
-        un_id = len(cursor.fetchall())
-        await state.update_data(mvdir=mvdir)
-        await state.set_state(FormFac.fac2)
+        un_id = cursor.fetchall()
+        if un_id:
+            un_id = len(un_id)
+            await state.update_data(mvdir=mvdir)
+            await state.set_state(FormFac.fac2)
 
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-                [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
-        ])
-        await message.answer(f"<b>Siz tanlagan yo'nalish {un_id} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=await UserPanels.to_back())
-        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+            ])
+            await message.answer(f"<b>Siz tanlagan yo'nalish {un_id} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=await UserPanels.to_back())
+            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
 
 # Universitet izlash
 @fac_router.inline_query(FormFac.fac2)
@@ -124,17 +125,19 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
         ''', (mvdir,))
-    universities = list(dict.fromkeys(cursor.fetchall()))[:50]
+    universities = cursor.fetchall()
+    if universities:
+        universities = list(dict.fromkeys(universities))[:50]
 
-    results = [
-        InlineQueryResultArticle(
-            id=un_id,
-            title=un_text,
-            input_message_content=InputTextMessageContent(message_text=un_text)
-        ) for un_id, un_text in universities
-    ]
+        results = [
+            InlineQueryResultArticle(
+                id=un_id,
+                title=un_text,
+                input_message_content=InputTextMessageContent(message_text=un_text)
+            ) for un_id, un_text in universities
+        ]
 
-    await inline_query.answer(results, cache_time=1, is_personal=True)
+        await inline_query.answer(results, cache_time=1, is_personal=True)
 
 @fac_router.message(FormFac.fac2)
 async def chosen_university(message: Message, state: FSMContext):
@@ -150,24 +153,24 @@ async def chosen_university(message: Message, state: FSMContext):
         await state.update_data(un_id=un_id)
         await state.set_state(FormFac.fac3)
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-                [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
+            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
-        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=?", (un_id, ))
-        keyboard = []
-        for row in rows:
-            region_name = row[1]
-            keyboard.append([KeyboardButton(text=region_name)])
+        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=?", (un_id, )).fetchall()
+        if rows:
+            keyboard = []
+            for row in rows:
+                region_name = row[1]
+                keyboard.append([KeyboardButton(text=region_name)])
 
-        # Ortga tugmasini eng pastga qo‘shamiz
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
+            # Ortga tugmasini eng pastga qo‘shamiz
+            keyboard.append([KeyboardButton(text="🔙 Ortga")])
 
-        btn = ReplyKeyboardMarkup(
-            keyboard=keyboard,
-            resize_keyboard=True,
-        )
-        await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
-        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+            btn = ReplyKeyboardMarkup(
+                keyboard=keyboard,
+                resize_keyboard=True,
+            )
+            await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
 
 @fac_router.callback_query(F.data == "to_back", FormFac.fac2)
 async def handle_hello(callback: CallbackQuery, state: FSMContext):
@@ -189,17 +192,17 @@ async def inline_search_type(inline_query: InlineQuery, state: FSMContext):
         cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE lower(ty_text) LIKE ? AND un_id=?", (f"%{text}%", un_id))
     else:
         cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=?", (un_id, ))
-
-    types = list(dict.fromkeys(cursor.fetchall()))[:50]
-    results = [
-        InlineQueryResultArticle(
-            id=ty_id,
-            title=ty_text,
-            input_message_content=InputTextMessageContent(message_text=ty_text)
-        ) for ty_id, ty_text in types
-    ]
-
-    await inline_query.answer(results, cache_time=1, is_personal=True)
+    types = cursor.fetchall()
+    if types:
+        types = list(dict.fromkeys(types))[:50]
+        results = [
+            InlineQueryResultArticle(
+                id=ty_id,
+                title=ty_text,
+                input_message_content=InputTextMessageContent(message_text=ty_text)
+            ) for ty_id, ty_text in types
+        ]
+        await inline_query.answer(results, cache_time=1, is_personal=True)
 
 @fac_router.message(FormFac.fac3)
 async def chosen_type(message: Message, state: FSMContext):
@@ -218,8 +221,7 @@ async def chosen_type(message: Message, state: FSMContext):
                                 ''', (mvdir,))
         un_id = len(cursor.fetchall())
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-            [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
+            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
         await message.answer(f"<b>Siz tanlagan yo'nalish {un_id} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>",
                              parse_mode="html", reply_markup=await UserPanels.to_back())
@@ -240,41 +242,20 @@ async def chosen_type(message: Message, state: FSMContext):
                 JOIN getlangs g ON m.lan_id = g.lan_id
                 WHERE m.un_id = ? AND m.ty_id = ?
             ''', (un_id, ty_id)).fetchall()
-            keyboard = []
-            for row1, row2 in rows:
-                keyboard.append([KeyboardButton(text=row2[:60])])
+            if rows:
+                keyboard = []
+                for row1, row2 in rows:
+                    keyboard.append([KeyboardButton(text=row2[:60])])
 
-            # Ortga tugmasini eng pastga qo‘shamiz
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
+                # Ortga tugmasini eng pastga qo‘shamiz
+                keyboard.append([KeyboardButton(text="🔙 Ortga")])
 
-            btn = ReplyKeyboardMarkup(
-                keyboard=keyboard,
-                resize_keyboard=True,
-            )
-            await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
+                btn = ReplyKeyboardMarkup(
+                    keyboard=keyboard,
+                    resize_keyboard=True,
+                )
+                await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
 
-@fac_router.callback_query(F.data == "to_back", FormFac.fac3)
-async def handle_hello(callback: CallbackQuery, state: FSMContext):
-    await callback.message.delete()
-    await state.set_state(FormFac.fac2)
-    data = await state.get_data()
-    mvdir = data.get("mvdir")
-    cursor.execute('''
-                                SELECT u.un_id, u.un_text
-                                FROM mandat m
-                                JOIN universities u ON m.un_id = u.un_id
-                                WHERE m.mvdir = ?
-                                GROUP BY u.un_id, u.un_text
-                                ORDER BY u.un_text
-                            ''', (mvdir,))
-    un_id = len(cursor.fetchall())
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-        [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
-    ])
-    await callback.answer(f"<b>Siz tanlagan yo'nalish {un_id} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>",
-                         parse_mode="html", reply_markup=await UserPanels.to_back())
-    await callback.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
 
 @fac_router.message(FormFac.fac4)
 async def chosen_lang(message: Message, state: FSMContext):
@@ -285,8 +266,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         data = await state.get_data()
         un_id = data.get("un_id")
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-            [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
+            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
         rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=?", (un_id,))
         keyboard = []
@@ -329,29 +309,6 @@ async def chosen_lang(message: Message, state: FSMContext):
                            f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text[0]}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
                            f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
                            f"<b>© <a href='https://t.me/xabardor_bol_bot?start=share'>@xabardor_bol_bot</a> - oʻtish ballari va mandat natijalari</b>")
-            await message.answer(message_text, parse_mode="html", reply_markup=await UserPanels.to_back())
-            await state.set_state(FormFac.fac5)
+            await message.answer(message_text, parse_mode="html")
 
-@fac_router.message(FormFac.fac5)
-async def chosen_lang(message: Message, state: FSMContext):
-    if message.text == "🔙 Ortga":
-        await message.delete()
-        await state.set_state(FormFac.fac4)
-        data = await state.get_data()
-        un_id = data.get("un_id")
-        ty_id = data.get("ty_id")
-        rows = cursor.execute("SELECT lan_text FROM getlangs WHERE un_id=? and ty_id=?",
-                              (un_id, ty_id[0][0])).fetchall()
-        keyboard = []
-        for row2 in rows:
-            keyboard.append([KeyboardButton(text=row2[0][:60])])
-
-        # Ortga tugmasini eng pastga qo‘shamiz
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
-
-        btn = ReplyKeyboardMarkup(
-            keyboard=keyboard,
-            resize_keyboard=True,
-        )
-        await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
 

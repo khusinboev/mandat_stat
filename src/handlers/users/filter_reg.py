@@ -27,8 +27,7 @@ async def enter_direction(message: Message, state: FSMContext):
         cursor.execute("SELECT region_id, region_name FROM regions")
         rows = cursor.fetchall()
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-            [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
+            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
         keyboard = []
         for row in rows:
@@ -51,14 +50,6 @@ async def enter_direction(message: Message, state: FSMContext):
                              reply_markup=await CheckData.channels_btn(channels))
 
 
-@reg_router.callback_query(F.data == "to_back", FormReg.reg1)
-async def handle_hello(callback: CallbackQuery, state: FSMContext):
-    await callback.message.delete()
-    await state.clear()
-    await callback.message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                         reply_markup=await UserPanels.main_manu())
-
-
 @reg_router.inline_query(FormReg.reg1)
 async def inline_search_region(inline_query: InlineQuery):
     text = inline_query.query.lower()
@@ -67,19 +58,19 @@ async def inline_search_region(inline_query: InlineQuery):
         cursor.execute("SELECT id, region_id, region_name FROM regions WHERE lower(nomi) LIKE ?", (f"%{text}%",))
     else:
         cursor.execute("SELECT id, region_id, region_name FROM regions")
-
     facs = cursor.fetchall()
-    results = [
-        InlineQueryResultArticle(
-            id=str(id),  # Ensure ID is string
-            title=region_name,
-            input_message_content=InputTextMessageContent(
-                message_text=region_name,
-                parse_mode="HTML"
-            )
-        ) for id, region_id, region_name in facs
-    ]
-    await inline_query.answer(results, cache_time=1, is_personal=True)
+    if facs:
+        results = [
+            InlineQueryResultArticle(
+                id=str(id),  # Ensure ID is string
+                title=region_name,
+                input_message_content=InputTextMessageContent(
+                    message_text=region_name,
+                    parse_mode="HTML"
+                )
+            ) for id, region_id, region_name in facs
+        ]
+        await inline_query.answer(results, cache_time=1, is_personal=True)
 
 
 @reg_router.message(FormReg.reg1)
@@ -94,27 +85,27 @@ async def chosen_university(message: Message, state: FSMContext):
         region_id = (cursor.execute("SELECT region_id FROM regions where region_name = ?", (region_name, ))).fetchone()[0]
         cursor.execute("SELECT u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = ? ORDER BY u.un_text", (region_name,))
         un_id = cursor.fetchall()
-        await state.update_data(region_name=region_name)
-        await state.update_data(region_id=region_id)
-        await state.set_state(FormReg.reg2)
+        if un_id:
+            await state.update_data(region_name=region_name)
+            await state.update_data(region_id=region_id)
+            await state.set_state(FormReg.reg2)
 
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-                [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
-        ])
-        keyboard = []
-        for row in un_id:
-            keyboard.append([KeyboardButton(text=row[0])])
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+            ])
+            keyboard = []
+            for row in un_id:
+                keyboard.append([KeyboardButton(text=row[0])])
 
-        # Ortga tugmasini eng pastga qo‘shamiz
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
+            # Ortga tugmasini eng pastga qo‘shamiz
+            keyboard.append([KeyboardButton(text="🔙 Ortga")])
 
-        btn = ReplyKeyboardMarkup(
-            keyboard=keyboard,
-            resize_keyboard=True,
-        )
-        await message.answer(f"<b>Siz tanlagan hududda {len(un_id)} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=btn)
-        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+            btn = ReplyKeyboardMarkup(
+                keyboard=keyboard,
+                resize_keyboard=True,
+            )
+            await message.answer(f"<b>Siz tanlagan hududda {len(un_id)} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=btn)
+            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
 
 
 @reg_router.inline_query(FormReg.reg2)
@@ -131,17 +122,17 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
             (region_name, f"%{text.lower()}%"))
     else:
         cursor.execute("SELECT u.id, u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = ? ORDER BY u.un_text", (region_name, ))
-    universities = list(dict.fromkeys(cursor.fetchall()))[:50]
-
-    results = [
-        InlineQueryResultArticle(
-            id=str(un_id),
-            title=un_text,
-            input_message_content=InputTextMessageContent(message_text=un_text)
-        ) for un_id, un_text in universities
-    ]
-
-    await inline_query.answer(results, cache_time=1, is_personal=True)
+    universities = cursor.fetchall()
+    if universities:
+        universities = list(dict.fromkeys(universities))[:50]
+        results = [
+            InlineQueryResultArticle(
+                id=str(un_id),
+                title=un_text,
+                input_message_content=InputTextMessageContent(message_text=un_text)
+            ) for un_id, un_text in universities
+        ]
+        await inline_query.answer(results, cache_time=1, is_personal=True)
 
 
 @reg_router.message(FormReg.reg2)
@@ -159,18 +150,19 @@ async def chosen_university(message: Message, state: FSMContext):
         await state.set_state(FormReg.reg3)
         data = await state.get_data()
         region_id = data.get("region_id")
-        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=? and un_id=?", (region_id, un_id, ))
-        keyboard = []
-        for row in rows:
-            keyboard.append([KeyboardButton(text=row[1])])
+        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=? and un_id=?", (region_id, un_id, )).fetchall()
+        if rows:
+            keyboard = []
+            for row in rows:
+                keyboard.append([KeyboardButton(text=row[1])])
 
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga")])
 
-        btn = ReplyKeyboardMarkup(
-            keyboard=keyboard,
-            resize_keyboard=True,
-        )
-        await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+            btn = ReplyKeyboardMarkup(
+                keyboard=keyboard,
+                resize_keyboard=True,
+            )
+            await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
 
 
 @reg_router.message(FormReg.reg3)
@@ -231,8 +223,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         data = await state.get_data()
         un_id = data.get("un_id")
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")],
-            [InlineKeyboardButton(text="🔙 Ortga", callback_data="to_back")]
+            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
         rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=?", (un_id,))
         keyboard = []
@@ -359,25 +350,3 @@ async def chosen_lang(message: Message, state: FSMContext):
                 f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
                 f"<b>© <a href='https://t.me/xabardor_bol_bot?start=share'>@xabardor_bol_bot</a> - oʻtish ballari va mandat natijalari</b>")
             await message.answer(message_text, parse_mode="html")
-
-
-# 
-# @reg_router.message(F.text == "🔙 Ortga")
-# async def chosen_lang(message: Message, state: FSMContext):
-#     try:
-#         await message.delete()
-#     except: pass
-#     await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-#                          reply_markup=await UserPanels.main_manu())
-# 
-# 
-# # Shu yerda keyingi bosqichni (reg5 va hokazo) davom ettirishingiz mumkin.
-# @reg_router.callback_query()
-# async def handle_hello(callback: CallbackQuery):
-#     try:
-#         await callback.message.delete()
-#     except Exception as e:
-#         try:
-#             await bot.delete_message(chat_id=callback.from_user.id, message_id=callback.inline_message_id )
-#         except:
-#             pass
