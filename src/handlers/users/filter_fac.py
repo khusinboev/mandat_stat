@@ -37,12 +37,6 @@ async def enter_direction(message: Message, state: FSMContext):
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
                              reply_markup=await CheckData.channels_btn(channels))
 
-@fac_router.callback_query(F.data == "to_back", FormFac.fac1)
-async def handle_hello(callback: CallbackQuery, state: FSMContext):
-    await callback.message.delete()
-    await state.clear()
-    await callback.message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                         reply_markup=await UserPanels.main_manu())
 
 # Region izlash
 @fac_router.inline_query(FormFac.fac1)
@@ -182,14 +176,6 @@ async def chosen_university(message: Message, state: FSMContext):
             await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
             await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
 
-@fac_router.callback_query(F.data == "to_back", FormFac.fac2)
-async def handle_hello(callback: CallbackQuery, state: FSMContext):
-    try:
-        await callback.delete()
-    except: pass
-    await state.clear()
-    await callback.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                         reply_markup=await UserPanels.main_manu())
 
 # Ta'lim turi
 @fac_router.inline_query(FormFac.fac3)
