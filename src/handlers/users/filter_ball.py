@@ -107,6 +107,8 @@ async def enter_direction(message: Message, state: FSMContext):
                 else:
                     await message.answer("<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>", parse_mode="html")
                     await message.answer("<b>Saralash uchun ballni kiriting:</b>", parse_mode="html", reply_markup=await UserPanels.to_back())
+
+
 @ball_router.inline_query(FormBall.ball2)
 async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
     text = inline_query.query.lower()
@@ -436,44 +438,26 @@ async def chosen_lang(message: Message, state: FSMContext):
             if shakl == "gr":
                 cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=? and gr_b<=?""",
                                (reg_id, un_id, ty_id, lan_id, ball))
-                keyboard = []
-                rows = cursor.fetchall()
-                for mvdir, nomi in rows:
-                    keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
-
-                keyboard.append([KeyboardButton(text="🔙 Ortga")])
-                btn = ReplyKeyboardMarkup(
-                    keyboard=keyboard,
-                    resize_keyboard=True,
-                )
-                kb = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-                ])
-                message_text = f"{len(list(dict.fromkeys(rows)))} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
-                await message.answer(message_text, parse_mode="html", reply_markup=btn)
-                await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-                await state.set_state(FormBall.ball6)
             elif shakl == "kn":
                 cursor.execute(
                     """SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=? and con_b<=?""",
                     (reg_id, un_id, ty_id, lan_id, ball))
-                keyboard = []
-                rows = cursor.fetchall()
-                for mvdir, nomi in rows:
-                    keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
-
-                keyboard.append([KeyboardButton(text="🔙 Ortga")])
-                btn = ReplyKeyboardMarkup(
-                    keyboard=keyboard,
-                    resize_keyboard=True,
-                )
-                kb = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-                ])
-                message_text = f"{len(list(dict.fromkeys(rows)))} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
-                await message.answer(message_text, parse_mode="html", reply_markup=btn)
-                await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-                await state.set_state(FormBall.ball6)
+            keyboard = []
+            rows = cursor.fetchall()
+            for mvdir, nomi in rows:
+                keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga")])
+            btn = ReplyKeyboardMarkup(
+                keyboard=keyboard,
+                resize_keyboard=True,
+            )
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+            ])
+            message_text = f"{len(list(dict.fromkeys(rows)))} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
+            await message.answer(message_text, parse_mode="html", reply_markup=btn)
+            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+            await state.set_state(FormBall.ball6)
 
 
 @ball_router.inline_query(FormBall.ball6)
@@ -491,22 +475,6 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
             cursor.execute("SELECT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ? and region_id=? and un_id=? and ty_id=? and lan_id=? and gr_b<=?", (f"%{text}%", reg_id, un_id, ty_id, lan_id, ball))
         else:
             cursor.execute("SELECT id, mvdir, nomi FROM mandat where region_id=? and un_id=? and ty_id=? and lan_id=? and gr_b<=?", (reg_id, un_id, ty_id, lan_id, ball))
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-        ])
-        facs = list(dict.fromkeys(cursor.fetchall()))[:50]
-        results = [
-            InlineQueryResultArticle(
-                id=str(id),  # Ensure ID is string
-                title=f"{mvdir} - {nomi}",
-                input_message_content=InputTextMessageContent(
-                    message_text=f'{mvdir} - {nomi}',
-                    parse_mode="HTML"
-                ),
-                reply_markup=kb
-            ) for id, mvdir, nomi in facs
-        ]
-        await inline_query.answer(results, cache_time=1, is_personal=True)
     elif shakl == "kn":
         if text:
             cursor.execute(
@@ -516,22 +484,22 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
             cursor.execute(
                 "SELECT id, mvdir, nomi FROM mandat where region_id=? and un_id=? and ty_id=? and lan_id=? and con_b<=?",
                 (reg_id, un_id, ty_id, lan_id, ball))
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-        ])
-        facs = list(dict.fromkeys(cursor.fetchall()))[:50]
-        results = [
-            InlineQueryResultArticle(
-                id=str(id),  # Ensure ID is string
-                title=f"{mvdir} - {nomi}",
-                input_message_content=InputTextMessageContent(
-                    message_text=f'{mvdir} - {nomi}',
-                    parse_mode="HTML"
-                ),
-                reply_markup=kb
-            ) for id, mvdir, nomi in facs
-        ]
-        await inline_query.answer(results, cache_time=1, is_personal=True)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+    ])
+    facs = list(dict.fromkeys(cursor.fetchall()))[:50]
+    results = [
+        InlineQueryResultArticle(
+            id=str(id),  # Ensure ID is string
+            title=f"{mvdir} - {nomi}",
+            input_message_content=InputTextMessageContent(
+                message_text=f'{mvdir} - {nomi}',
+                parse_mode="HTML"
+            ),
+            reply_markup=kb
+        ) for id, mvdir, nomi in facs
+    ]
+    await inline_query.answer(results, cache_time=1, is_personal=True)
 
 
 @ball_router.message(FormBall.ball6)
@@ -549,44 +517,27 @@ async def chosen_lang(message: Message, state: FSMContext):
             cursor.execute(
                 """SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=? and gr_b<=?""",
                 (reg_id, un_id, ty_id, lan_id, ball))
-            keyboard = []
-            rows = cursor.fetchall()
-            for mvdir, nomi in rows:
-                keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
-
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            btn = ReplyKeyboardMarkup(
-                keyboard=keyboard,
-                resize_keyboard=True,
-            )
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-            ])
-            message_text = f"{len(list(dict.fromkeys(rows)))} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
-            await message.answer(message_text, parse_mode="html", reply_markup=btn)
-            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-            await state.set_state(FormBall.ball6)
         elif shakl == "kn":
             cursor.execute(
                 """SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=? and con_b<=?""",
                 (reg_id, un_id, ty_id, lan_id, ball))
-            keyboard = []
-            rows = cursor.fetchall()
-            for mvdir, nomi in rows:
-                keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
+        keyboard = []
+        rows = cursor.fetchall()
+        for mvdir, nomi in rows:
+            keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
 
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            btn = ReplyKeyboardMarkup(
-                keyboard=keyboard,
-                resize_keyboard=True,
-            )
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-            ])
-            message_text = f"{len(list(dict.fromkeys(rows)))} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
-            await message.answer(message_text, parse_mode="html", reply_markup=btn)
-            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-            await state.set_state(FormBall.ball6)
+        keyboard.append([KeyboardButton(text="🔙 Ortga")])
+        btn = ReplyKeyboardMarkup(
+            keyboard=keyboard,
+            resize_keyboard=True,
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+        ])
+        message_text = f"{len(list(dict.fromkeys(rows)))} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
+        await message.answer(message_text, parse_mode="html", reply_markup=btn)
+        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+        await state.set_state(FormBall.ball6)
     elif message.text == "🔙 Bosh menu":
         await message.delete()
         await state.clear()
