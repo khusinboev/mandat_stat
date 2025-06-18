@@ -35,8 +35,7 @@ async def enter_direction(message: Message, state: FSMContext):
             keyboard.append([KeyboardButton(text=region_name)])
 
         # Ortga tugmasini eng pastga qo‘shamiz
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
-        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,
@@ -219,8 +218,7 @@ async def chosen_type(message: Message, state: FSMContext):
             region_name = row[1]
             keyboard.append([KeyboardButton(text=region_name)])
 
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
-        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,
@@ -280,8 +278,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             keyboard.append([KeyboardButton(text=region_name)])
 
         # Ortga tugmasini eng pastga qo‘shamiz
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
-        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,
@@ -376,8 +373,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         for row1, row2 in rows:
             keyboard.append([KeyboardButton(text=row2[:60])])
 
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
-        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,

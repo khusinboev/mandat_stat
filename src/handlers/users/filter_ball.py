@@ -249,8 +249,7 @@ async def chosen_university(message: Message, state: FSMContext):
             keyboard = []
             for row in rows:
                 keyboard.append([KeyboardButton(text=row[0])])
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
                 resize_keyboard=True,
@@ -296,8 +295,7 @@ async def chosen_university(message: Message, state: FSMContext):
             for row in set(rows.fetchall()):
                 keyboard.append([KeyboardButton(text=row[0])])
 
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -309,7 +307,10 @@ async def chosen_university(message: Message, state: FSMContext):
 @ball_router.message(FormBall.ball4)
 async def chosen_type(message: Message, state: FSMContext):
     if message.text == "🔙 Ortga":
-        await message.delete()
+        try:
+            await message.delete()
+        except:
+            pass
         data = await state.get_data()
         reg_id = data.get("reg_id")
         un_id = data.get("un_id")
@@ -337,8 +338,10 @@ async def chosen_type(message: Message, state: FSMContext):
         )
         await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
     elif message.text == "🔙 Bosh menu":
-        await message.delete()
-        await state.clear()
+        try:
+            await message.delete()
+            await state.clear()
+        except: pass
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                                       reply_markup=await UserPanels.main_manu())
     else:
@@ -372,8 +375,7 @@ async def chosen_type(message: Message, state: FSMContext):
             for row1, row2 in rows:
                 keyboard.append([KeyboardButton(text=row2[:60])])
 
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
@@ -450,8 +452,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             rows = cursor.fetchall()
             for mvdir, nomi in rows:
                 keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
-            keyboard.append([KeyboardButton(text="🔙 Ortga")])
-            keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
             btn = ReplyKeyboardMarkup(
                 keyboard=keyboard,
                 resize_keyboard=True,
@@ -510,40 +511,42 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
 @ball_router.message(FormBall.ball6)
 async def chosen_lang(message: Message, state: FSMContext):
     if message.text == "🔙 Ortga":
+        await state.set_state(FormBall.ball5)
+        try:
+            await message.delete()
+        except:
+            pass
         data = await state.get_data()
-        un_id = data["un_id"]
-        ty_id = data["ty_id"]
-        lan_id = data["lan_id"]
+        un_id = data.get("un_id")
         reg_id = data.get("reg_id")
         shakl = data["shakl"]
         ball = data["ball"]
-
+        ty_id = data["ty_id"]
         if shakl == "gr":
-            cursor.execute(
-                """SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=? and gr_b<=?""",
-                (reg_id, un_id, ty_id, lan_id, ball))
+            rows = cursor.execute('''
+                                    SELECT DISTINCT g.lan_id, g.lan_text
+                                    FROM mandat m
+                                    JOIN getlangs g ON m.lan_id = g.lan_id
+                                    WHERE m.un_id = ? AND m.ty_id = ? AND m.region_id = ? AND m.gr_b <= ? AND m.gr_b != 0 AND m.ty_id = 1
+                                ''', (un_id, ty_id, reg_id, ball)).fetchall()
         elif shakl == "kn":
-            cursor.execute(
-                """SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=? and con_b<=?""",
-                (reg_id, un_id, ty_id, lan_id, ball))
+            rows = cursor.execute('''
+                                                        SELECT DISTINCT g.lan_id, g.lan_text
+                                                        FROM mandat m
+                                                        JOIN getlangs g ON m.lan_id = g.lan_id
+                                                        WHERE m.un_id = ? AND m.ty_id = ? AND m.region_id = ? AND m.con_b <= ? AND m.con_b != 0
+                                                    ''', (un_id, ty_id, reg_id, ball)).fetchall()
         keyboard = []
-        rows = cursor.fetchall()
-        for mvdir, nomi in rows:
-            keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
+        for row1, row2 in rows:
+            keyboard.append([KeyboardButton(text=row2[:60])])
 
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
-        keyboard.append([KeyboardButton(text="🔙 Bosh menu")])
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+
         btn = ReplyKeyboardMarkup(
             keyboard=keyboard,
             resize_keyboard=True,
         )
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-        ])
-        message_text = f"{len(list(dict.fromkeys(rows)))} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
-        await message.answer(message_text, parse_mode="html", reply_markup=btn)
-        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-        await state.set_state(FormBall.ball6)
+        await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
     elif message.text == "🔙 Bosh menu":
         await message.delete()
         await state.clear()
