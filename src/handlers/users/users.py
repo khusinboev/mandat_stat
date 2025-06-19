@@ -114,7 +114,7 @@ async def start_cmd6(message: Message):
 "📝 O'qishni ko'chirish imtihonlarida test topshiriladigan fanlar majmuasi.\n\n"
 "✔️ Yo'nalishlar bo'yicha qaysi fandan imtihon bo'lishi ko'rsatilgan.\n\n"
 "⚠️ Oʻqishni koʻchirishda aynan mana shu 2024/2025-o'quv yilidagi fanlar majmuasidan foydalaniladi. \n\n"
-"© @mandat_javobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>"
+"© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>"
     , parse_mode="html")
 
 @user_router.message(F.text == "📊 O'tish ballari️")
