@@ -15,7 +15,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         await state.clear()
     except: pass
     await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                         reply_markup=await UserPanels.main_manu())
+                         reply_markup=await UserPanels.asos_manu())
 
 
 # Shu yerda keyingi bosqichni (fac5 va hokazo) davom ettirishingiz mumkin.

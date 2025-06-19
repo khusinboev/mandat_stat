@@ -117,7 +117,42 @@ class UserPanels:
                 ],
                 [
                     KeyboardButton(text="📈 Viloyatlar kesimida")
+                ],
+                [KeyboardButton(text="◀️ Ortga")]
+            ],
+            resize_keyboard=True,
+        )
+        return btn
+
+    @staticmethod
+    async def asos_manu():
+        btn = ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="📕BAKALAVRIAT 2024"),
+                    KeyboardButton(text="🧮 Tabaqalashtirilgan kontrakt miqdori")
+                ],
+                [
+                    KeyboardButton(text="📘O'qishni ko'chirish"),
+                    KeyboardButton(text="📚 Namunaviy test topshiriqlari"),
                 ]
+            ],
+            resize_keyboard=True,
+        )
+        return btn
+    @staticmethod
+    async def move_manu():
+        btn = ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="📝 Baholash mezonlari️"),
+                    KeyboardButton(text="📘📚 Fanlar majmuasi️")
+                ],
+                [
+                    KeyboardButton(text="📊 O'tish ballari️"),
+                    KeyboardButton(text="💰 Super kontrakt miqdori️"),
+                ],
+                [KeyboardButton(text="◀️ Ortga")]
             ],
             resize_keyboard=True,
         )
