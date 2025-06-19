@@ -136,7 +136,7 @@ async def start_cmd8(message: Message):
 "👉 Agar 2,1 baldan — <b>3.0 ballgacha</b> yetmasa oddiy kontraktning <b>2.5 barobarini</b> to'laydi;\n"
 "👉 Agar 3,1 balldan — <b>4.0 ballgacha</b> yetmasa oddiy kontraktning <b>3 barobarini</b> to'laydi;\n\n"
 "☝️ Agar <b>4,0 balldan ortiq ball yetmasa</b> tabaqalashtirilgan to'lov-kontraktning minimal miqdorini to'laydi. Bu miqdor yo'nalishlarga qarab bazaviy kontraktning <b>8 barobardan 25 barobargacha</b> belgilanishi mumkin.\n\n"
-"<b>© @mandat_javobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
+"<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
 
 
 @user_router.message(F.text == "🧮 Tabaqalashtirilgan kontrakt miqdori")
@@ -145,7 +145,7 @@ async def start_cmd9(message: Message):
                                   caption="<b>Tabaqalashtirilgan to‘lov-kontrakt miqdorlari</b>\n\n"
 "2025/2026-oʻquv yilida o'qishni ko'chirish sinovlarida o'tish baliga <b>4,05 balldan ortiq yetmagan, 56,7 balldan kam boʻlmaganlar</b> uchun tabaqalashtirilgan kontrakt miqdorlari yo'nalishlar kesimida.\n\n"
 "Shuningdek, har yili tabaqalashtirilgan toʻlov-kontrakt qiymatini <u>15-oktyabrga qadar to‘liq toʻlagan abituriyentlarga 10%lik chegirma beriladi.</u>\n\n"
-"<b>© @mandat_javobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
+"<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
 
 
 @user_router.message(F.text == "📚 Namunaviy test topshiriqlari")
