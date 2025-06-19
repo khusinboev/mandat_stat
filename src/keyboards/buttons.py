@@ -145,7 +145,7 @@ class UserPanels:
             keyboard=[
                 [
                     KeyboardButton(text="📝 Baholash mezonlari️"),
-                    KeyboardButton(text="📘📚 Fanlar majmuasi️")
+                    KeyboardButton(text="📚 Fanlar majmuasi️")
                 ],
                 [
                     KeyboardButton(text="📊 O'tish ballari️"),

@@ -71,35 +71,35 @@ async def start_cmd5(message: Message):
     await message.answer(
         "<b>⚡️Bu yilgi o‘qishni ko‘chirish imtihonlarida baholash mezonlari quyidagicha bo‘ladi:</b>\n\n"
 
-        "🔵 <b>Barcha test topshiruvchilar uchun majburiy bo‘lgan 3 ta fan bo‘yicha:</b>\n\n"
+        "👉 <b>Barcha test topshiruvchilar uchun majburiy bo‘lgan 3 ta fan bo‘yicha:</b>\n\n"
 
-        "<b>📘 Ona tili</b> (o‘zbek, rus yoki qoraqalpoq tili) – 10 ta savol.\n"
+        "<b>➖ Ona tili</b> (o‘zbek, rus yoki qoraqalpoq tili) – 10 ta savol.\n"
         "Har biri uchun 1,1 balldan.\n"
         "Maksimal ball – 11 ball.\n\n"
 
-        "<b>📘 Matematika</b> – 10 ta savol.\n"
+        "<b>➖ Matematika</b> – 10 ta savol.\n"
         "Har biri uchun 1,1 balldan.\n"
         "Maksimal ball – 11 ball.\n\n"
 
-        "<b>📘 O‘zbekiston tarixi</b> – 10 ta savol.\n"
+        "<b>➖ O‘zbekiston tarixi</b> – 10 ta savol.\n"
         "Har biri uchun 1,1 balldan.\n"
         "Maksimal ball – 11 ball.\n\n"
 
         "✅ <b>Jami to‘plash mumkin bo‘lgan ball – 33 ball.</b>\n\n"
 
-        "🎓 <b>Bakalavriat taʼlim yoʻnalishiga mos boʻlgan 2 ta mutaxassislik fan bo‘yicha:</b>\n\n"
+        "👉 <b>Bakalavriat taʼlim yoʻnalishiga mos boʻlgan 2 ta mutaxassislik fan bo‘yicha:</b>\n\n"
 
-        "<b>📗 1-fan</b> – 30 ta savol.\n"
+        "<b>➖ 1-fan</b> – 30 ta savol.\n"
         "Har biri uchun 3,1 balldan.\n"
         "Maksimal ball – 93 ball.\n\n"
 
-        "<b>📗 2-fan</b> – 30 ta savol.\n"
+        "<b>➖ 2-fan</b> – 30 ta savol.\n"
         "Har biri uchun 2,1 balldan.\n"
         "Maksimal ball – 63 ball.\n\n"
 
         "✅ <b>Jami to‘plash mumkin bo‘lgan ball – 156 ball.</b>\n\n"
 
-        "📌 <i>Umumiy holda, 2025/2026-o‘quv yilida o‘qishni ko‘chirish talabida bo‘lganlar uchun "
+        "📝 <i>Umumiy holda, 2025/2026-o‘quv yilida o‘qishni ko‘chirish talabida bo‘lganlar uchun "
         "5 ta fan bo‘yicha jami 90 ta test topshirig‘i beriladi. "
         "Bunda to‘plash mumkin bo‘lgan maksimal ball – <b>189 ball</b>ni tashkil etadi.</i>\n\n"
 
@@ -107,7 +107,7 @@ async def start_cmd5(message: Message):
         parse_mode="HTML"
     )
 
-@user_router.message(F.text == "📘📚 Fanlar majmuasi️")
+@user_router.message(F.text == "📚 Fanlar majmuasi️")
 async def start_cmd6(message: Message):
     await message.answer_document(document="BQACAgIAAxkBAAGQxtNoVAi8RFho9rDGd2uLPCfdPsC5YQACrUwAAtE4SEu0bZFBET334TYE",
         caption="<b>📕 FANLAR MAJMUASI! \n\n"
@@ -183,19 +183,6 @@ async def start_cmd(message: Message):
         "<b>© <a href='https://t.me/mandatjavobbot?start=share'>@mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>",
         parse_mode="HTML"
     )
-
-# @user_router.message(F.photo)
-# async def handle_photo(message: Message):
-#     photo = message.photo[-1]  # eng katta o'lchamdagi rasm
-#     file_id = photo.file_id
-#     await message.answer(f"🖼 Rasm file_id:\n<code>{file_id}</code>", parse_mode="HTML")
-#
-# # Hujjat yuborilganda file_id olish
-# @user_router.message(F.document)
-# async def handle_document(message: Message):
-#     document = message.document
-#     file_id = document.file_id
-#     await message.answer(f"📄 Hujjat file_id:\n<code>{file_id}</code>", parse_mode="HTML")
 
 
 def split_text_by_words(text, max_len=45):
