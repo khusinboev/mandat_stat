@@ -129,8 +129,7 @@ class UserPanels:
         btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
-                    KeyboardButton(text="📕BAKALAVRIAT 2024"),
-                    KeyboardButton(text="🧮 Tabaqalashtirilgan kontrakt miqdori")
+                    KeyboardButton(text="📕BAKALAVRIAT 2024")
                 ],
                 [
                     KeyboardButton(text="📘O'qishni ko'chirish"),
@@ -152,7 +151,9 @@ class UserPanels:
                     KeyboardButton(text="📊 O'tish ballari️"),
                     KeyboardButton(text="💰 Super kontrakt miqdori️"),
                 ],
-                [KeyboardButton(text="◀️ Ortga")]
+                [
+                    KeyboardButton(text="🧮 Tabaqalashtirilgan kontrakt miqdori"),
+                    KeyboardButton(text="◀️ Ortga")]
             ],
             resize_keyboard=True,
         )

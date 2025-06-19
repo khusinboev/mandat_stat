@@ -109,7 +109,7 @@ async def start_cmd5(message: Message):
 
 @user_router.message(F.text == "📘📚 Fanlar majmuasi️")
 async def start_cmd6(message: Message):
-    await message.answer_document(document="AAMCAgADGQEAAQJrrmhUAR0PReEC1JIrqcOjnNYzZZobAAKtTAAC0ThIS0_-OeptLduOAQAHbQADNgQ",
+    await message.answer_document(document="BQACAgIAAxkBAAGQxtNoVAi8RFho9rDGd2uLPCfdPsC5YQACrUwAAtE4SEu0bZFBET334TYE",
         caption="<b>📕 FANLAR MAJMUASI! \n\n"
 "📝 O'qishni ko'chirish imtihonlarida test topshiriladigan fanlar majmuasi.\n\n"
 "✔️ Yo'nalishlar bo'yicha qaysi fandan imtihon bo'lishi ko'rsatilgan.\n\n"
@@ -119,7 +119,7 @@ async def start_cmd6(message: Message):
 
 @user_router.message(F.text == "📊 O'tish ballari️")
 async def start_cmd7(message: Message):
-    await message.answer_photo(photo="AgACAgIAAxkBAAIIOWhUB-lr-sKw4ffrnr0T4BSoEegXAAJu7zEb0xWgSlF1QwwgtfnkAQADAgADbQADNgQ", caption="<b>⚡️O‘qishni ko‘chirishda qancha ball to'plash kerak?</b>\n\n"
+    await message.answer_photo(photo="AgACAgIAAxkBAAGQxxxoVAjVEf8a5s43QwHhXoyid0tLUgACedsxG_AkkUgGBTSHz-WUjwEAAwIAA3kAAzYE", caption="<b>⚡️O‘qishni ko‘chirishda qancha ball to'plash kerak?</b>\n\n"
 "2025/2026-oʻquv yili uchun xorijiy va nodavlat oliy taʼlim muassasalaridan talabalar oʻqishini respublika <b>davlat oliy taʼlim muassasalariga koʻchirish boʻyicha oʻtkaziladigan maxsus sinovlar boʻyicha oʻtish ballari</b> tasdiqlangan.\n\n"
 "<b>Yuqoridagi o’tish ballari quyidagilarga taalluqli:</b>\n\n"
 "1️⃣ xorijdagi OTMlardan yurtimizdagi davlat OTMlariga o’qishini ko’chirmoqchi bo’lganlarga;\n"
@@ -141,7 +141,7 @@ async def start_cmd8(message: Message):
 
 @user_router.message(F.text == "🧮 Tabaqalashtirilgan kontrakt miqdori")
 async def start_cmd9(message: Message):
-    await message.answer_document(document="BQACAgIAAxkBAAECa7BoVAPhSELtMB28QkXF0liHPjSnXgACvEkAAs5EgUrltLod8ZOjLDYE",
+    await message.answer_document(document="BQACAgIAAxkBAAGQx5toVAkCAX8b_5xpiuOVqfwWAdGstAACvEkAAs5EgUps3NE-tIIBSDYE",
                                   caption="<b>Tabaqalashtirilgan to‘lov-kontrakt miqdorlari</b>\n\n"
 "2025/2026-oʻquv yilida o'qishni ko'chirish sinovlarida o'tish baliga <b>4,05 balldan ortiq yetmagan, 56,7 balldan kam boʻlmaganlar</b> uchun tabaqalashtirilgan kontrakt miqdorlari yo'nalishlar kesimida.\n\n"
 "Shuningdek, har yili tabaqalashtirilgan toʻlov-kontrakt qiymatini <u>15-oktyabrga qadar to‘liq toʻlagan abituriyentlarga 10%lik chegirma beriladi.</u>\n\n"
