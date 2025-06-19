@@ -184,18 +184,18 @@ async def start_cmd(message: Message):
         parse_mode="HTML"
     )
 
-@user_router.message(F.photo)
-async def handle_photo(message: Message):
-    photo = message.photo[-1]  # eng katta o'lchamdagi rasm
-    file_id = photo.file_id
-    await message.answer(f"🖼 Rasm file_id:\n<code>{file_id}</code>", parse_mode="HTML")
-
-# Hujjat yuborilganda file_id olish
-@user_router.message(F.document)
-async def handle_document(message: Message):
-    document = message.document
-    file_id = document.file_id
-    await message.answer(f"📄 Hujjat file_id:\n<code>{file_id}</code>", parse_mode="HTML")
+# @user_router.message(F.photo)
+# async def handle_photo(message: Message):
+#     photo = message.photo[-1]  # eng katta o'lchamdagi rasm
+#     file_id = photo.file_id
+#     await message.answer(f"🖼 Rasm file_id:\n<code>{file_id}</code>", parse_mode="HTML")
+#
+# # Hujjat yuborilganda file_id olish
+# @user_router.message(F.document)
+# async def handle_document(message: Message):
+#     document = message.document
+#     file_id = document.file_id
+#     await message.answer(f"📄 Hujjat file_id:\n<code>{file_id}</code>", parse_mode="HTML")
 
 
 def split_text_by_words(text, max_len=45):
