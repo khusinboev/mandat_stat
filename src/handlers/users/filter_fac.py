@@ -47,21 +47,21 @@ async def inline_search_region(inline_query: InlineQuery):
     text = inline_query.query.lower()
 
     if text:
-        cursor.execute("SELECT id, region_id, un_id, ty_id, lan_id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ?", (f"%{text}%",))
+        cursor.execute("SELECT mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ?", (f"%{text}%",))
     else:
-        cursor.execute("SELECT id, region_id, un_id, ty_id, lan_id, mvdir, nomi FROM mandat")
+        cursor.execute("SELECT mvdir, nomi FROM mandat")
     facs = cursor.fetchall()
     if facs:
         facs = list(dict.fromkeys(facs))[:50]
         results = [
             InlineQueryResultArticle(
-                id=str(id),  # Ensure ID is string
+                id=f"{mvdir}",  # Ensure ID is string
                 title=f"{mvdir} - {nomi}",
                 input_message_content=InputTextMessageContent(
                     message_text=f'{mvdir} - {nomi}',
                     parse_mode="HTML"
                 )
-            ) for id, region_id, un_id, ty_id, lan_id, mvdir, nomi in facs
+            ) for mvdir, nomi in facs
         ]
         await inline_query.answer(results, cache_time=1, is_personal=True)
 
@@ -79,19 +79,22 @@ async def chosen_university(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                                       reply_markup=await UserPanels.main_manu())
     else:
-        mvdir = int(message.text.split(" - ")[0])
+        result = message.text.split(" - ")
+        mvdir = int(result[0])
+        fac_name = result[1]
         cursor.execute('''
                     SELECT u.un_id, u.un_text
                     FROM mandat m
                     JOIN universities u ON m.un_id = u.un_id
-                    WHERE m.mvdir = ?
+                    WHERE m.mvdir = ? and m.nomi = ?
                     GROUP BY u.un_id, u.un_text
                     ORDER BY u.un_text
-                ''', (mvdir,))
+                ''', (mvdir, fac_name))
         un_id = cursor.fetchall()
         if un_id:
             un_id = len(un_id)
             await state.update_data(mvdir=mvdir)
+            await state.update_data(fac_name=fac_name)
             await state.set_state(FormFac.fac2)
 
             kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -106,6 +109,7 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
     text = inline_query.query.lower()
     data = await state.get_data()
     mvdir = data.get("mvdir")
+    fac_name = data.get("fac_name")
 
     # So‘rovni shartli tuzamiz
     if text:
@@ -113,20 +117,20 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = ?
+            WHERE m.mvdir = ? and m.nomi = ?
               AND lower(u.un_text) LIKE ?
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
-        ''', (mvdir, f"%{text.lower()}%"))
+        ''', (mvdir, fac_name, f"%{text.lower()}%"))
     else:
         cursor.execute('''
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = ?
+            WHERE m.mvdir = ? and m.nomi = ?
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
-        ''', (mvdir,))
+        ''', (mvdir, fac_name))
     universities = cursor.fetchall()
     if universities:
         universities = list(dict.fromkeys(universities))[:50]
@@ -186,6 +190,7 @@ async def inline_search_type(inline_query: InlineQuery, state: FSMContext):
     text = inline_query.query.lower()
     data = await state.get_data()
     mvdir = data.get("mvdir")
+    fac_name = data.get("fac_name")
     un_id = data.get("un_id")
     if text:
         cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE lower(ty_text) LIKE ? AND un_id=?", (f"%{text}%", un_id))
@@ -210,14 +215,15 @@ async def chosen_type(message: Message, state: FSMContext):
         await state.set_state(FormFac.fac2)
         data = await state.get_data()
         mvdir = data.get("mvdir")
+        fac_name = data.get("fac_name")
         cursor.execute('''
                                     SELECT u.un_id, u.un_text
                                     FROM mandat m
                                     JOIN universities u ON m.un_id = u.un_id
-                                    WHERE m.mvdir = ?
+                                    WHERE m.mvdir = ? and m.nomi = ?
                                     GROUP BY u.un_id, u.un_text
                                     ORDER BY u.un_text
-                                ''', (mvdir,))
+                                ''', (mvdir, fac_name))
         un_id = len(cursor.fetchall())
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
@@ -303,6 +309,8 @@ async def chosen_lang(message: Message, state: FSMContext):
             un_id = data["un_id"]
             ty_id = data["ty_id"]
             lan_id = data["lan_id"]
+            mvdir = data["mvdir"]
+            fac_name = data["fac_name"]
 
             un_name = (cursor.execute("""SELECT un_text FROM universities WHERE un_id=? """, (un_id,))).fetchone()
             lan_text = (cursor.execute("""SELECT lan_text FROM getlangs WHERE lan_id=? """, (lan_id,))).fetchone()
@@ -310,8 +318,8 @@ async def chosen_lang(message: Message, state: FSMContext):
             cursor.execute("""
                                             SELECT mvdir, nomi, gr_b, con_b, olimp
                                             FROM mandat
-                                            WHERE un_id=? AND ty_id=? AND lan_id=?
-                                        """, (un_id, ty_id, lan_id))
+                                            WHERE un_id=? AND ty_id=? AND lan_id=? and mvdir=? and nomi=?
+                                        """, (un_id, ty_id, lan_id, mvdir, fac_name))
             mvdir, nomi, gr_b, con_b, olimp = cursor.fetchone()
 
             message_text = (
