@@ -162,18 +162,20 @@ async def chosen_university(message: Message, state: FSMContext):
     else:
         un_name = message.text
         cursor.execute("SELECT un_id FROM universities WHERE lower(un_text)=%s", (un_name.lower(),))
-        un_id = cursor.fetchone()[0]
-        await state.update_data(un_id=un_id)
-        await state.set_state(FormReg.reg3)
-        data = await state.get_data()
-        region_id = data.get("region_id")
-        cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=%s AND un_id=%s", (region_id, un_id))
-        rows = cursor.fetchall()
-        if rows:
-            keyboard = [[KeyboardButton(text=row[1])] for row in rows]
-            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-            btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-            await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+        un_id = cursor.fetchone()
+        if un_id:
+            un_id = un_id[0]
+            await state.update_data(un_id=un_id)
+            await state.set_state(FormReg.reg3)
+            data = await state.get_data()
+            region_id = data.get("region_id")
+            cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=%s AND un_id=%s", (region_id, un_id))
+            rows = cursor.fetchall()
+            if rows:
+                keyboard = [[KeyboardButton(text=row[1])] for row in rows]
+                keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+                btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+                await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
 
 @reg_router.message(FormReg.reg3)
 async def chosen_type(message: Message, state: FSMContext):
