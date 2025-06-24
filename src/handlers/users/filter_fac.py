@@ -135,7 +135,7 @@ async def chosen_university(message: Message, state: FSMContext):
         un_id = cursor.fetchone()[0]
         await state.update_data(un_id=un_id)
         await state.set_state(FormFac.fac3)
-        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=%s", (un_id,)).fetchall()
+        rows = (cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=%s", (un_id,))).fetchall()
         keyboard = [[KeyboardButton(text=row[1])] for row in rows]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
