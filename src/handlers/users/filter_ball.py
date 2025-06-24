@@ -542,7 +542,8 @@ async def chosen_lang(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                              reply_markup=await UserPanels.main_manu())
     else:
-        mvdir, nomi = message.text.split(" - ", 1)
+        mvdir = message.text.split(" - ")[0]
+        nomi = message.text.split(" - ")[1:]
         data = await state.get_data()
         un_id = data["un_id"]
         ty_id = data["ty_id"]
