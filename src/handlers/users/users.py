@@ -68,7 +68,10 @@ async def start_cmd4(message: Message):
 
 @user_router.message(F.text == "📝 Baholash mezonlari️")
 async def start_cmd5(message: Message):
-    await message.answer(
+    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+
+    if check_status:
+        await message.answer(
         "<b>⚡️Bu yilgi o‘qishni ko‘chirish imtihonlarida baholash mezonlari quyidagicha bo‘ladi:</b>\n\n"
 
         "👉 <b>Barcha test topshiruvchilar uchun majburiy bo‘lgan 3 ta fan bo‘yicha:</b>\n\n"
@@ -106,51 +109,81 @@ async def start_cmd5(message: Message):
         "<i>© <a href='https://t.me/mandatjavobbot?start=share'>@mandatjavobbot</a> — O‘qishni ko‘chirishga oid ma’lumotlar bazasi!</i>",
         parse_mode="HTML"
     )
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn(channels))
 
 @user_router.message(F.text == "📚 Fanlar majmuasi️")
 async def start_cmd6(message: Message):
-    await message.answer_document(document="BQACAgIAAxkBAAGQxtNoVAi8RFho9rDGd2uLPCfdPsC5YQACrUwAAtE4SEu0bZFBET334TYE",
+    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+
+    if check_status:
+        await message.answer_document(document="BQACAgIAAxkBAAGQxtNoVAi8RFho9rDGd2uLPCfdPsC5YQACrUwAAtE4SEu0bZFBET334TYE",
         caption="<b>📕 FANLAR MAJMUASI! \n\n"
 "📝 O'qishni ko'chirish imtihonlarida test topshiriladigan fanlar majmuasi.\n\n"
 "✔️ Yo'nalishlar bo'yicha qaysi fandan imtihon bo'lishi ko'rsatilgan.\n\n"
 "⚠️ Oʻqishni koʻchirishda aynan mana shu 2024/2025-o'quv yilidagi fanlar majmuasidan foydalaniladi. \n\n"
-"© @mandat_javobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>"
+"© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>"
     , parse_mode="html")
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn(channels))
 
 @user_router.message(F.text == "📊 O'tish ballari️")
 async def start_cmd7(message: Message):
-    await message.answer_photo(photo="AgACAgIAAxkBAAGQxxxoVAjVEf8a5s43QwHhXoyid0tLUgACedsxG_AkkUgGBTSHz-WUjwEAAwIAA3kAAzYE", caption="<b>⚡️O‘qishni ko‘chirishda qancha ball to'plash kerak?</b>\n\n"
+    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+
+    if check_status:
+        await message.answer_photo(photo="AgACAgIAAxkBAAGQxxxoVAjVEf8a5s43QwHhXoyid0tLUgACedsxG_AkkUgGBTSHz-WUjwEAAwIAA3kAAzYE", caption="<b>⚡️O‘qishni ko‘chirishda qancha ball to'plash kerak?</b>\n\n"
 "2025/2026-oʻquv yili uchun xorijiy va nodavlat oliy taʼlim muassasalaridan talabalar oʻqishini respublika <b>davlat oliy taʼlim muassasalariga koʻchirish boʻyicha oʻtkaziladigan maxsus sinovlar boʻyicha oʻtish ballari</b> tasdiqlangan.\n\n"
 "<b>Yuqoridagi o’tish ballari quyidagilarga taalluqli:</b>\n\n"
 "1️⃣ xorijdagi OTMlardan yurtimizdagi davlat OTMlariga o’qishini ko’chirmoqchi bo’lganlarga;\n"
 "2️⃣ yurtimizdagi nodavlat OTMlar hamda xorijiy OTMlarning filiallaridan davlat OTMlariga o’qishini ko’chirmoqchi bo’lganlarga.\n\n"
 "Eslatma: o’qishni ko’chirish bo’yicha arizalar <b>15-iyuldan 5-avgustgacha</b> qabul qilinadi.\n\n"
 "<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!!</b>", parse_mode="html")
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn(channels))
 
 @user_router.message(F.text == "💰 Super kontrakt miqdori️")
 async def start_cmd8(message: Message):
-    await message.answer("<b>⚡️O'QISHNI KO'CHIRISHDA SUPER KONTRAKT MIQDORI QANCHA❓</b>\n\n"
+    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+
+    if check_status:
+        await message.answer("<b>⚡️O'QISHNI KO'CHIRISHDA SUPER KONTRAKT MIQDORI QANCHA❓</b>\n\n"
 "<u>Super-kontrakt miqdori quyidagicha:</u>\n\n"
 "👉 Agar 0.1 balldan — <b>1.0 ballgacha</b> yetmasa oddiy kontraktning <b>1.5 barobarini</b> to'laydi;\n"
 "👉 Agar 1,1 baldan — <b>2,0  ballgacha</b> yetmasa oddiy kontraktning <b>2 barobarini</b> to'laydi;\n"
 "👉 Agar 2,1 baldan — <b>3.0 ballgacha</b> yetmasa oddiy kontraktning <b>2.5 barobarini</b> to'laydi;\n"
 "👉 Agar 3,1 balldan — <b>4.0 ballgacha</b> yetmasa oddiy kontraktning <b>3 barobarini</b> to'laydi;\n\n"
 "☝️ Agar <b>4,0 balldan ortiq ball yetmasa</b> tabaqalashtirilgan to'lov-kontraktning minimal miqdorini to'laydi. Bu miqdor yo'nalishlarga qarab bazaviy kontraktning <b>8 barobardan 25 barobargacha</b> belgilanishi mumkin.\n\n"
-"<b>© @mandat_javobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
+"<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn(channels))
 
 
 @user_router.message(F.text == "🧮 Tabaqalashtirilgan kontrakt miqdori")
 async def start_cmd9(message: Message):
-    await message.answer_document(document="BQACAgIAAxkBAAGQx5toVAkCAX8b_5xpiuOVqfwWAdGstAACvEkAAs5EgUps3NE-tIIBSDYE",
+    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+
+    if check_status:
+        await message.answer_document(document="BQACAgIAAxkBAAGQx5toVAkCAX8b_5xpiuOVqfwWAdGstAACvEkAAs5EgUps3NE-tIIBSDYE",
                                   caption="<b>Tabaqalashtirilgan to‘lov-kontrakt miqdorlari</b>\n\n"
 "2025/2026-oʻquv yilida o'qishni ko'chirish sinovlarida o'tish baliga <b>4,05 balldan ortiq yetmagan, 56,7 balldan kam boʻlmaganlar</b> uchun tabaqalashtirilgan kontrakt miqdorlari yo'nalishlar kesimida.\n\n"
 "Shuningdek, har yili tabaqalashtirilgan toʻlov-kontrakt qiymatini <u>15-oktyabrga qadar to‘liq toʻlagan abituriyentlarga 10%lik chegirma beriladi.</u>\n\n"
-"<b>© @mandat_javobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
+"<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn(channels))
 
 
 @user_router.message(F.text == "📚 Namunaviy test topshiriqlari")
 async def start_cmd(message: Message):
-    await message.answer(
+    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+
+    if check_status:
+        await message.answer(
         "<b>⚡️Bilimni baholash agentligi tomonidan olinadigan imtihonlarning "
         "<u>majburiy va mutaxassislik</u> fanlaridan <u>namunaviy test topshiriqlari</u></b>\n\n"
 
@@ -183,6 +216,9 @@ async def start_cmd(message: Message):
         "<b>© <a href='https://t.me/mandatjavobbot?start=share'>@mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>",
         parse_mode="HTML"
     )
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn(channels))
 
 
 def split_text_by_words(text, max_len=45):
