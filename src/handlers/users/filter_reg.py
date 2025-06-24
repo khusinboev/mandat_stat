@@ -92,23 +92,25 @@ async def chosen_university(message: Message, state: FSMContext):
     else:
         region_name = message.text
         cursor.execute("SELECT region_id FROM regions WHERE region_name = %s", (region_name,))
-        region_id = cursor.fetchone()[0]
-        cursor.execute("SELECT u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = %s ORDER BY u.un_text", (region_name,))
-        un_id = cursor.fetchall()
-        if un_id:
-            await state.update_data(region_name=region_name)
-            await state.update_data(region_id=region_id)
-            await state.update_data(un_number=len(un_id))
-            await state.set_state(FormReg.reg2)
+        region_id = cursor.fetchone()
+        if region_id:
+            region_id = region_id[0]
+            cursor.execute("SELECT u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = %s ORDER BY u.un_text", (region_name,))
+            un_id = cursor.fetchall()
+            if un_id:
+                await state.update_data(region_name=region_name)
+                await state.update_data(region_id=region_id)
+                await state.update_data(un_number=len(un_id))
+                await state.set_state(FormReg.reg2)
 
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-            ])
-            keyboard = [[KeyboardButton(text=row[0])] for row in un_id]
-            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-            btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-            await message.answer(f"<b>Siz tanlagan hududda {len(un_id)} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=btn)
-            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+                kb = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+                ])
+                keyboard = [[KeyboardButton(text=row[0])] for row in un_id]
+                keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+                btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+                await message.answer(f"<b>Siz tanlagan hududda {len(un_id)} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=btn)
+                await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
 
 
 @reg_router.inline_query(FormReg.reg2)
