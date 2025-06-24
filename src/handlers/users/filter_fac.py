@@ -86,7 +86,7 @@ async def chosen_university(message: Message, state: FSMContext):
                     SELECT u.un_id, u.un_text
                     FROM mandat m
                     JOIN universities u ON m.un_id = u.un_id
-                    WHERE m.mvdir = ? and m.nomi = ?
+                    WHERE m.mvdir = ? AND m.nomi = ?
                     GROUP BY u.un_id, u.un_text
                     ORDER BY u.un_text
                 ''', (mvdir, fac_name))
@@ -117,7 +117,7 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = ? and m.nomi = ?
+            WHERE m.mvdir = ? AND m.nomi = ?
               AND lower(u.un_text) LIKE ?
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
@@ -127,7 +127,7 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = ? and m.nomi = ?
+            WHERE m.mvdir = ? AND m.nomi = ?
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
         ''', (mvdir, fac_name))
@@ -220,7 +220,7 @@ async def chosen_type(message: Message, state: FSMContext):
                                     SELECT u.un_id, u.un_text
                                     FROM mandat m
                                     JOIN universities u ON m.un_id = u.un_id
-                                    WHERE m.mvdir = ? and m.nomi = ?
+                                    WHERE m.mvdir = ? AND m.nomi = ?
                                     GROUP BY u.un_id, u.un_text
                                     ORDER BY u.un_text
                                 ''', (mvdir, fac_name))
@@ -318,7 +318,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             cursor.execute("""
                                             SELECT mvdir, nomi, gr_b, con_b, olimp
                                             FROM mandat
-                                            WHERE un_id=? AND ty_id=? AND lan_id=? and mvdir=? and nomi=?
+                                            WHERE un_id=? AND ty_id=? AND lan_id=? AND mvdir=? AND nomi=?
                                         """, (un_id, ty_id, lan_id, mvdir, fac_name))
             mvdir, nomi, gr_b, con_b, olimp = cursor.fetchone()
 

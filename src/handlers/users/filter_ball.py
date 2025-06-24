@@ -120,7 +120,7 @@ async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
     ball = data["ball"]
     if shakl == "gr":
         if text:
-            cursor.execute("SELECT r.id, r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id WHERE lower(r.region_name) LIKE ? and m.gr_b <= ? AND m.gr_b != 0 AND m.ty_id = 1", (f"%{text}%", ball))
+            cursor.execute("SELECT r.id, r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id WHERE lower(r.region_name) LIKE ? AND m.gr_b <= ? AND m.gr_b != 0 AND m.ty_id = 1", (f"%{text}%", ball))
         else:
             cursor.execute(
                 "SELECT r.id, r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id WHERE m.gr_b <= ? AND m.gr_b != 0 AND m.ty_id = 1",
@@ -136,7 +136,7 @@ async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
         await inline_query.answer(results, cache_time=1, is_personal=True)
     elif shakl == "kn":
         if text:
-            cursor.execute("SELECT r.id, r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id WHERE lower(r.region_name) LIKE ? and m.con_b <= ? AND m.con_b != 0", (f"%{text}%", ball))
+            cursor.execute("SELECT r.id, r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id WHERE lower(r.region_name) LIKE ? AND m.con_b <= ? AND m.con_b != 0", (f"%{text}%", ball))
         else:
             cursor.execute(
                 "SELECT r.id, r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id WHERE m.con_b <= ? AND m.con_b != 0",
@@ -207,7 +207,7 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
         if text:
             cursor.execute(
                 "SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE lower(un_text) LIKE ? and m.region_id = ? AND m.gr_b <= ? AND m.gr_b != 0 AND m.ty_id = 1", (f"%{text}%", reg_id, ball))
+                "WHERE lower(un_text) LIKE ? AND m.region_id = ? AND m.gr_b <= ? AND m.gr_b != 0 AND m.ty_id = 1", (f"%{text}%", reg_id, ball))
         else:
             cursor.execute("SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
                            "WHERE m.region_id = ? AND m.gr_b <= ? AND m.gr_b != 0 AND m.ty_id = 1", (reg_id, ball))
@@ -215,7 +215,7 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
         if text:
             cursor.execute(
                 "SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE lower(un_text) LIKE ? and m.region_id = ? AND m.con_b <= ? AND m.con_b != 0",
+                "WHERE lower(un_text) LIKE ? AND m.region_id = ? AND m.con_b <= ? AND m.con_b != 0",
                 (f"%{text}%", reg_id, ball))
         else:
             cursor.execute(
@@ -440,11 +440,11 @@ async def chosen_lang(message: Message, state: FSMContext):
             ball = data["ball"]
 
             if shakl == "gr":
-                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=? and gr_b<=?""",
+                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=? AND un_id=? AND ty_id=? AND lan_id=? AND gr_b<=?""",
                                (reg_id, un_id, ty_id, lan_id, ball))
             elif shakl == "kn":
                 cursor.execute(
-                    """SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=? and con_b<=?""",
+                    """SELECT mvdir, nomi FROM mandat WHERE region_id=? AND un_id=? AND ty_id=? AND lan_id=? AND con_b<=?""",
                     (reg_id, un_id, ty_id, lan_id, ball))
             keyboard = []
             rows = cursor.fetchall()
@@ -476,17 +476,17 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
     ball = data["ball"]
     if shakl == "gr":
         if text:
-            cursor.execute("SELECT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ? and region_id=? and un_id=? and ty_id=? and lan_id=? and gr_b<=?", (f"%{text}%", reg_id, un_id, ty_id, lan_id, ball))
+            cursor.execute("SELECT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ? AND region_id=? AND un_id=? AND ty_id=? AND lan_id=? AND gr_b<=?", (f"%{text}%", reg_id, un_id, ty_id, lan_id, ball))
         else:
-            cursor.execute("SELECT id, mvdir, nomi FROM mandat where region_id=? and un_id=? and ty_id=? and lan_id=? and gr_b<=?", (reg_id, un_id, ty_id, lan_id, ball))
+            cursor.execute("SELECT id, mvdir, nomi FROM mandat WHERE region_id=? AND un_id=? AND ty_id=? AND lan_id=? AND gr_b<=?", (reg_id, un_id, ty_id, lan_id, ball))
     elif shakl == "kn":
         if text:
             cursor.execute(
-                "SELECT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ? and region_id=? and un_id=? and ty_id=? and lan_id=? and con_b<=?",
+                "SELECT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ? AND region_id=? AND un_id=? AND ty_id=? AND lan_id=? AND con_b<=?",
                 (f"%{text}%", reg_id, un_id, ty_id, lan_id, ball))
         else:
             cursor.execute(
-                "SELECT id, mvdir, nomi FROM mandat where region_id=? and un_id=? and ty_id=? and lan_id=? and con_b<=?",
+                "SELECT id, mvdir, nomi FROM mandat WHERE region_id=? AND un_id=? AND ty_id=? AND lan_id=? AND con_b<=?",
                 (reg_id, un_id, ty_id, lan_id, ball))
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
@@ -563,12 +563,12 @@ async def chosen_lang(message: Message, state: FSMContext):
         ball = data["ball"]
         if lan_id:
             if shakl == "gr":
-                cursor.execute("""SELECT gr_b, con_b, olimp FROM mandat WHERE un_id=? AND ty_id=? AND lan_id=? AND mvdir=? AND nomi=? and region_id=? and gr_b<=?""",
+                cursor.execute("""SELECT gr_b, con_b, olimp FROM mandat WHERE un_id=? AND ty_id=? AND lan_id=? AND mvdir=? AND nomi=? AND region_id=? AND gr_b<=?""",
                                (un_id, ty_id, lan_id, mvdir, nomi, reg_id, ball))
                 ress = cursor.fetchall()
             elif shakl == "kn":
                 cursor.execute(
-                    """SELECT gr_b, con_b, olimp FROM mandat WHERE un_id=? AND ty_id=? AND lan_id=? AND mvdir=? AND nomi=? and region_id=? and con_b<=?""",
+                    """SELECT gr_b, con_b, olimp FROM mandat WHERE un_id=? AND ty_id=? AND lan_id=? AND mvdir=? AND nomi=? AND region_id=? AND con_b<=?""",
                     (un_id, ty_id, lan_id, mvdir, nomi, reg_id, ball))
                 ress = cursor.fetchall()
             gr_b, con_b, olimp = ress[0]

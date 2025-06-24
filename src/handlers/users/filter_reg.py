@@ -91,7 +91,7 @@ async def chosen_university(message: Message, state: FSMContext):
                                       reply_markup=await UserPanels.main_manu())
     else:
         region_name = message.text
-        region_id = (cursor.execute("SELECT region_id FROM regions where region_name = ?", (region_name, ))).fetchone()[0]
+        region_id = (cursor.execute("SELECT region_id FROM regions WHERE region_name = ?", (region_name, ))).fetchone()[0]
         cursor.execute("SELECT u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = ? ORDER BY u.un_text", (region_name,))
         un_id = cursor.fetchall()
         if un_id:
@@ -127,7 +127,7 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
 
     if text:
         cursor.execute(
-            "SELECT u.id, u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = ? and lower(u.un_text) LIKE ? ORDER BY u.un_text",
+            "SELECT u.id, u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = ? AND lower(u.un_text) LIKE ? ORDER BY u.un_text",
             (region_name, f"%{text.lower()}%"))
     else:
         cursor.execute("SELECT u.id, u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = ? ORDER BY u.un_text", (region_name, ))
@@ -187,7 +187,7 @@ async def chosen_university(message: Message, state: FSMContext):
         await state.set_state(FormReg.reg3)
         data = await state.get_data()
         region_id = data.get("region_id")
-        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=? and un_id=?", (region_id, un_id, )).fetchall()
+        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=? AND un_id=?", (region_id, un_id, )).fetchall()
         if rows:
             keyboard = []
             for row in rows:
@@ -299,7 +299,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             un_id = data["un_id"]
             ty_id = data["ty_id"]
             lan_id = data["lan_id"]
-            cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=? and un_id=? AND ty_id=? AND lan_id=?""",
+            cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=? AND un_id=? AND ty_id=? AND lan_id=?""",
                            (region_id, un_id, ty_id, lan_id))
             keyboard = []
             rows = cursor.fetchall()
@@ -329,9 +329,9 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
     ty_id = data["ty_id"]
     lan_id = data["lan_id"]
     if text:
-        cursor.execute("SELECT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ? and region_id=? and un_id=? and ty_id=? and lan_id=?", (f"%{text}%", region_id, un_id, ty_id, lan_id))
+        cursor.execute("SELECT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ? AND region_id=? AND un_id=? AND ty_id=? AND lan_id=?", (f"%{text}%", region_id, un_id, ty_id, lan_id))
     else:
-        cursor.execute("SELECT id, mvdir, nomi FROM mandat where region_id=? and un_id=? and ty_id=? and lan_id=?", (region_id, un_id, ty_id, lan_id))
+        cursor.execute("SELECT id, mvdir, nomi FROM mandat WHERE region_id=? AND un_id=? AND ty_id=? AND lan_id=?", (region_id, un_id, ty_id, lan_id))
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
     ])
