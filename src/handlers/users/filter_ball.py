@@ -89,7 +89,7 @@ async def enter_direction(message: Message, state: FSMContext):
                         SELECT r.region_name 
                         FROM mandat m 
                         JOIN regions r ON m.region_id = r.region_id 
-                        WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1
+                        WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
                     """, (message.text,))
                 elif shakl == "kn":
                     cursor.execute("""
