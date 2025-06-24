@@ -280,7 +280,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             user_id = message.from_user.id
             cursor.execute(
                 """SELECT file_id FROM photos WHERE un_id = %s AND ty_id = %s AND lan_id = %s AND mvdir = %s""",
-                (un_id, ty_id, lan_id, mvdir)
+                (un_id, ty_id, lan_id, str(mvdir))
             )
             old = cursor.fetchone()
             if old:
@@ -300,7 +300,7 @@ async def chosen_lang(message: Message, state: FSMContext):
                         INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
                         VALUES (%s, %s, %s, %s, %s)
                         ON CONFLICT DO NOTHING
-                    """, (un_id, ty_id, lan_id, mvdir, file_id))
+                    """, (un_id, ty_id, lan_id, str(mvdir), file_id))
                     conn.commit()
                     if os.path.exists(photo_path):
                         os.remove(photo_path)
