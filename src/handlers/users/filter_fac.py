@@ -47,7 +47,7 @@ async def inline_search_region(inline_query: InlineQuery):
     text = inline_query.query.lower()
 
     if text:
-        cursor.execute("SELECT mvdir, nomi FROM mandat WHERE lower(nomi) LIKE ?", (f"%{text}%",))
+        cursor.execute("SELECT mvdir, nomi FROM mandat WHERE lower(nomi) LIKE %s", (f"%{text}%",))
     else:
         cursor.execute("SELECT mvdir, nomi FROM mandat")
     facs = cursor.fetchall()
@@ -86,7 +86,7 @@ async def chosen_university(message: Message, state: FSMContext):
                     SELECT u.un_id, u.un_text
                     FROM mandat m
                     JOIN universities u ON m.un_id = u.un_id
-                    WHERE m.mvdir = ? AND m.nomi = ?
+                    WHERE m.mvdir = %s AND m.nomi = %s
                     GROUP BY u.un_id, u.un_text
                     ORDER BY u.un_text
                 ''', (mvdir, fac_name))
@@ -117,8 +117,8 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = ? AND m.nomi = ?
-              AND lower(u.un_text) LIKE ?
+            WHERE m.mvdir = %s AND m.nomi = %s
+              AND lower(u.un_text) LIKE %s
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
         ''', (mvdir, fac_name, f"%{text.lower()}%"))
@@ -127,7 +127,7 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = ? AND m.nomi = ?
+            WHERE m.mvdir = %s AND m.nomi = %s
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
         ''', (mvdir, fac_name))
@@ -159,14 +159,14 @@ async def chosen_university(message: Message, state: FSMContext):
                                       reply_markup=await UserPanels.main_manu())
     else:
         name = message.text.lower()
-        cursor.execute("SELECT un_id FROM universities WHERE lower(un_text)=?", (name,))
+        cursor.execute("SELECT un_id FROM universities WHERE lower(un_text)=%s", (name,))
         un_id = cursor.fetchall()[0][0]
         await state.update_data(un_id=un_id)
         await state.set_state(FormFac.fac3)
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
-        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=?", (un_id, )).fetchall()
+        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=%s", (un_id, )).fetchall()
         if rows:
             keyboard = []
             for row in rows:
@@ -193,9 +193,9 @@ async def inline_search_type(inline_query: InlineQuery, state: FSMContext):
     fac_name = data.get("fac_name")
     un_id = data.get("un_id")
     if text:
-        cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE lower(ty_text) LIKE ? AND un_id=?", (f"%{text}%", un_id))
+        cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE lower(ty_text) LIKE %s AND un_id=%s", (f"%{text}%", un_id))
     else:
-        cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=?", (un_id, ))
+        cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=%s", (un_id, ))
     types = cursor.fetchall()
     if types:
         types = list(dict.fromkeys(types))[:50]
@@ -220,7 +220,7 @@ async def chosen_type(message: Message, state: FSMContext):
                                     SELECT u.un_id, u.un_text
                                     FROM mandat m
                                     JOIN universities u ON m.un_id = u.un_id
-                                    WHERE m.mvdir = ? AND m.nomi = ?
+                                    WHERE m.mvdir = %s AND m.nomi = %s
                                     GROUP BY u.un_id, u.un_text
                                     ORDER BY u.un_text
                                 ''', (mvdir, fac_name))
@@ -238,7 +238,7 @@ async def chosen_type(message: Message, state: FSMContext):
                                       reply_markup=await UserPanels.main_manu())
     else:
         name = message.text.lower()
-        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text)=?", (name,))
+        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text)=%s", (name,))
         ty_id = cursor.fetchall()
         if ty_id:
             ty_id = ty_id[0][0]
@@ -250,7 +250,7 @@ async def chosen_type(message: Message, state: FSMContext):
                 SELECT DISTINCT g.lan_id, g.lan_text
                 FROM mandat m
                 JOIN getlangs g ON m.lan_id = g.lan_id
-                WHERE m.un_id = ? AND m.ty_id = ?
+                WHERE m.un_id = %s AND m.ty_id = %s
             ''', (un_id, ty_id)).fetchall()
             if rows:
                 keyboard = []
@@ -278,7 +278,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
-        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=?", (un_id,))
+        rows = cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=%s", (un_id,))
         keyboard = []
         for row in rows:
             region_name = row[1]
@@ -299,7 +299,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                                       reply_markup=await UserPanels.main_manu())
     else:
-        cursor.execute("SELECT lan_id FROM getlangs WHERE lower(lan_text)=?", (lan_text,))
+        cursor.execute("SELECT lan_id FROM getlangs WHERE lower(lan_text)=%s", (lan_text,))
         lan_id = cursor.fetchall()
         if lan_id:
             lan_id = list(dict.fromkeys(lan_id))[0][0]
@@ -312,13 +312,13 @@ async def chosen_lang(message: Message, state: FSMContext):
             mvdir = data["mvdir"]
             fac_name = data["fac_name"]
 
-            un_name = (cursor.execute("""SELECT un_text FROM universities WHERE un_id=? """, (un_id,))).fetchone()
-            lan_text = (cursor.execute("""SELECT lan_text FROM getlangs WHERE lan_id=? """, (lan_id,))).fetchone()
-            ty_text = (cursor.execute("""SELECT ty_text FROM gettypes WHERE ty_id=? """, (ty_id,))).fetchone()
+            un_name = (cursor.execute("""SELECT un_text FROM universities WHERE un_id=%s """, (un_id,))).fetchone()
+            lan_text = (cursor.execute("""SELECT lan_text FROM getlangs WHERE lan_id=%s """, (lan_id,))).fetchone()
+            ty_text = (cursor.execute("""SELECT ty_text FROM gettypes WHERE ty_id=%s """, (ty_id,))).fetchone()
             cursor.execute("""
                                             SELECT mvdir, nomi, gr_b, con_b, olimp
                                             FROM mandat
-                                            WHERE un_id=? AND ty_id=? AND lan_id=? AND mvdir=? AND nomi=?
+                                            WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s
                                         """, (un_id, ty_id, lan_id, mvdir, fac_name))
             mvdir, nomi, gr_b, con_b, olimp = cursor.fetchone()
 
@@ -326,11 +326,11 @@ async def chosen_lang(message: Message, state: FSMContext):
                 f"<b>🏛 OLIYGOH:</b> {un_name[0]}\n\n<b>📚 TAʼLIM YO‘NALISHI</b> - {str(mvdir) + ' - ' + nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text[0]}\n\n"
                 f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text[0]}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
                 f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
-                f"<b>© <a href='https://t.me/mandatjavobbot?start=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>")
+                f"<b>© <a href='https://t.me/mandatjavobbot%sstart=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>")
             # await message.answer(message_text, parse_mode="html")
             user_id = message.from_user.id
             old = cursor.execute(
-                """ SELECT file_id FROM photos WHERE un_id = ? AND ty_id = ? AND lan_id = ? AND mvdir = ? """,
+                """ SELECT file_id FROM photos WHERE un_id = %s AND ty_id = %s AND lan_id = %s AND mvdir = %s """,
                 (un_id, ty_id, lan_id, mvdir)).fetchone()
             if old:
                 await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
@@ -343,7 +343,7 @@ async def chosen_lang(message: Message, state: FSMContext):
                     file_id = sent_message.photo[-1].file_id
                     cursor.execute("""
                                             INSERT OR IGNORE INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
-                                            VALUES (?, ?, ?, ?, ?)
+                                            VALUES (%s, %s, %s, %s, %s)
                                         """, (un_id, ty_id, lan_id, mvdir, file_id))
                     conn.commit()
                     if os.path.exists(f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"):
