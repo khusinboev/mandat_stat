@@ -249,10 +249,10 @@ async def chosen_lang(message: Message, state: FSMContext):
             lan_id = lan_id[0]
             await state.update_data(lan_id=lan_id)
             data = await state.get_data()
-            un_id = data["un_id"]
-            ty_id = data["ty_id"]
-            mvdir = data["mvdir"]
-            fac_name = data["fac_name"]
+            un_id = str(data["un_id"])
+            ty_id = str(data["ty_id"])
+            mvdir = str(data["mvdir"])
+            fac_name = str(data["fac_name"])
 
             cursor.execute("SELECT un_text FROM universities WHERE un_id=%s", (un_id,))
             un_name = cursor.fetchone()
