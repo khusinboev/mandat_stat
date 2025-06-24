@@ -358,7 +358,7 @@ async def chosen_lang(message: Message, state: FSMContext):
     else:
         galyan = message.text.split(" - ")
         mvdir = galyan[0]
-        nomi = galyan[1:]
+        nomi = ' '.join(galyan[1:])
         data = await state.get_data()
         un_id = data["un_id"]
         ty_id = data["ty_id"]

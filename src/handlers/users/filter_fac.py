@@ -72,7 +72,7 @@ async def chosen_university(message: Message, state: FSMContext):
                              reply_markup=await UserPanels.main_manu())
     else:
         mvdir = message.text.split(" - ")[0]
-        fac_name = message.text.split(" - ")[1:]
+        fac_name = ' '.join(message.text.split(" - ")[1:])
         mvdir = int(mvdir)
         cursor.execute("""
             SELECT u.un_id, u.un_text
