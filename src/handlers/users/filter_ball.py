@@ -135,14 +135,14 @@ async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
                 FROM mandat m 
                 JOIN regions r ON m.region_id = r.region_id 
                 WHERE lower(r.region_name) LIKE %s 
-                AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1
+                AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
             """, (f"%{text}%", ball))
         else:
             cursor.execute("""
                 SELECT r.id, r.region_name 
                 FROM mandat m 
                 JOIN regions r ON m.region_id = r.region_id 
-                WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1
+                WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
             """, (ball,))
         regions = list(dict.fromkeys(cursor.fetchall()))[:50]
         results = [
@@ -212,7 +212,7 @@ async def chosen_university(message: Message, state: FSMContext):
                     FROM universities u 
                     JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id 
                     WHERE m.region_id = %s 
-                    AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1
+                    AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
                 """, (reg_id, ball))
                 rows = cursor.fetchall()
                 await message.answer(f"<b>Siz tanlagan hududda {len(set(rows))} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
@@ -244,12 +244,12 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
         if text:
             cursor.execute(
                 "SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE lower(un_text) LIKE %s AND m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1",
+                "WHERE lower(un_text) LIKE %s AND m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
                 (f"%{text}%", reg_id, ball))
         else:
             cursor.execute(
                 "SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1",
+                "WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
                 (reg_id, ball))
     elif shakl == "kn":
         if text:
@@ -282,7 +282,7 @@ async def chosen_university(message: Message, state: FSMContext):
         if shakl == "gr":
             cursor.execute(
                 "SELECT DISTINCT r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id "
-                "WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1",
+                "WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
                 (ball,))
         elif shakl == "kn":
             cursor.execute(
@@ -355,7 +355,7 @@ async def chosen_type(message: Message, state: FSMContext):
         if shakl == "gr":
             cursor.execute(
                 "SELECT DISTINCT u.id FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1",
+                "WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
                 (reg_id, ball))
         elif shakl == "kn":
             cursor.execute(
@@ -392,7 +392,7 @@ async def chosen_type(message: Message, state: FSMContext):
                     SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m
                     JOIN getlangs g ON m.lan_id = g.lan_id
                     WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s 
-                    AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1
+                    AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
                 """, (un_id, ty_id, reg_id, ball))
             elif shakl == "kn":
                 cursor.execute("""
@@ -524,7 +524,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         if shakl == "gr":
             cursor.execute('''SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m 
                               JOIN getlangs g ON m.lan_id = g.lan_id 
-                              WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = 1''',
+                              WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1' ''',
                            (un_id, ty_id, reg_id, ball))
         elif shakl == "kn":
             cursor.execute('''SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m 
