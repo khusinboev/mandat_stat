@@ -268,41 +268,43 @@ async def chosen_lang(message: Message, state: FSMContext):
                 FROM mandat
                 WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s
             """, (un_id, ty_id, lan_id, mvdir, fac_name))
-            mvdir, nomi, gr_b, con_b, olimp = cursor.fetchone()
+            kayp = cursor.fetchone()
+            if kayp:
+                mvdir, nomi, gr_b, con_b, olimp = kayp
 
-            message_text = (
-                f"<b>🏛 OLIYGOH:</b> {un_name[0]}\n\n<b>📚 TAʼLIM YO‘NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text_row[0]}\n\n"
-                f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text_row[0]}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
-                f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
-                f"<b>© <a href='https://t.me/mandatjavobbot%sstart=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>"
-            )
+                message_text = (
+                    f"<b>🏛 OLIYGOH:</b> {un_name[0]}\n\n<b>📚 TAʼLIM YO‘NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text_row[0]}\n\n"
+                    f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text_row[0]}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
+                    f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
+                    f"<b>© <a href='https://t.me/mandatjavobbot%sstart=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>"
+                )
 
-            user_id = message.from_user.id
-            cursor.execute(
-                """SELECT file_id FROM photos WHERE un_id = %s AND ty_id = %s AND lan_id = %s AND mvdir = %s""",
-                (un_id, ty_id, lan_id, str(mvdir))
-            )
-            old = cursor.fetchone()
-            if old:
-                await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
-            else:
-                if create_card(
-                    univer=un_name[0], faculty=f"{mvdir} - {nomi}", lang=lan_text_row[0], edu=ty_text_row[0],
-                    grand=gr_b, kont=con_b, olmp=olimp, name=user_id
-                ):
-                    photo_path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
-                    sent_message = await message.answer_photo(
-                        photo=FSInputFile(photo_path),
-                        caption=message_text, parse_mode="html"
-                    )
-                    file_id = sent_message.photo[-1].file_id
-                    cursor.execute("""
-                        INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT DO NOTHING
-                    """, (un_id, ty_id, lan_id, str(mvdir), file_id))
-                    conn.commit()
-                    if os.path.exists(photo_path):
-                        os.remove(photo_path)
+                user_id = message.from_user.id
+                cursor.execute(
+                    """SELECT file_id FROM photos WHERE un_id = %s AND ty_id = %s AND lan_id = %s AND mvdir = %s""",
+                    (un_id, ty_id, lan_id, str(mvdir))
+                )
+                old = cursor.fetchone()
+                if old:
+                    await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
                 else:
-                    await message.answer(message_text, parse_mode="html")
+                    if create_card(
+                        univer=un_name[0], faculty=f"{mvdir} - {nomi}", lang=lan_text_row[0], edu=ty_text_row[0],
+                        grand=gr_b, kont=con_b, olmp=olimp, name=user_id
+                    ):
+                        photo_path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
+                        sent_message = await message.answer_photo(
+                            photo=FSInputFile(photo_path),
+                            caption=message_text, parse_mode="html"
+                        )
+                        file_id = sent_message.photo[-1].file_id
+                        cursor.execute("""
+                            INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON CONFLICT DO NOTHING
+                        """, (un_id, ty_id, lan_id, str(mvdir), file_id))
+                        conn.commit()
+                        if os.path.exists(photo_path):
+                            os.remove(photo_path)
+                    else:
+                        await message.answer(message_text, parse_mode="html")
