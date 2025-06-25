@@ -104,18 +104,19 @@ async def start_all_subjects(message: Message, state: FSMContext):
     except:
         pass
 
-    subjects = ["math", "literature", "history"]
+    subjects = [("math", "Matematika"), ("literature", "Ona tili"), ("history", "Tarix")]
     selected_all = []
 
-    for subject in subjects:
-        cursor.execute(f"SELECT photo, answer FROM {subject}")
+    for table_name, subject_name in subjects:
+        cursor.execute(f"SELECT photo, answer FROM {table_name}")
         questions = cursor.fetchall()
         if len(questions) < 10:
-            await message.answer(f"{subject.capitalize()} fani uchun yetarlicha test mavjud emas.")
+            await message.answer(f"{subject_name} fani uchun yetarlicha test mavjud emas.")
             return
-        selected_all.extend(random.sample(questions, 10))
+        # Har bir testga fan nomini ham biriktiramiz
+        selected_all.extend([(q[0], q[1], subject_name) for q in random.sample(questions, 10)])
 
-    random.shuffle(selected_all)  # Aralashtiramiz
+    # Diqqat! random.shuffle() yo‘q, chunki tartib muhim: avval matematika, keyin ona tili, so‘ng tarix
 
     await state.set_data({
         "ques_list": selected_all,
@@ -128,7 +129,8 @@ async def start_all_subjects(message: Message, state: FSMContext):
 
 
 async def show_question(message_or_callback, question, index, score):
-    photo_path, correct_answer = question
+    # (photo_path, correct_answer, subject_name)
+    photo_path, correct_answer, subject_name = question
     current_dir = os.path.dirname(os.path.abspath(__file__))
     photo_path = os.path.join(current_dir, photo_path)
 
@@ -151,15 +153,19 @@ async def show_question(message_or_callback, question, index, score):
     with open(photo_path, "rb") as image_file:
         photo = BufferedInputFile(image_file.read(), filename=os.path.basename(photo_path))
 
+    caption = f"📖 FAN: <b>{subject_name}</b>\nQuyidagilar orqali javob berasi!"
+
     if isinstance(message_or_callback, Message):
-        await message_or_callback.answer_photo(photo=photo, caption="Quyidagilar orqali javob berasi!", reply_markup=btn)
+        await message_or_callback.answer_photo(photo=photo, caption=caption, reply_markup=btn, parse_mode="HTML")
     else:
         try:
-            await message_or_callback.message.edit_media(InputMediaPhoto(media=photo, caption="Quyidagilar orqali javob berasi!"))
+            await message_or_callback.message.edit_media(
+                InputMediaPhoto(media=photo, caption=caption, parse_mode="HTML"))
             await message_or_callback.message.edit_reply_markup(reply_markup=btn)
         except:
             pass
         await message_or_callback.answer()
+
 
 @ques_router.callback_query(F.data.startswith("answer:"))
 async def handle_answer(callback: CallbackQuery, state: FSMContext):
