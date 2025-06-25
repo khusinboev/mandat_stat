@@ -1,7 +1,6 @@
 import os
 import random
 from aiogram import Router, F
-from aiogram.enums import ChatType
 from aiogram.filters import CommandStart
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
@@ -19,86 +18,23 @@ class FormQues(StatesGroup):
 
 @ques_router.message(F.text == "📚 Majburiydan testlar")
 async def start_cmd1(message: Message):
-    await message.answer("Majburiy bloklardan test ishlash bo'limiga xush kelibsiz, kerakli fanni tanlang va davom eting!", parse_mode="html", reply_markup=await UserPanels.ques_manu())
+    await message.answer(
+        "Majburiy bloklardan test ishlash bo'limiga xush kelibsiz, kerakli fanni tanlang va davom eting!",
+        parse_mode="html",
+        reply_markup=await UserPanels.ques_manu()
+    )
 
 @ques_router.message(F.text == "📝 Matematika️")
 async def start_math(message: Message, state: FSMContext):
-    try:
-        await message.delete()
-    except:
-        pass
-
-    cursor.execute("SELECT photo, answer FROM math")
-    all_questions = cursor.fetchall()
-    if len(all_questions) < 10:
-        await message.answer("Yetarlicha test mavjud emas.")
-        return
-
-    selected = random.sample(all_questions, 10)
-
-    await state.set_data({
-        "ques_list": selected,
-        "current_index": 0,
-        "score": 0.0,
-        "total_questions": len(selected)
-    })
-
-    await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
-    await show_question(message, selected[0], 0, 0.0)
-
-
+    await start_subject(message, state, "math", "Matematika")
 
 @ques_router.message(F.text == "📚 Ona tili")
-async def start_math(message: Message, state: FSMContext):
-    try:
-        await message.delete()
-    except:
-        pass
-
-    cursor.execute("SELECT photo, answer FROM literature")
-    all_questions = cursor.fetchall()
-    if len(all_questions) < 10:
-        await message.answer("Yetarlicha test mavjud emas.")
-        return
-
-    selected = random.sample(all_questions, 10)
-
-    await state.set_data({
-        "ques_list": selected,
-        "current_index": 0,
-        "score": 0.0,
-        "total_questions": len(selected)
-    })
-
-    await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
-    await show_question(message, selected[0], 0, 0.0)
-
+async def start_literature(message: Message, state: FSMContext):
+    await start_subject(message, state, "literature", "Ona tili")
 
 @ques_router.message(F.text == "📚 Tarix")
-async def start_math(message: Message, state: FSMContext):
-    try:
-        await message.delete()
-    except:
-        pass
-
-    cursor.execute("SELECT photo, answer FROM history")
-    all_questions = cursor.fetchall()
-    if len(all_questions) < 10:
-        await message.answer("Yetarlicha test mavjud emas.")
-        return
-
-    selected = random.sample(all_questions, 10)
-
-    await state.set_data({
-        "ques_list": selected,
-        "current_index": 0,
-        "score": 0.0,
-        "total_questions": len(selected)
-    })
-
-    await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
-    await show_question(message, selected[0], 0, 0.0)
-
+async def start_history(message: Message, state: FSMContext):
+    await start_subject(message, state, "history", "Tarix")
 
 @ques_router.message(F.text == "🧮 Hamasidan")
 async def start_all_subjects(message: Message, state: FSMContext):
@@ -116,19 +52,42 @@ async def start_all_subjects(message: Message, state: FSMContext):
         if len(questions) < 10:
             await message.answer(f"{subject_name} fani uchun yetarlicha test mavjud emas.")
             return
-        # Har bir testga fan nomini ham biriktiramiz
         selected_all.extend([(q[0], q[1], subject_name) for q in random.sample(questions, 10)])
-
-    # Diqqat! random.shuffle() yo‘q, chunki tartib muhim: avval matematika, keyin ona tili, so‘ng tarix
 
     await state.set_data({
         "ques_list": selected_all,
         "current_index": 0,
-        "score": 0.0
+        "score": 0.0,
+        "total_questions": len(selected_all)
     })
 
     await message.answer("📚 3 ta fandan umumiy test boshlandi", reply_markup=ReplyKeyboardRemove())
-    await show_question(message, selected_all[0], 0, 0.0)
+    await show_question(message, selected_all[0], 0, 0.0, state)
+
+
+async def start_subject(message: Message, state: FSMContext, table_name: str, subject_name: str):
+    try:
+        await message.delete()
+    except:
+        pass
+
+    cursor.execute(f"SELECT photo, answer FROM {table_name}")
+    all_questions = cursor.fetchall()
+    if len(all_questions) < 10:
+        await message.answer("Yetarlicha test mavjud emas.")
+        return
+
+    selected = [(q[0], q[1], subject_name) for q in random.sample(all_questions, 10)]
+
+    await state.set_data({
+        "ques_list": selected,
+        "current_index": 0,
+        "score": 0.0,
+        "total_questions": len(selected)
+    })
+
+    await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
+    await show_question(message, selected[0], 0, 0.0, state)
 
 
 async def show_question(message_or_callback, question, index, score, state: FSMContext):
@@ -194,7 +153,7 @@ async def handle_answer(callback: CallbackQuery, state: FSMContext):
 
     if next_index < len(questions):
         await state.update_data(current_index=next_index, score=score)
-        await show_question(callback, questions[next_index], next_index, score)
+        await show_question(callback, questions[next_index], next_index, score, state)
     else:
         await callback.message.answer(
             f"Siz {len(questions)} ta savoldan {int((score + 0.01) // 1.1)} tasiga to'g'ri javob berib {round(score,1)} ball to‘pladingiz!",
@@ -202,8 +161,13 @@ async def handle_answer(callback: CallbackQuery, state: FSMContext):
         await callback.message.delete()
         await state.clear()
 
+
 @ques_router.callback_query(F.data == "stop-quest")
 async def stop_quiz(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer("Majburiy bloklardan test ishlash bo'limiga xush kelibsiz, kerakli fanni tanlang va davom eting!", parse_mode="html", reply_markup=await UserPanels.ques_manu())
+    await callback.message.answer(
+        "Majburiy bloklardan test ishlash bo'limiga xush kelibsiz, kerakli fanni tanlang va davom eting!",
+        parse_mode="html",
+        reply_markup=await UserPanels.ques_manu()
+    )
     await callback.message.delete()
