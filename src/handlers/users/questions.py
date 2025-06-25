@@ -39,7 +39,8 @@ async def start_math(message: Message, state: FSMContext):
     await state.set_data({
         "ques_list": selected,
         "current_index": 0,
-        "score": 0.0
+        "score": 0.0,
+        "total_questions": len(selected)
     })
 
     await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
@@ -65,7 +66,8 @@ async def start_math(message: Message, state: FSMContext):
     await state.set_data({
         "ques_list": selected,
         "current_index": 0,
-        "score": 0.0
+        "score": 0.0,
+        "total_questions": len(selected)
     })
 
     await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
@@ -90,7 +92,8 @@ async def start_math(message: Message, state: FSMContext):
     await state.set_data({
         "ques_list": selected,
         "current_index": 0,
-        "score": 0.0
+        "score": 0.0,
+        "total_questions": len(selected)
     })
 
     await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
@@ -129,8 +132,14 @@ async def start_all_subjects(message: Message, state: FSMContext):
 
 
 async def show_question(message_or_callback, question, index, score):
-    # (photo_path, correct_answer, subject_name)
-    photo_path, correct_answer, subject_name = question
+    from aiogram.fsm.context import FSMContext
+    state: FSMContext = message_or_callback.bot.get('dispatcher').fsm.get_context(message_or_callback.from_user.id, message_or_callback.chat.id)
+    data = await state.get_data()
+    total_questions = data.get("total_questions", 10)
+
+    photo_path, correct_answer, *subject = question
+    subject_name = subject[0] if subject else "Fan"
+
     current_dir = os.path.dirname(os.path.abspath(__file__))
     photo_path = os.path.join(current_dir, photo_path)
 
@@ -153,7 +162,11 @@ async def show_question(message_or_callback, question, index, score):
     with open(photo_path, "rb") as image_file:
         photo = BufferedInputFile(image_file.read(), filename=os.path.basename(photo_path))
 
-    caption = f"📖 FAN: <b>{subject_name}</b>\nQuyidagilar orqali javob berasi!"
+    caption = (
+        f"📖 FAN: <b>{subject_name}</b>\n"
+        f"🧮 <b>Savol: {index + 1} / {total_questions}</b>\n"
+        "Quyidagilar orqali javob berasi!"
+    )
 
     if isinstance(message_or_callback, Message):
         await message_or_callback.answer_photo(photo=photo, caption=caption, reply_markup=btn, parse_mode="HTML")
