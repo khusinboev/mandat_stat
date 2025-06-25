@@ -129,16 +129,18 @@ class UserPanels:
         btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
-                    KeyboardButton(text="📕BAKALAVRIAT 2024")
+                    KeyboardButton(text="📕BAKALAVRIAT 2024"),
+                    KeyboardButton(text="📘O'qishni ko'chirish")
                 ],
                 [
-                    KeyboardButton(text="📘O'qishni ko'chirish"),
                     KeyboardButton(text="📚 Namunaviy test topshiriqlari"),
+                    KeyboardButton(text="📚 Majburiydan testlar")
                 ]
             ],
             resize_keyboard=True,
         )
         return btn
+
     @staticmethod
     async def move_manu():
         btn = ReplyKeyboardMarkup(
@@ -154,6 +156,24 @@ class UserPanels:
                 [
                     KeyboardButton(text="🧮 Tabaqalashtirilgan kontrakt miqdori"),
                     KeyboardButton(text="◀️ Ortga")]
+            ],
+            resize_keyboard=True,
+        )
+        return btn
+
+    @staticmethod
+    async def ques_manu():
+        btn = ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="📝 Matematika️"),
+                    # KeyboardButton(text="📚 Ona tili")
+                ],
+                # [
+                #     KeyboardButton(text="📚 Tarix"),
+                #     KeyboardButton(text="🧮 Hamasidan"),
+                # ],
+                [KeyboardButton(text="◀️ Ortga")]
             ],
             resize_keyboard=True,
         )
