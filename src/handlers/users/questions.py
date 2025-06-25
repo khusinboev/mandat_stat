@@ -97,6 +97,36 @@ async def start_math(message: Message, state: FSMContext):
     await show_question(message, selected[0], 0, 0.0)
 
 
+@ques_router.message(F.text == "🧮 Hamasidan")
+async def start_all_subjects(message: Message, state: FSMContext):
+    try:
+        await message.delete()
+    except:
+        pass
+
+    subjects = ["math", "literature", "history"]
+    selected_all = []
+
+    for subject in subjects:
+        cursor.execute(f"SELECT photo, answer FROM {subject}")
+        questions = cursor.fetchall()
+        if len(questions) < 10:
+            await message.answer(f"{subject.capitalize()} fani uchun yetarlicha test mavjud emas.")
+            return
+        selected_all.extend(random.sample(questions, 10))
+
+    random.shuffle(selected_all)  # Aralashtiramiz
+
+    await state.set_data({
+        "ques_list": selected_all,
+        "current_index": 0,
+        "score": 0.0
+    })
+
+    await message.answer("📚 3 ta fandan umumiy test boshlandi", reply_markup=ReplyKeyboardRemove())
+    await show_question(message, selected_all[0], 0, 0.0)
+
+
 async def show_question(message_or_callback, question, index, score):
     photo_path, correct_answer = question
     current_dir = os.path.dirname(os.path.abspath(__file__))
