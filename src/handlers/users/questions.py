@@ -131,9 +131,7 @@ async def start_all_subjects(message: Message, state: FSMContext):
     await show_question(message, selected_all[0], 0, 0.0)
 
 
-async def show_question(message_or_callback, question, index, score):
-    from aiogram.fsm.context import FSMContext
-    state: FSMContext = message_or_callback.bot.get('dispatcher').fsm.get_context(message_or_callback.from_user.id, message_or_callback.chat.id)
+async def show_question(message_or_callback, question, index, score, state: FSMContext):
     data = await state.get_data()
     total_questions = data.get("total_questions", 10)
 
