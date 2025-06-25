@@ -134,7 +134,7 @@ class UserPanels:
                 ],
                 [
                     KeyboardButton(text="📚 Namunaviy test topshiriqlari"),
-                    KeyboardButton(text="📚 Majburiydan testlar")
+                    # KeyboardButton(text="📚 Majburiydan testlar")
                 ]
             ],
             resize_keyboard=True,
