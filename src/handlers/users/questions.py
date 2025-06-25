@@ -19,7 +19,7 @@ class FormQues(StatesGroup):
 
 @ques_router.message(F.text == "📚 Majburiydan testlar")
 async def start_cmd1(message: Message):
-    await message.answer("Botimizga xush kelibsiz, kerakli bo'limni tanlab va davom eting!", parse_mode="html", reply_markup=await UserPanels.ques_manu())
+    await message.answer("Majburiy bloklardan test ishlash bo'limiga xush kelibsiz, kerakli fanni tanlang va davom eting!", parse_mode="html", reply_markup=await UserPanels.ques_manu())
 
 @ques_router.message(F.text == "📝 Matematika️")
 async def start_math(message: Message, state: FSMContext):
@@ -158,5 +158,5 @@ async def handle_answer(callback: CallbackQuery, state: FSMContext):
 @ques_router.callback_query(F.data == "stop-quest")
 async def stop_quiz(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.message.answer("Test to‘xtatildi. ✅")
+    await callback.message.answer("Majburiy bloklardan test ishlash bo'limiga xush kelibsiz, kerakli fanni tanlang va davom eting!", parse_mode="html", reply_markup=await UserPanels.ques_manu())
     await callback.message.delete()
