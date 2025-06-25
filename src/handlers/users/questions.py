@@ -46,6 +46,57 @@ async def start_math(message: Message, state: FSMContext):
     await show_question(message, selected[0], 0, 0.0)
 
 
+
+@ques_router.message(F.text == "📚 Ona tili")
+async def start_math(message: Message, state: FSMContext):
+    try:
+        await message.delete()
+    except:
+        pass
+
+    cursor.execute("SELECT photo, answer FROM literature")
+    all_questions = cursor.fetchall()
+    if len(all_questions) < 10:
+        await message.answer("Yetarlicha test mavjud emas.")
+        return
+
+    selected = random.sample(all_questions, 10)
+
+    await state.set_data({
+        "ques_list": selected,
+        "current_index": 0,
+        "score": 0.0
+    })
+
+    await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
+    await show_question(message, selected[0], 0, 0.0)
+
+
+@ques_router.message(F.text == "📚 Tarix")
+async def start_math(message: Message, state: FSMContext):
+    try:
+        await message.delete()
+    except:
+        pass
+
+    cursor.execute("SELECT photo, answer FROM history")
+    all_questions = cursor.fetchall()
+    if len(all_questions) < 10:
+        await message.answer("Yetarlicha test mavjud emas.")
+        return
+
+    selected = random.sample(all_questions, 10)
+
+    await state.set_data({
+        "ques_list": selected,
+        "current_index": 0,
+        "score": 0.0
+    })
+
+    await message.answer("Test boshlandi", reply_markup=ReplyKeyboardRemove())
+    await show_question(message, selected[0], 0, 0.0)
+
+
 async def show_question(message_or_callback, question, index, score):
     photo_path, correct_answer = question
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -64,7 +115,7 @@ async def show_question(message_or_callback, question, index, score):
                 )
             )
         keyboard.append(row)
-    keyboard.append([InlineKeyboardButton(text="⛔ To‘xtatish", callback_data="stop")])
+    keyboard.append([InlineKeyboardButton(text="⛔ To‘xtatish", callback_data="stop-quest")])
     btn = InlineKeyboardMarkup(inline_keyboard=keyboard)
 
     with open(photo_path, "rb") as image_file:
@@ -104,7 +155,7 @@ async def handle_answer(callback: CallbackQuery, state: FSMContext):
         await callback.message.delete()
         await state.clear()
 
-@ques_router.callback_query(F.data == "stop")
+@ques_router.callback_query(F.data == "stop-quest")
 async def stop_quiz(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.answer("Test to‘xtatildi. ✅")

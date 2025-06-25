@@ -167,10 +167,10 @@ class UserPanels:
             keyboard=[
                 [
                     KeyboardButton(text="📝 Matematika️"),
-                    # KeyboardButton(text="📚 Ona tili")
+                    KeyboardButton(text="📚 Ona tili")
                 ],
                 # [
-                #     KeyboardButton(text="📚 Tarix"),
+                    KeyboardButton(text="📚 Tarix"),
                 #     KeyboardButton(text="🧮 Hamasidan"),
                 # ],
                 [KeyboardButton(text="◀️ Ortga")]
