@@ -52,7 +52,6 @@ async def show_question(message_or_callback, question, index, score):
     photo_path = os.path.join(current_dir, photo_path)
 
     variants = ["A", "B", "C", "D"]
-    random.shuffle(variants)
     keyboard = []
     for i in range(0, 4, 2):
         row = []
