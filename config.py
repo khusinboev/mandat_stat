@@ -35,7 +35,7 @@ bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(link_preview_is_disabled
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# conn = db
-# cursor = sql
-conn = sqlite3.connect("src/db/savollar.db")
-cursor = conn.cursor()
+conn = db
+cursor = sql
+# conn = sqlite3.connect("src/db/savollar.db")
+# cursor = conn.cursor()
