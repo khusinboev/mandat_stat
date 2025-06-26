@@ -161,24 +161,6 @@ class UserPanels:
         return btn
 
     @staticmethod
-    async def ques_manu():
-        btn = ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="📝 Matematika️"),
-                    KeyboardButton(text="📚 Ona tili")
-                ],
-                [
-                    KeyboardButton(text="📚 Tarix"),
-                    KeyboardButton(text="🧮 Hamasidan"),
-                ],
-                [KeyboardButton(text="◀️ Ortga")]
-            ],
-            resize_keyboard=True,
-        )
-        return btn
-
-    @staticmethod
     async def ball_btn():
         btn = ReplyKeyboardMarkup(
             keyboard=[
