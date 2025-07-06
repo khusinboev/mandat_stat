@@ -201,3 +201,126 @@ async def send_copy_safe(user_id: int, message: Message, retries=2) -> int:
             print(f"❌ Copy error user_id={user_id} (attempt {attempt + 1}): {e}")
             await asyncio.sleep(1)
     return 0
+
+TEST_FAILED_COPY_FILE = "test_failed_copy.txt"
+TEST_FAILED_FORWARD_FILE = "test_failed_forward.txt"
+
+
+# === LOGGER: Xatolik foydalanuvchini faylga yozish (test copy/forward uchun) === #
+async def log_test_failed_user(user_id: int, is_copy=True):
+    filename = TEST_FAILED_COPY_FILE if is_copy else TEST_FAILED_FORWARD_FILE
+    async with aiofiles.open(filename, mode="a") as f:
+        await f.write(f"{user_id}\n")
+
+
+# === SINOV: ODDIY XABARNI COPY YUBORIB O‘CHIRISH === #
+@msg_router.message(F.text == "🧪Sinov: Copy yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def test_copy_broadcast(message: Message):
+    await message.answer("🧪 Sinov: Oddiy xabarni yuboring (copy), yuboriladi va darhol o‘chiriladi:")
+    # Holatni kutadi
+    state = FSMContext(storage=message.bot['fsm_storage'], chat_id=message.chat.id, user_id=message.from_user.id)
+    await state.set_state(MsgState.send_msg)
+
+
+@msg_router.message(MsgState.send_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def handle_test_copy(message: Message, state: FSMContext):
+    await state.clear()
+    sql.execute("SELECT user_id FROM public.accounts")
+    rows = sql.fetchall()
+    user_ids = [row[0] for row in rows]
+
+    success = 0
+    failed = 0
+    status = await message.answer("📤 Sinov copy yuborish boshlandi...")
+
+    async def send_and_delete(user_id):
+        nonlocal success, failed
+        try:
+            async with semaphore:
+                sent = await bot.copy_message(
+                    chat_id=user_id,
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id
+                )
+                await asyncio.sleep(0.2)  # Ozgina delay
+                await bot.delete_message(chat_id=user_id, message_id=sent.message_id)
+                success += 1
+        except Exception as e:
+            failed += 1
+            await log_test_failed_user(user_id, is_copy=True)
+            print(f"[COPY TEST] ❌ user_id={user_id} | {e}")
+
+    tasks = [send_and_delete(uid) for uid in user_ids]
+
+    for i in range(0, len(tasks), 500):
+        await asyncio.gather(*tasks[i:i + 500])
+        try:
+            await status.edit_text(
+                f"🧪 Copy sinovi\n"
+                f"✅ Yuborildi: {success}\n"
+                f"❌ Xato: {failed}\n"
+                f"📊 Progres: {min(i + 500, len(user_ids))}/{len(user_ids)}"
+            )
+        except:
+            pass
+
+    await message.answer(f"✅ Sinov yakunlandi\n\n"
+                         f"📤 Copy yuborilgan: {success}\n"
+                         f"❌ Xatoliklar: {failed}\n"
+                         f"📦 Jami: {len(user_ids)} foydalanuvchi")
+
+
+# === SINOV: FORWARD XABARNI YUBORIB O‘CHIRISH === #
+@msg_router.message(F.text == "🧪Sinov: Forward yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def test_forward_broadcast(message: Message):
+    await message.answer("🧪 Sinov: Forward xabar yuboring, darhol o‘chiriladi:")
+    state = FSMContext(storage=message.bot['fsm_storage'], chat_id=message.chat.id, user_id=message.from_user.id)
+    await state.set_state(MsgState.forward_msg)
+
+
+@msg_router.message(MsgState.forward_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def handle_test_forward(message: Message, state: FSMContext):
+    await state.clear()
+    sql.execute("SELECT user_id FROM public.accounts")
+    rows = sql.fetchall()
+    user_ids = [row[0] for row in rows]
+
+    success = 0
+    failed = 0
+    status = await message.answer("📨 Sinov forward yuborish boshlandi...")
+
+    async def send_and_delete(user_id):
+        nonlocal success, failed
+        try:
+            async with semaphore:
+                sent = await bot.forward_message(
+                    chat_id=user_id,
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id
+                )
+                await asyncio.sleep(0.2)
+                await bot.delete_message(chat_id=user_id, message_id=sent.message_id)
+                success += 1
+        except Exception as e:
+            failed += 1
+            await log_test_failed_user(user_id, is_copy=False)
+            print(f"[FORWARD TEST] ❌ user_id={user_id} | {e}")
+
+    tasks = [send_and_delete(uid) for uid in user_ids]
+
+    for i in range(0, len(tasks), 500):
+        await asyncio.gather(*tasks[i:i + 500])
+        try:
+            await status.edit_text(
+                f"🧪 Forward sinovi\n"
+                f"✅ Yuborildi: {success}\n"
+                f"❌ Xato: {failed}\n"
+                f"📊 Progres: {min(i + 500, len(user_ids))}/{len(user_ids)}"
+            )
+        except:
+            pass
+
+    await message.answer(f"✅ Forward sinov tugadi\n\n"
+                         f"📤 Forward yuborilgan: {success}\n"
+                         f"❌ Xatoliklar: {failed}\n"
+                         f"📦 Jami: {len(user_ids)} foydalanuvchi")
