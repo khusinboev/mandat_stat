@@ -1,4 +1,5 @@
 import asyncio
+import aiofiles
 from aiogram import Router, F, Bot
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
@@ -10,6 +11,9 @@ from config import ADMIN_ID, sql, bot
 from src.keyboards.buttons import AdminPanel
 
 msg_router = Router()
+
+FAILED_USERS_FILE = "failed_users.txt"
+semaphore = asyncio.Semaphore(100)  # 100 ta parallel yuborishga ruxsat
 
 
 # === HOLAT (FSM) === #
@@ -38,7 +42,7 @@ async def start_forward(message: Message, state: FSMContext):
     await state.set_state(MsgState.forward_msg)
 
 
-# === FORWARD XABARNI YUBORISH === #
+# === FORWARD YUBORISH === #
 @msg_router.message(MsgState.forward_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def send_forward_to_all(message: Message, state: FSMContext):
     await state.clear()
@@ -89,91 +93,80 @@ async def back_to_menu(message: Message, state: FSMContext):
     await message.answer("Orqaga qaytildi", reply_markup=await AdminPanel.admin_msg())
 
 
-# =======================
-#       BROADCAST
-# =======================
+# === LOGGER: Xatolik foydalanuvchini faylga yozish === #
+async def log_failed_user(user_id: int):
+    async with aiofiles.open(FAILED_USERS_FILE, mode="a") as f:
+        await f.write(f"{user_id}\n")
 
-semaphore = asyncio.Semaphore(30)  # 30 ta parallel yuborishga ruxsat
 
-# --- ODDIY XABAR BROADCAST --- #
+# === BROADCAST COPY YUBORISH === #
 async def broadcast_copy(user_ids: list[int], message: Message) -> tuple[int, int]:
     success = 0
     failed = 0
-
     status_msg = await message.answer("📤 Yuborish boshlandi...")
 
-    for i, user_id in enumerate(user_ids, 1):
+    async def handle_user(user_id):
+        nonlocal success, failed
         result = await send_copy_safe(user_id, message)
         if result:
             success += 1
         else:
             failed += 1
+            await log_failed_user(user_id)
 
-        if i % 100 == 0 or i == len(user_ids):
-            try:
-                await status_msg.edit_text(
-                    f"📬 Oddiy xabar yuborilmoqda...\n\n"
-                    f"✅ Yuborilgan: {success} ta\n"
-                    f"❌ Yuborilmagan: {failed} ta\n"
-                    f"📦 Jami: {len(user_ids)} ta\n"
-                    f"📊 Progres: {i}/{len(user_ids)}"
-                )
-            except Exception as e:
-                print(f"❗Holatni yangilash xatosi: {e}")
+    tasks = [handle_user(uid) for uid in user_ids]
+
+    for i in range(0, len(tasks), 500):
+        await asyncio.gather(*tasks[i:i + 500])
+        try:
+            await status_msg.edit_text(
+                f"📬 Oddiy xabar yuborilmoqda...\n\n"
+                f"✅ Yuborilgan: {success} ta\n"
+                f"❌ Yuborilmagan: {failed} ta\n"
+                f"📦 Jami: {len(user_ids)} ta\n"
+                f"📊 Progres: {min(i + 500, len(user_ids))}/{len(user_ids)}"
+            )
+        except Exception as e:
+            print(f"Holatni yangilashda xato: {e}")
 
     return success, failed
 
 
-# --- FORWARD XABAR BROADCAST --- #
+# === BROADCAST FORWARD === #
 async def broadcast_forward(user_ids: list[int], message: Message) -> tuple[int, int]:
     success = 0
     failed = 0
-
     status_msg = await message.answer("📨 Forward yuborish boshlandi...")
 
-    for i, user_id in enumerate(user_ids, 1):
+    async def handle_user(user_id):
+        nonlocal success, failed
         result = await send_forward_safe(user_id, message)
         if result:
             success += 1
         else:
             failed += 1
+            await log_failed_user(user_id)
 
-        if i % 100 == 0 or i == len(user_ids):
-            try:
-                await status_msg.edit_text(
-                    f"📨 Forward yuborilmoqda...\n\n"
-                    f"✅ Yuborilgan: {success} ta\n"
-                    f"❌ Yuborilmagan: {failed} ta\n"
-                    f"📦 Jami: {len(user_ids)} ta\n"
-                    f"📊 Progres: {i}/{len(user_ids)}"
-                )
-            except Exception as e:
-                print(f"❗Holatni yangilash xatosi: {e}")
+    tasks = [handle_user(uid) for uid in user_ids]
+
+    for i in range(0, len(tasks), 500):
+        await asyncio.gather(*tasks[i:i + 500])
+        try:
+            await status_msg.edit_text(
+                f"📨 Forward yuborilmoqda...\n\n"
+                f"✅ Yuborilgan: {success} ta\n"
+                f"❌ Yuborilmagan: {failed} ta\n"
+                f"📦 Jami: {len(user_ids)} ta\n"
+                f"📊 Progres: {min(i + 500, len(user_ids))}/{len(user_ids)}"
+            )
+        except Exception as e:
+            print(f"Holatni yangilashda xato: {e}")
 
     return success, failed
 
 
-# --- XATOLIKLARGA QARSHI XAVFSIZ COPY --- #
-async def send_copy_safe(user_id: int, message: Message, retries=3) -> int:
-    for attempt in range(retries):
-        try:
-            async with semaphore:
-                await bot.copy_message(
-                    chat_id=user_id,
-                    from_chat_id=message.chat.id,
-                    message_id=message.message_id
-                )
-                return 1
-        except (TelegramForbiddenError, TelegramNotFound, TelegramBadRequest, TelegramAPIError):
-            return 0
-        except Exception as e:
-            print(f"❌ Copy error user_id={user_id} (attempt {attempt + 1}): {e}")
-            await asyncio.sleep(1)
-    return 0
-
-
-# --- XATOLIKLARGA QARSHI XAVFSIZ FORWARD --- #
-async def send_forward_safe(user_id: int, message: Message, retries=3) -> int:
+# === FORWARD XAVFSIZ YUBORISH === #
+async def send_forward_safe(user_id: int, message: Message, retries=2) -> int:
     for attempt in range(retries):
         try:
             async with semaphore:
@@ -187,5 +180,24 @@ async def send_forward_safe(user_id: int, message: Message, retries=3) -> int:
             return 0
         except Exception as e:
             print(f"❌ Forward error user_id={user_id} (attempt {attempt + 1}): {e}")
+            await asyncio.sleep(1)
+    return 0
+
+
+# === COPY XAVFSIZ YUBORISH === #
+async def send_copy_safe(user_id: int, message: Message, retries=2) -> int:
+    for attempt in range(retries):
+        try:
+            async with semaphore:
+                await bot.copy_message(
+                    chat_id=user_id,
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id
+                )
+                return 1
+        except (TelegramForbiddenError, TelegramNotFound, TelegramBadRequest, TelegramAPIError):
+            return 0
+        except Exception as e:
+            print(f"❌ Copy error user_id={user_id} (attempt {attempt + 1}): {e}")
             await asyncio.sleep(1)
     return 0
