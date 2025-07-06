@@ -20,6 +20,8 @@ semaphore = asyncio.Semaphore(100)  # 100 ta parallel yuborishga ruxsat
 class MsgState(StatesGroup):
     forward_msg = State()
     send_msg = State()
+    test_copy_msg = State()
+    test_forward_msg = State()
 
 
 # === QAYTISH TUGMASI === #
@@ -202,9 +204,11 @@ async def send_copy_safe(user_id: int, message: Message, retries=2) -> int:
             await asyncio.sleep(1)
     return 0
 
+
+
+
 TEST_FAILED_COPY_FILE = "test_failed_copy.txt"
 TEST_FAILED_FORWARD_FILE = "test_failed_forward.txt"
-
 
 # === LOGGER: Xatolik foydalanuvchini faylga yozish (test copy/forward uchun) === #
 async def log_test_failed_user(user_id: int, is_copy=True):
@@ -215,14 +219,12 @@ async def log_test_failed_user(user_id: int, is_copy=True):
 
 # === SINOV: ODDIY XABARNI COPY YUBORIB O‘CHIRISH === #
 @msg_router.message(F.text == "🧪Sinov: Copy yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
-async def test_copy_broadcast(message: Message):
+async def test_copy_broadcast(message: Message, state: FSMContext):
     await message.answer("🧪 Sinov: Oddiy xabarni yuboring (copy), yuboriladi va darhol o‘chiriladi:")
-    # Holatni kutadi
-    state = FSMContext(storage=message.bot['fsm_storage'], chat_id=message.chat.id, user_id=message.from_user.id)
-    await state.set_state(MsgState.send_msg)
+    await state.set_state(MsgState.test_copy_msg)
 
 
-@msg_router.message(MsgState.send_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+@msg_router.message(MsgState.test_copy_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def handle_test_copy(message: Message, state: FSMContext):
     await state.clear()
     sql.execute("SELECT user_id FROM public.accounts")
@@ -242,7 +244,7 @@ async def handle_test_copy(message: Message, state: FSMContext):
                     from_chat_id=message.chat.id,
                     message_id=message.message_id
                 )
-                await asyncio.sleep(0.2)  # Ozgina delay
+                await asyncio.sleep(0.2)
                 await bot.delete_message(chat_id=user_id, message_id=sent.message_id)
                 success += 1
         except Exception as e:
@@ -272,13 +274,12 @@ async def handle_test_copy(message: Message, state: FSMContext):
 
 # === SINOV: FORWARD XABARNI YUBORIB O‘CHIRISH === #
 @msg_router.message(F.text == "🧪Sinov: Forward yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
-async def test_forward_broadcast(message: Message):
+async def test_forward_broadcast(message: Message, state: FSMContext):
     await message.answer("🧪 Sinov: Forward xabar yuboring, darhol o‘chiriladi:")
-    state = FSMContext(storage=message.bot['fsm_storage'], chat_id=message.chat.id, user_id=message.from_user.id)
-    await state.set_state(MsgState.forward_msg)
+    await state.set_state(MsgState.test_forward_msg)
 
 
-@msg_router.message(MsgState.forward_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+@msg_router.message(MsgState.test_forward_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def handle_test_forward(message: Message, state: FSMContext):
     await state.clear()
     sql.execute("SELECT user_id FROM public.accounts")
