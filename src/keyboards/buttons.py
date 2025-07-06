@@ -81,6 +81,10 @@ class AdminPanel:
                             KeyboardButton(text="📬Oddiy xabar yuborish"),
                         ],
                         [
+                            KeyboardButton(text="🧪Sinov: Copy yuborish"),
+                            KeyboardButton(text="🧪Sinov: Forward yuborish")
+], 
+                        [
                             KeyboardButton(text="🔙Orqaga qaytish"),
                         ]
                     ],
