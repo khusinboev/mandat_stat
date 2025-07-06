@@ -207,17 +207,23 @@ async def send_copy_safe(user_id: int, message: Message, retries=2) -> int:
 
 
 
+
+
+import os
+import aiofiles
+from aiogram.types import BufferedInputFile
+
 TEST_FAILED_COPY_FILE = "test_failed_copy.txt"
 TEST_FAILED_FORWARD_FILE = "test_failed_forward.txt"
 
-# === LOGGER: Xatolik foydalanuvchini faylga yozish (test copy/forward uchun) === #
-async def log_test_failed_user(user_id: int, is_copy=True):
+# === LOGGER: Xatolik foydalanuvchini faylga yozish (xatolik bilan birga) === #
+async def log_test_failed_user(user_id: int, error: str, is_copy=True):
     filename = TEST_FAILED_COPY_FILE if is_copy else TEST_FAILED_FORWARD_FILE
     async with aiofiles.open(filename, mode="a") as f:
-        await f.write(f"{user_id}\n")
+        await f.write(f"{user_id} | {error}\n")
 
 
-# === SINOV: ODDIY XABARNI COPY YUBORIB O‘CHIRISH === #
+# === SINOV: COPY YUBORIB DARHOL O‘CHIRISH === #
 @msg_router.message(F.text == "🧪Sinov: Copy yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def test_copy_broadcast(message: Message, state: FSMContext):
     await message.answer("🧪 Sinov: Oddiy xabarni yuboring (copy), yuboriladi va darhol o‘chiriladi:")
@@ -227,9 +233,12 @@ async def test_copy_broadcast(message: Message, state: FSMContext):
 @msg_router.message(MsgState.test_copy_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def handle_test_copy(message: Message, state: FSMContext):
     await state.clear()
+
+    if os.path.exists(TEST_FAILED_COPY_FILE):
+        os.remove(TEST_FAILED_COPY_FILE)
+
     sql.execute("SELECT user_id FROM public.accounts")
-    rows = sql.fetchall()
-    user_ids = [row[0] for row in rows]
+    user_ids = [row[0] for row in sql.fetchall()]
 
     success = 0
     failed = 0
@@ -249,7 +258,7 @@ async def handle_test_copy(message: Message, state: FSMContext):
                 success += 1
         except Exception as e:
             failed += 1
-            await log_test_failed_user(user_id, is_copy=True)
+            await log_test_failed_user(user_id, str(e), is_copy=True)
             print(f"[COPY TEST] ❌ user_id={user_id} | {e}")
 
     tasks = [send_and_delete(uid) for uid in user_ids]
@@ -271,8 +280,14 @@ async def handle_test_copy(message: Message, state: FSMContext):
                          f"❌ Xatoliklar: {failed}\n"
                          f"📦 Jami: {len(user_ids)} foydalanuvchi")
 
+    if os.path.exists(TEST_FAILED_COPY_FILE):
+        async with aiofiles.open(TEST_FAILED_COPY_FILE, "rb") as f:
+            data = await f.read()
+            file = BufferedInputFile(data, TEST_FAILED_COPY_FILE)
+            await message.answer_document(file, caption="❌ Copy yuborishda xato bo‘lganlar")
 
-# === SINOV: FORWARD XABARNI YUBORIB O‘CHIRISH === #
+
+# === SINOV: FORWARD YUBORIB DARHOL O‘CHIRISH === #
 @msg_router.message(F.text == "🧪Sinov: Forward yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def test_forward_broadcast(message: Message, state: FSMContext):
     await message.answer("🧪 Sinov: Forward xabar yuboring, darhol o‘chiriladi:")
@@ -282,9 +297,12 @@ async def test_forward_broadcast(message: Message, state: FSMContext):
 @msg_router.message(MsgState.test_forward_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def handle_test_forward(message: Message, state: FSMContext):
     await state.clear()
+
+    if os.path.exists(TEST_FAILED_FORWARD_FILE):
+        os.remove(TEST_FAILED_FORWARD_FILE)
+
     sql.execute("SELECT user_id FROM public.accounts")
-    rows = sql.fetchall()
-    user_ids = [row[0] for row in rows]
+    user_ids = [row[0] for row in sql.fetchall()]
 
     success = 0
     failed = 0
@@ -304,7 +322,7 @@ async def handle_test_forward(message: Message, state: FSMContext):
                 success += 1
         except Exception as e:
             failed += 1
-            await log_test_failed_user(user_id, is_copy=False)
+            await log_test_failed_user(user_id, str(e), is_copy=False)
             print(f"[FORWARD TEST] ❌ user_id={user_id} | {e}")
 
     tasks = [send_and_delete(uid) for uid in user_ids]
@@ -325,3 +343,9 @@ async def handle_test_forward(message: Message, state: FSMContext):
                          f"📤 Forward yuborilgan: {success}\n"
                          f"❌ Xatoliklar: {failed}\n"
                          f"📦 Jami: {len(user_ids)} foydalanuvchi")
+
+    if os.path.exists(TEST_FAILED_FORWARD_FILE):
+        async with aiofiles.open(TEST_FAILED_FORWARD_FILE, "rb") as f:
+            data = await f.read()
+            file = BufferedInputFile(data, TEST_FAILED_FORWARD_FILE)
+            await message.answer_document(file, caption="❌ Forward yuborishda xato bo‘lganlar")
