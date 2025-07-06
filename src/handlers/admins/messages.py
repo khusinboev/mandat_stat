@@ -5,23 +5,22 @@ from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup
-from aiogram.exceptions import TelegramBadRequest, TelegramAPIError, TelegramForbiddenError, TelegramNotFound
-
+from aiogram.exceptions import (
+    TelegramBadRequest, TelegramAPIError, TelegramForbiddenError,
+    TelegramNotFound, TelegramRetryAfter
+)
 from config import ADMIN_ID, sql, bot
 from src.keyboards.buttons import AdminPanel
 
 msg_router = Router()
 
 FAILED_USERS_FILE = "failed_users.txt"
-semaphore = asyncio.Semaphore(100)  # 100 ta parallel yuborishga ruxsat
-
+semaphore = asyncio.Semaphore(20)  # Parallel yuborish limitini pasaytirdik
 
 # === HOLAT (FSM) === #
 class MsgState(StatesGroup):
     forward_msg = State()
     send_msg = State()
-    test_copy_msg = State()
-    test_forward_msg = State()
 
 
 # === QAYTISH TUGMASI === #
@@ -115,18 +114,19 @@ async def broadcast_copy(user_ids: list[int], message: Message) -> tuple[int, in
         else:
             failed += 1
             await log_failed_user(user_id)
+        await asyncio.sleep(0.05)  # Har foydalanuvchidan keyin biroz kutish
 
     tasks = [handle_user(uid) for uid in user_ids]
 
-    for i in range(0, len(tasks), 500):
-        await asyncio.gather(*tasks[i:i + 500])
+    for i in range(0, len(tasks), 50):
+        await asyncio.gather(*tasks[i:i + 50])
         try:
             await status_msg.edit_text(
                 f"📬 Oddiy xabar yuborilmoqda...\n\n"
                 f"✅ Yuborilgan: {success} ta\n"
                 f"❌ Yuborilmagan: {failed} ta\n"
                 f"📦 Jami: {len(user_ids)} ta\n"
-                f"📊 Progres: {min(i + 500, len(user_ids))}/{len(user_ids)}"
+                f"📊 Progres: {min(i + 50, len(user_ids))}/{len(user_ids)}"
             )
         except Exception as e:
             print(f"Holatni yangilashda xato: {e}")
@@ -148,18 +148,19 @@ async def broadcast_forward(user_ids: list[int], message: Message) -> tuple[int,
         else:
             failed += 1
             await log_failed_user(user_id)
+        await asyncio.sleep(0.05)  # Har foydalanuvchidan keyin biroz kutish
 
     tasks = [handle_user(uid) for uid in user_ids]
 
-    for i in range(0, len(tasks), 500):
-        await asyncio.gather(*tasks[i:i + 500])
+    for i in range(0, len(tasks), 50):
+        await asyncio.gather(*tasks[i:i + 50])
         try:
             await status_msg.edit_text(
                 f"📨 Forward yuborilmoqda...\n\n"
                 f"✅ Yuborilgan: {success} ta\n"
                 f"❌ Yuborilmagan: {failed} ta\n"
                 f"📦 Jami: {len(user_ids)} ta\n"
-                f"📊 Progres: {min(i + 500, len(user_ids))}/{len(user_ids)}"
+                f"📊 Progres: {min(i + 50, len(user_ids))}/{len(user_ids)}"
             )
         except Exception as e:
             print(f"Holatni yangilashda xato: {e}")
@@ -168,7 +169,7 @@ async def broadcast_forward(user_ids: list[int], message: Message) -> tuple[int,
 
 
 # === FORWARD XAVFSIZ YUBORISH === #
-async def send_forward_safe(user_id: int, message: Message, retries=2) -> int:
+async def send_forward_safe(user_id: int, message: Message, retries=5) -> int:
     for attempt in range(retries):
         try:
             async with semaphore:
@@ -178,16 +179,20 @@ async def send_forward_safe(user_id: int, message: Message, retries=2) -> int:
                     message_id=message.message_id
                 )
                 return 1
+        except TelegramRetryAfter as e:
+            wait_time = e.retry_after
+            print(f"⏳ Flood control (forward): Waiting {wait_time}s for user_id={user_id}")
+            await asyncio.sleep(wait_time)
         except (TelegramForbiddenError, TelegramNotFound, TelegramBadRequest, TelegramAPIError):
             return 0
         except Exception as e:
             print(f"❌ Forward error user_id={user_id} (attempt {attempt + 1}): {e}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
     return 0
 
 
 # === COPY XAVFSIZ YUBORISH === #
-async def send_copy_safe(user_id: int, message: Message, retries=2) -> int:
+async def send_copy_safe(user_id: int, message: Message, retries=5) -> int:
     for attempt in range(retries):
         try:
             async with semaphore:
@@ -197,11 +202,15 @@ async def send_copy_safe(user_id: int, message: Message, retries=2) -> int:
                     message_id=message.message_id
                 )
                 return 1
+        except TelegramRetryAfter as e:
+            wait_time = e.retry_after
+            print(f"⏳ Flood control (copy): Waiting {wait_time}s for user_id={user_id}")
+            await asyncio.sleep(wait_time)
         except (TelegramForbiddenError, TelegramNotFound, TelegramBadRequest, TelegramAPIError):
             return 0
         except Exception as e:
             print(f"❌ Copy error user_id={user_id} (attempt {attempt + 1}): {e}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
     return 0
 
 
