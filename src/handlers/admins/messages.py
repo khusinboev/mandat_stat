@@ -219,11 +219,34 @@ async def send_copy_safe(user_id: int, message: Message, retries=5) -> int:
 
 
 import os
+import asyncio
 import aiofiles
-from aiogram.types import BufferedInputFile
+from aiogram import F
+from aiogram.types import Message, BufferedInputFile
+from aiogram.enums import ChatType
+from aiogram.exceptions import (
+    TelegramRetryAfter, TelegramForbiddenError,
+    TelegramNotFound, TelegramBadRequest, TelegramAPIError
+)
+
+from config import ADMIN_ID, sql, bot
+from src.keyboards.buttons import AdminPanel
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
+from aiogram import Router
+
+msg_router = Router()
 
 TEST_FAILED_COPY_FILE = "test_failed_copy.txt"
 TEST_FAILED_FORWARD_FILE = "test_failed_forward.txt"
+semaphore = asyncio.Semaphore(20)
+
+
+# === HOLAT (FSM) === #
+class MsgState(StatesGroup):
+    test_copy_msg = State()
+    test_forward_msg = State()
+
 
 # === LOGGER: Xatolik foydalanuvchini faylga yozish (xatolik bilan birga) === #
 async def log_test_failed_user(user_id: int, error: str, is_copy=True):
@@ -232,7 +255,7 @@ async def log_test_failed_user(user_id: int, error: str, is_copy=True):
         await f.write(f"{user_id} | {error}\n")
 
 
-# === SINOV: COPY YUBORIB DARHOL O‘CHIRISH === #
+# === SINOV: COPY YUBORIB O‘CHIRISH === #
 @msg_router.message(F.text == "🧪Sinov: Copy yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def test_copy_broadcast(message: Message, state: FSMContext):
     await message.answer("🧪 Sinov: Oddiy xabarni yuboring (copy), yuboriladi va darhol o‘chiriladi:")
@@ -255,31 +278,42 @@ async def handle_test_copy(message: Message, state: FSMContext):
 
     async def send_and_delete(user_id):
         nonlocal success, failed
-        try:
-            async with semaphore:
-                sent = await bot.copy_message(
-                    chat_id=user_id,
-                    from_chat_id=message.chat.id,
-                    message_id=message.message_id
-                )
-                await asyncio.sleep(0.2)
-                await bot.delete_message(chat_id=user_id, message_id=sent.message_id)
-                success += 1
-        except Exception as e:
-            failed += 1
-            await log_test_failed_user(user_id, str(e), is_copy=True)
-            print(f"[COPY TEST] ❌ user_id={user_id} | {e}")
+        for attempt in range(5):
+            try:
+                async with semaphore:
+                    sent = await bot.copy_message(
+                        chat_id=user_id,
+                        from_chat_id=message.chat.id,
+                        message_id=message.message_id
+                    )
+                    await asyncio.sleep(0.2)
+                    await bot.delete_message(chat_id=user_id, message_id=sent.message_id)
+                    success += 1
+                    break
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(e.retry_after)
+            except (TelegramForbiddenError, TelegramNotFound, TelegramBadRequest, TelegramAPIError):
+                await log_test_failed_user(user_id, "Telegram API Error", is_copy=True)
+                failed += 1
+                break
+            except Exception as e:
+                if attempt == 4:
+                    failed += 1
+                    await log_test_failed_user(user_id, str(e), is_copy=True)
+                await asyncio.sleep(1)
+
+        await asyncio.sleep(0.05)
 
     tasks = [send_and_delete(uid) for uid in user_ids]
 
-    for i in range(0, len(tasks), 500):
-        await asyncio.gather(*tasks[i:i + 500])
+    for i in range(0, len(tasks), 50):
+        await asyncio.gather(*tasks[i:i + 50])
         try:
             await status.edit_text(
                 f"🧪 Copy sinovi\n"
                 f"✅ Yuborildi: {success}\n"
                 f"❌ Xato: {failed}\n"
-                f"📊 Progres: {min(i + 500, len(user_ids))}/{len(user_ids)}"
+                f"📊 Progres: {min(i + 50, len(user_ids))}/{len(user_ids)}"
             )
         except:
             pass
@@ -296,7 +330,7 @@ async def handle_test_copy(message: Message, state: FSMContext):
             await message.answer_document(file, caption="❌ Copy yuborishda xato bo‘lganlar")
 
 
-# === SINOV: FORWARD YUBORIB DARHOL O‘CHIRISH === #
+# === SINOV: FORWARD YUBORIB O‘CHIRISH === #
 @msg_router.message(F.text == "🧪Sinov: Forward yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def test_forward_broadcast(message: Message, state: FSMContext):
     await message.answer("🧪 Sinov: Forward xabar yuboring, darhol o‘chiriladi:")
@@ -319,31 +353,42 @@ async def handle_test_forward(message: Message, state: FSMContext):
 
     async def send_and_delete(user_id):
         nonlocal success, failed
-        try:
-            async with semaphore:
-                sent = await bot.forward_message(
-                    chat_id=user_id,
-                    from_chat_id=message.chat.id,
-                    message_id=message.message_id
-                )
-                await asyncio.sleep(0.2)
-                await bot.delete_message(chat_id=user_id, message_id=sent.message_id)
-                success += 1
-        except Exception as e:
-            failed += 1
-            await log_test_failed_user(user_id, str(e), is_copy=False)
-            print(f"[FORWARD TEST] ❌ user_id={user_id} | {e}")
+        for attempt in range(5):
+            try:
+                async with semaphore:
+                    sent = await bot.forward_message(
+                        chat_id=user_id,
+                        from_chat_id=message.chat.id,
+                        message_id=message.message_id
+                    )
+                    await asyncio.sleep(0.2)
+                    await bot.delete_message(chat_id=user_id, message_id=sent.message_id)
+                    success += 1
+                    break
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(e.retry_after)
+            except (TelegramForbiddenError, TelegramNotFound, TelegramBadRequest, TelegramAPIError):
+                await log_test_failed_user(user_id, "Telegram API Error", is_copy=False)
+                failed += 1
+                break
+            except Exception as e:
+                if attempt == 4:
+                    failed += 1
+                    await log_test_failed_user(user_id, str(e), is_copy=False)
+                await asyncio.sleep(1)
+
+        await asyncio.sleep(0.05)
 
     tasks = [send_and_delete(uid) for uid in user_ids]
 
-    for i in range(0, len(tasks), 500):
-        await asyncio.gather(*tasks[i:i + 500])
+    for i in range(0, len(tasks), 50):
+        await asyncio.gather(*tasks[i:i + 50])
         try:
             await status.edit_text(
                 f"🧪 Forward sinovi\n"
                 f"✅ Yuborildi: {success}\n"
                 f"❌ Xato: {failed}\n"
-                f"📊 Progres: {min(i + 500, len(user_ids))}/{len(user_ids)}"
+                f"📊 Progres: {min(i + 50, len(user_ids))}/{len(user_ids)}"
             )
         except:
             pass
