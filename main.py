@@ -35,7 +35,7 @@ async def main():
     dp.include_router(ball_router)
     dp.include_router(group_router)
     dp.include_router(channel_router)
-    #dp.include_router(other_router)
+    dp.include_router(other_router)
 
     await dp.start_polling(bot)
 
