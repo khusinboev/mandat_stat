@@ -1,10 +1,12 @@
 import asyncio
+import os
+
 import aiofiles
 from aiogram import Router, F, Bot
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup, BufferedInputFile
 from aiogram.exceptions import (
     TelegramBadRequest, TelegramAPIError, TelegramForbiddenError,
     TelegramNotFound, TelegramRetryAfter
@@ -16,7 +18,6 @@ from src.keyboards.keyboard_func import PanelFunc, AdminFilter
 msg_router = Router()
 
 FAILED_USERS_FILE = "failed_users.txt"
-semaphore = asyncio.Semaphore(20)  # Parallel yuborish limitini pasaytirdik
 
 # === HOLAT (FSM) === #
 class MsgState(StatesGroup):
@@ -215,27 +216,6 @@ async def send_copy_safe(user_id: int, message: Message, retries=5) -> int:
     return 0
 
 
-
-
-
-import os
-import asyncio
-import aiofiles
-from aiogram import F
-from aiogram.types import Message, BufferedInputFile
-from aiogram.enums import ChatType
-from aiogram.exceptions import (
-    TelegramRetryAfter, TelegramForbiddenError,
-    TelegramNotFound, TelegramBadRequest, TelegramAPIError
-)
-
-from config import ADMIN_ID, sql, bot
-from src.keyboards.buttons import AdminPanel
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from aiogram import Router
-
-msg_router = Router()
 
 TEST_FAILED_COPY_FILE = "test_failed_copy.txt"
 TEST_FAILED_FORWARD_FILE = "test_failed_forward.txt"
