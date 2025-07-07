@@ -32,7 +32,7 @@ markup = ReplyKeyboardMarkup(
 
 
 # === ADMIN PANEL === #
-@msg_router.message(F.text == "🔧Adminlar👨‍💻", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+@msg_router.message(F.text == "✍Xabarlar", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def panel_handler(message: Message) -> None:
     await message.answer("Xabarlar bo'limi!", reply_markup=await AdminPanel.admin_msg())
 
