@@ -208,10 +208,21 @@ async def send_copy_safe(user_id: int, message: Message, retries=5) -> int:
             wait_time = e.retry_after
             print(f"⏳ Flood control (copy): Waiting {wait_time}s for user_id={user_id}")
             await asyncio.sleep(wait_time)
-        except (TelegramForbiddenError, TelegramNotFound, TelegramBadRequest, TelegramAPIError):
+        except (TelegramForbiddenError, TelegramNotFound):
+            # Bloklagan yoki mavjud emas
             return 0
+        except (TelegramBadRequest, TelegramAPIError) as e:
+            # Ba'zi xatolarni qayta urinib ko'rish mumkin
+            if attempt == retries - 1:
+                print(f"❌ API Error: {e} user_id={user_id}")
+                await log_test_failed_user(user_id, str(e), is_copy=True)
+                return 0
+            await asyncio.sleep(2)
         except Exception as e:
-            print(f"❌ Copy error user_id={user_id} (attempt {attempt + 1}): {e}")
+            print(f"❌ Unknown Error user_id={user_id} (attempt {attempt + 1}): {e}")
+            if attempt == retries - 1:
+                await log_test_failed_user(user_id, str(e), is_copy=True)
+                return 0
             await asyncio.sleep(2)
     return 0
 
