@@ -23,6 +23,8 @@ FAILED_USERS_FILE = "failed_users.txt"
 class MsgState(StatesGroup):
     forward_msg = State()
     send_msg = State()
+    test_copy_msg = State()
+    test_forward_msg = State()
 
 
 # === QAYTISH TUGMASI === #
@@ -235,10 +237,7 @@ semaphore = asyncio.Semaphore(20)
 _logged_users_copy = set()
 _logged_users_forward = set()
 
-# === HOLAT (FSM) === #
-class MsgState(StatesGroup):
-    test_copy_msg = State()
-    test_forward_msg = State()
+
 
 # === LOGGER: Xatolik foydalanuvchini faylga yozish (takror yozmaslik) === #
 async def log_test_failed_user(user_id: int, is_copy=True):
