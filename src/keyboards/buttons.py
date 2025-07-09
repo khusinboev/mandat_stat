@@ -58,22 +58,22 @@ class AdminPanel:
 
     @staticmethod
     async def admin_msg():
-        admin_channel=ReplyKeyboardMarkup(
-                    keyboard=[
-                        [
-                            KeyboardButton(text="📨Forward xabar yuborish"),
-                            KeyboardButton(text="📬Oddiy xabar yuborish"),
-                        ],
-                        [
-                            KeyboardButton(text="🧪Sinov: Copy yuborish"),
-                            KeyboardButton(text="🧪Sinov: Forward yuborish")
-], 
-                        [
-                            KeyboardButton(text="🔙Orqaga qaytish"),
-                        ]
-                    ],
-                    resize_keyboard=True,
-                )
+        admin_channel = ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="📨Forward xabar yuborish"),
+                    KeyboardButton(text="📬Oddiy xabar yuborish"),
+                ],
+                [
+                    KeyboardButton(text="🧪Sinov: Copy yuborish"),
+                    KeyboardButton(text="🧪Sinov: Forward yuborish")
+                ],
+                [
+                    KeyboardButton(text="🔙Orqaga qaytish"),
+                ]
+            ],
+            resize_keyboard=True,
+        )
         return admin_channel
 
 
