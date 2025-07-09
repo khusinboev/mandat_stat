@@ -40,22 +40,6 @@ class AdminPanel:
         return admin_channel
 
     @staticmethod
-    async def admin_anons():
-        admin_message=ReplyKeyboardMarkup(
-                    keyboard=[
-                        [
-                            KeyboardButton(text="📨Oddit forward"),
-                            KeyboardButton(text="📬Oddiy xabar"),
-                        ],
-                        [
-                            KeyboardButton(text="🔙Orqaga qaytish"),
-                        ]
-                    ],
-                    resize_keyboard=True,
-                )
-        return admin_message
-
-    @staticmethod
     async def admin_add():
         admin_channel=ReplyKeyboardMarkup(
                     keyboard=[
@@ -186,26 +170,3 @@ class UserPanels:
             keyboard=[[KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")]], resize_keyboard=True,
         )
         return btn
-
-    @staticmethod
-    async def regions_btn():
-        cursor.execute("SELECT region_name FROM regions")
-        rows = cursor.fetchall()
-
-        # Har bir region_name uchun tugma yaratamiz
-        keyboard = []
-        for row in rows:
-            region_name = row[0]
-            keyboard.append([KeyboardButton(text=region_name)])
-
-        # Ortga tugmasini eng pastga qo‘shamiz
-        keyboard.append([KeyboardButton(text="🔙 Ortga")])
-
-        btn = ReplyKeyboardMarkup(
-            keyboard=keyboard,
-            resize_keyboard=True,
-        )
-        return btn
-
-    # @staticmethod
-    

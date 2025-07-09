@@ -14,7 +14,7 @@ from dateutil.relativedelta import relativedelta
 
 from src.keyboards.buttons import AdminPanel
 from config import sql, ADMIN_ID, DB_CONFIG, bot
-from src.keyboards.keyboard_func import PanelFunc, AdminFilter
+from src.keyboards.keyboard_func import PanelFunc
 
 admin_router = Router()
 
@@ -30,20 +30,20 @@ class Form(StatesGroup):
 
 
 # Admin panelga kirish
-@admin_router.message(Command("panel", "admin"), AdminFilter(static_admins=ADMIN_ID), F.chat.type == ChatType.PRIVATE)#,
+@admin_router.message(Command("panel", "admin"), F.from_user.id.in_(ADMIN_ID), F.chat.type == ChatType.PRIVATE)#,
 async def panel_handler(message: Message) -> None:
     await message.answer("panel", reply_markup=await AdminPanel.admin_menu())
 
 
 markup = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text="🔙Orqaga qaytish")]])
-@admin_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def backs(message: Message, state: FSMContext):
     await message.reply("Orqaga qaytildi", reply_markup=await AdminPanel.admin_menu())
     await state.clear()
 
 
 # Statistika
-@admin_router.message(F.text == "📊Statistika", F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(F.text == "📊Statistika", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def new(message: Message):
     now = datetime.now(pytz.timezone("Asia/Tashkent")).date()
 
@@ -98,18 +98,18 @@ async def new(message: Message):
 
 
 # Kanallar bo'limi
-@admin_router.message(F.text == '🔧Kanallar', F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(F.text == '🔧Kanallar', F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def new(msg: Message):
     await msg.answer("Tanlang", reply_markup=await AdminPanel.admin_channel())
 
 
-@admin_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID), Form.ch_add or Form.ch_delete)
+@admin_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID), Form.ch_add or Form.ch_delete)
 async def backs(message: Message, state: FSMContext):
     await message.reply("Orqaga qaytildi", reply_markup=await AdminPanel.admin_channel())
     await state.clear()
 
 
-@admin_router.message(F.text == "➕Kanal qo'shish", F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(F.text == "➕Kanal qo'shish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def channel_add(message: Message, state: FSMContext):
     keyboard = []
     keyboard.extend([
@@ -124,7 +124,7 @@ async def channel_add(message: Message, state: FSMContext):
     await state.set_state(Form.ch_add)
 
 
-@admin_router.message(Form.ch_add, F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(Form.ch_add, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def channel_add1(message: Message, state: FSMContext):
     if message.chat_shared:
         pass
@@ -198,7 +198,7 @@ async def channel_add1(message: Message, state: FSMContext):
     else:
         await message.answer("Kanal <b>username</b> yuboring", reply_markup=markup, parse_mode="html")
 
-@admin_router.message(Form.for_username, F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(Form.for_username, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def channel_add1(message: Message, state: FSMContext):
     link = message.text
     if "https://t.me/+" in link:
@@ -213,13 +213,13 @@ async def channel_add1(message: Message, state: FSMContext):
             reply_markup=markup)
 
 
-@admin_router.message(F.text == "❌Kanalni olib tashlash", F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(F.text == "❌Kanalni olib tashlash", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def channel_delete(message: Message, state: FSMContext):
     await message.reply("O'chiriladigan kanalning userini yuboring.\nMisol uchun @coder_admin", reply_markup=markup)
     await state.set_state(Form.ch_delete)
 
 
-@admin_router.message(Form.ch_delete, F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(Form.ch_delete, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def channel_delete2(message: Message, state: FSMContext):
     all_details = await bot.get_chat(message.text)
     channel_id = all_details.id
@@ -240,7 +240,7 @@ async def channel_delete2(message: Message, state: FSMContext):
     await state.clear()
 
 
-@admin_router.message(F.text == "📋 Kanallar ro'yxati", F.chat.type == ChatType.PRIVATE, AdminFilter(static_admins=ADMIN_ID))
+@admin_router.message(F.text == "📋 Kanallar ro'yxati", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def channel_list(message: Message):
     if len(await PanelFunc.channel_list()) > 3:
         await message.answer(await PanelFunc.channel_list(), parse_mode='html')

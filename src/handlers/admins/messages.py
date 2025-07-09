@@ -13,7 +13,6 @@ from aiogram.exceptions import (
 )
 from config import ADMIN_ID, sql, bot
 from src.keyboards.buttons import AdminPanel
-from src.keyboards.keyboard_func import PanelFunc, AdminFilter
 
 msg_router = Router()
 
@@ -41,14 +40,14 @@ async def panel_handler(message: Message) -> None:
 
 
 # === FORWARD XABAR BOSHLASH === #
-@msg_router.message(F.text == "📨Forward xabar yuborish", F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(F.text == "📨Forward xabar yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def start_forward(message: Message, state: FSMContext):
     await message.answer("Forward yuboriladigan xabarni yuboring", reply_markup=markup)
     await state.set_state(MsgState.forward_msg)
 
 
 # === FORWARD YUBORISH === #
-@msg_router.message(MsgState.forward_msg, F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(MsgState.forward_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def send_forward_to_all(message: Message, state: FSMContext):
     await state.clear()
     sql.execute("SELECT user_id FROM public.accounts")
@@ -67,14 +66,14 @@ async def send_forward_to_all(message: Message, state: FSMContext):
 
 
 # === ODDIY XABAR BOSHLASH === #
-@msg_router.message(F.text == "📬Oddiy xabar yuborish", F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(F.text == "📬Oddiy xabar yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def start_text_send(message: Message, state: FSMContext):
     await message.answer("Yuborilishi kerak bo'lgan xabarni yuboring", reply_markup=markup)
     await state.set_state(MsgState.send_msg)
 
 
 # === ODDIY XABARNI YUBORISH === #
-@msg_router.message(MsgState.send_msg, F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(MsgState.send_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def send_text_to_all(message: Message, state: FSMContext):
     await state.clear()
     sql.execute("SELECT user_id FROM public.accounts")
@@ -92,7 +91,7 @@ async def send_text_to_all(message: Message, state: FSMContext):
 
 
 # === ORQAGA QAYTISH === #
-@msg_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def back_to_menu(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Orqaga qaytildi", reply_markup=await AdminPanel.admin_msg())
@@ -251,12 +250,12 @@ async def log_test_failed_user(user_id: int, is_copy=True):
         await f.write(f"{user_id}\n")
 
 # === SINOV: COPY YUBORISH === #
-@msg_router.message(F.text == "🧪Sinov: Copy yuborish", F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(F.text == "🧪Sinov: Copy yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def test_copy_broadcast(message: Message, state: FSMContext):
     await message.answer("🧪 Sinov: Oddiy xabarni yuboring (copy), yuboriladi va darhol o‘chiriladi:")
     await state.set_state(MsgState.test_copy_msg)
 
-@msg_router.message(MsgState.test_copy_msg, F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(MsgState.test_copy_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def handle_test_copy(message: Message, state: FSMContext):
     await state.clear()
     if os.path.exists(TEST_FAILED_COPY_FILE):
@@ -340,12 +339,12 @@ async def handle_test_copy(message: Message, state: FSMContext):
 
 
 # === SINOV: FORWARD YUBORISH === #
-@msg_router.message(F.text == "🧪Sinov: Forward yuborish", F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(F.text == "🧪Sinov: Forward yuborish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def test_forward_broadcast(message: Message, state: FSMContext):
     await message.answer("🧪 Sinov: Forward xabar yuboring, darhol o‘chiriladi:")
     await state.set_state(MsgState.test_forward_msg)
 
-@msg_router.message(MsgState.test_forward_msg, F.chat.type == ChatType.PRIVATE, AdminFilter(ADMIN_ID))
+@msg_router.message(MsgState.test_forward_msg, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def handle_test_forward(message: Message, state: FSMContext):
     await state.clear()
     if os.path.exists(TEST_FAILED_FORWARD_FILE):
