@@ -32,14 +32,14 @@ async def check(call: CallbackQuery):
     try:
         check_status, channels = await CheckData.check_member(bot, user_id)
         if check_status:
-            await call.message.delete()
-            await bot.send_message(chat_id=user_id,
-                                   text="Quyidagi menulardan birini tanlang!",
-                                   parse_mode="html", reply_markup=await UserPanels.asos_manu())
             try:
+                await call.message.delete()
                 await call.answer()
             except:
                 pass
+            await bot.send_message(chat_id=user_id,
+                                   text="Quyidagi menulardan birini tanlang!",
+                                   parse_mode="html", reply_markup=await UserPanels.asos_manu())
         else:
             try:
                 await call.answer(show_alert=True, text="Botimizdan foydalanish uchun barcha kanallarga a'zo bo'ling")
