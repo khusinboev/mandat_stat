@@ -201,7 +201,7 @@ async def channel_add1(message: Message, state: FSMContext):
 @admin_router.message(Form.for_username, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def channel_add1(message: Message, state: FSMContext):
     link = message.text
-    if "https://t.me/+" in link:
+    if "https://t.me/" in link:
         data = await state.get_data()
         channel_id = data["channel_id"]
         await PanelFunc.channel_add(channel_id, link)
