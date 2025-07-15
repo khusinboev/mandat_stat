@@ -155,7 +155,7 @@ async def broadcast_copy(user_ids: list[int], message: Message) -> tuple[int, in
                     failed += 1
                     await log_test_failed_user(user_id, is_copy=True)
                 await asyncio.sleep(2)
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.3)
 
     tasks = [send_and_log(uid) for uid in user_ids]
     for i in range(0, len(tasks), 50):
@@ -233,7 +233,7 @@ async def broadcast_forward(user_ids: list[int], message: Message) -> tuple[int,
                     failed += 1
                     await log_test_failed_user(user_id, is_copy=False)
                 await asyncio.sleep(2)
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.6)
 
     tasks = [send_and_log(uid) for uid in user_ids]
     for i in range(0, len(tasks), 50):
