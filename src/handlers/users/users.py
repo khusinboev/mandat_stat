@@ -138,7 +138,7 @@ async def start_cmd5(message: Message):
     )
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
-                             reply_markup=await CheckData.channels_btn(channels))
+                             reply_markup=await CheckData.channels_btn2(channels))
 
 @user_router.message(F.text == "📚 Fanlar majmuasi️")
 async def start_cmd6(message: Message):
@@ -154,7 +154,7 @@ async def start_cmd6(message: Message):
     , parse_mode="html")
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
-                             reply_markup=await CheckData.channels_btn(channels))
+                             reply_markup=await CheckData.channels_btn2(channels))
 
 @user_router.message(F.text == "📊 O'tish ballari️")
 async def start_cmd7(message: Message):
@@ -170,11 +170,11 @@ async def start_cmd7(message: Message):
 "<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!!</b>", parse_mode="html")
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
-                             reply_markup=await CheckData.channels_btn(channels))
+                             reply_markup=await CheckData.channels_btn2(channels))
 
 @user_router.message(F.text == "💰 Super kontrakt miqdori️")
 async def start_cmd8(message: Message):
-    check_status, channels = await CheckData.check_membe2r(bot, message.from_user.id)
+    check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
         await message.answer("<b>⚡️O'QISHNI KO'CHIRISHDA SUPER KONTRAKT MIQDORI QANCHA❓</b>\n\n"
@@ -187,8 +187,7 @@ async def start_cmd8(message: Message):
 "<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
-                             reply_markup=await CheckData.channels_btn(channels))
-
+                             reply_markup=await CheckData.channels_btn2(channels))
 
 @user_router.message(F.text == "🧮 Tabaqalashtirilgan kontrakt miqdori")
 async def start_cmd9(message: Message):
@@ -202,9 +201,7 @@ async def start_cmd9(message: Message):
 "<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
-                             reply_markup=await CheckData.channels_btn(channels))
-
-
+                             reply_markup=await CheckData.channels_btn2(channels))
 
 @user_router.message(F.text == "📄 Transkript yuklash")
 async def start_cmd(message: Message):
@@ -217,7 +214,8 @@ async def start_cmd(message: Message):
                              reply_markup=keyboard, parse_mode="html")
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
-                             reply_markup=await CheckData.channels_btn(channels))
+                             reply_markup=await CheckData.channels_btn2(channels))
+
 
 @user_router.message(F.text == "📚 Namunaviy test topshiriqlari")
 async def start_cmd(message: Message):
