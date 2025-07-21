@@ -163,7 +163,11 @@ class UserPanels:
                 ],
                 [
                     KeyboardButton(text="🧮 Tabaqalashtirilgan kontrakt miqdori"),
-                    KeyboardButton(text="◀️ Ortga")]
+                    KeyboardButton(text="📄 Transkript yuklash")
+                ],
+                [
+                    KeyboardButton(text="◀️ Ortga")
+                ]
             ],
             resize_keyboard=True,
         )

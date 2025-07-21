@@ -7,7 +7,7 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \
-    InlineQueryResultArticle, InputTextMessageContent, ChosenInlineResult
+    InlineQueryResultArticle, InputTextMessageContent, ChosenInlineResult, WebAppInfo
 
 from config import sql, bot, ADMIN_ID, cursor, conn
 from src.keyboards.buttons import UserPanels
@@ -205,6 +205,19 @@ async def start_cmd9(message: Message):
                              reply_markup=await CheckData.channels_btn(channels))
 
 
+
+@user_router.message(F.text == "📚 Namunaviy test topshiriqlari")
+async def start_cmd(message: Message):
+    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+    if check_status:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Transkript yuklash 🗂", web_app=WebAppInfo(url="https://my.hemis.uz/"))]
+        ])
+        await message.answer(text="Xabar- <b>O'qishni ko'chirishda asosiy hujjat transkript. Transkriptni yuklash uchun pastdagi havolani bosing</b> 👇\n\n",
+                             reply_markup=keyboard, parse_mode="html")
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn(channels))
 
 @user_router.message(F.text == "📚 Namunaviy test topshiriqlari")
 async def start_cmd(message: Message):
