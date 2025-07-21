@@ -297,7 +297,7 @@ async def channel_add1(message: Message, state: FSMContext):
                                    parse_mode="html")
         else:
             channel_id = chat.id
-            sql.execute(f"SELECT chat_id FROM public.mandatorys2 WHERE chat_id = {channel_id}")
+            sql.execute(f"SELECT chat_id FROM public.kanallar2 WHERE chat_id = {channel_id}")
             data = sql.fetchone()
             if data is None:
                 await message.reply("Kanal username qabul qilindi, endi taklif havolasini yuboring. U https://t.me/+ deb boshlanadi. Buni kanal havolalari bo'limida yaratasiz.", reply_markup=markup)
@@ -318,7 +318,7 @@ async def channel_add1(message: Message, state: FSMContext):
                                    parse_mode="html")
         else:
             channel_id = chat.id
-            sql.execute(f"SELECT chat_id FROM public.mandatorys2 WHERE chat_id = {channel_id}")
+            sql.execute(f"SELECT chat_id FROM public.kanallar2 WHERE chat_id = {channel_id}")
             data = sql.fetchone()
             if data is None:
                 await message.reply(
@@ -357,7 +357,7 @@ async def channel_delete(message: Message, state: FSMContext):
 async def channel_delete2(message: Message, state: FSMContext):
     all_details = await bot.get_chat(message.text)
     channel_id = all_details.id
-    sql.execute(f"""SELECT chat_id FROM public.mandatorys2 WHERE chat_id = '{channel_id}'""")
+    sql.execute(f"""SELECT chat_id FROM public.kanallar2 WHERE chat_id = '{channel_id}'""")
     data = sql.fetchone()
 
     if data is None:

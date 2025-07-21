@@ -73,17 +73,17 @@ class PanelFunc:
 
     @staticmethod
     async def channel_add2(chat_id, link):
-        sql.execute(f"INSERT INTO public.mandatorys2( chat_id, username ) VALUES({chat_id}, '{link}');")
+        sql.execute(f"INSERT INTO public.kanallar2( chat_id, username ) VALUES({chat_id}, '{link}');")
         db.commit()
 
     @staticmethod
     async def channel_delete2(id):
-        sql.execute(f'''DELETE FROM public.mandatorys2 WHERE chat_id = '{id}' ''')
+        sql.execute(f'''DELETE FROM public.kanallar2 WHERE chat_id = '{id}' ''')
         db.commit()
 
     @staticmethod
     async def channel_list2():
-        sql.execute("SELECT chat_id, username from public.mandatorys2")
+        sql.execute("SELECT chat_id, username from public.kanallar2")
         str = ''
         for row in sql.fetchall():
             chat_id = row[0]
