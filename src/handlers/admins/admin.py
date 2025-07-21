@@ -23,6 +23,10 @@ class Form(StatesGroup):
     for_username = State()
     ch_delete = State()
 
+    ch_add2 = State()
+    for_username2 = State()
+    ch_delete2 = State()
+
     anons_forward = State()
     anons_simple = State()
 
@@ -248,7 +252,131 @@ async def channel_list(message: Message):
 
 
 
-# @admin_router.message(F.photo, F.from_user.id.in_(ADMIN_ID), F.chat.type == ChatType.PRIVATE)
-# async def get_photo_file_id(message: Message):
-#     file_id = message.photo[-1].file_id
-#     await message.answer(f"File ID: {file_id}")
+
+# Kanallar bo'limi  2
+@admin_router.message(F.text == '🔧Kanallar2', F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def new(msg: Message):
+    await msg.answer("Tanlang", reply_markup=await AdminPanel.admin_channel())
+
+
+@admin_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID), Form.ch_add2 or Form.ch_delete2)
+async def backs(message: Message, state: FSMContext):
+    await message.reply("Orqaga qaytildi", reply_markup=await AdminPanel.admin_channel())
+    await state.clear()
+
+
+@admin_router.message(F.text == "➕Kanal qo'shish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def channel_add(message: Message, state: FSMContext):
+    keyboard = []
+    keyboard.extend([
+        [KeyboardButton(text="🔙Orqaga qaytish")]
+    ])
+    await bot.send_message(message.chat.id,
+                            text="Kanal ulash bo'limi. \nBotga kanal ulashning 3 ta usuli bor:\n"
+                                 "1. https://t.me/coder_admin kanal havolasini shu tartibda yuboring.\n"
+                                 "2. @coder_admin username ni shu tartibda yuboring",
+                            reply_markup=ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True),
+                            parse_mode="html")
+    await state.set_state(Form.ch_add2)
+
+
+@admin_router.message(Form.ch_add2, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def channel_add1(message: Message, state: FSMContext):
+    if message.chat_shared:
+        pass
+    elif "https://t.me/" in message.text:
+        chat_link = "@"+message.text.split("https://t.me/", 1)[1]
+        try:
+            chat = await bot.get_chat(chat_link)
+        except Exception as e:
+            print(e)
+            await state.clear()
+            await bot.send_message(chat_id=message.chat.id,
+                                   text="Bot kanalga <b>admin emas!</b> yoki havolani qayta ishlashda muammolar bo'lyapti. Iltimos havolani va adminlikni tekshirib qaytadan urining",
+                                   reply_markup=await AdminPanel.admin_channel(),
+                                   parse_mode="html")
+        else:
+            channel_id = chat.id
+            sql.execute(f"SELECT chat_id FROM public.mandatorys2 WHERE chat_id = {channel_id}")
+            data = sql.fetchone()
+            if data is None:
+                await message.reply("Kanal username qabul qilindi, endi taklif havolasini yuboring. U https://t.me/+ deb boshlanadi. Buni kanal havolalari bo'limida yaratasiz.", reply_markup=markup)
+                await state.update_data(channel_id=str(channel_id))
+                await state.set_state(Form.for_username2)
+
+            else:
+                await message.reply("Bu kanal avvaldan bor, qaytadan yuboring", reply_markup=markup)
+    elif message.text[0] == "@":
+        chat_link = "@"+message.text[1:]
+        try:
+            chat = await bot.get_chat(chat_link)
+        except Exception:
+            await state.clear()
+            await bot.send_message(chat_id=message.chat.id,
+                                   text="Bot kanalga <b>admin emas!</b> yoki havolani qayta ishlashda muammolar bo'lyapti. Iltimos havolani va adminlikni tekshirib qaytadan urining",
+                                   reply_markup=await AdminPanel.admin_channel(),
+                                   parse_mode="html")
+        else:
+            channel_id = chat.id
+            sql.execute(f"SELECT chat_id FROM public.mandatorys2 WHERE chat_id = {channel_id}")
+            data = sql.fetchone()
+            if data is None:
+                await message.reply(
+                    "Kanal username qabul qilindi, endi taklif havolasini yuboring. U https://t.me/+ deb boshlanadi. Buni kanal havolalari bo'limida yaratasiz.",
+                    reply_markup=markup)
+                await state.update_data(channel_id=str(channel_id))
+                await state.set_state(Form.for_username2)
+
+            else:
+                await message.reply("Bu kanal avvaldan bor, qaytadan yuboring", reply_markup=markup)
+    else:
+        await message.answer("Kanal <b>username</b> yuboring", reply_markup=markup, parse_mode="html")
+
+@admin_router.message(Form.for_username2, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def channel_add1(message: Message, state: FSMContext):
+    link = message.text
+    if "https://t.me/" in link:
+        data = await state.get_data()
+        channel_id = data["channel_id"]
+        await PanelFunc.channel_add2(channel_id, link)
+        await state.clear()
+        await message.reply("Kanal qo'shildi🎉🎉", reply_markup=await AdminPanel.admin_channel())
+    else:
+        await message.answer(
+            "Kanal taklif havolasini yuboring. U https://t.me/ deb boshlanadi. Buni kanal havolalari bo'limida yaratasiz.",
+            reply_markup=markup)
+
+
+@admin_router.message(F.text == "❌Kanalni olib tashlash", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def channel_delete(message: Message, state: FSMContext):
+    await message.reply("O'chiriladigan kanalning userini yuboring.\nMisol uchun @coder_admin", reply_markup=markup)
+    await state.set_state(Form.ch_delete2)
+
+
+@admin_router.message(Form.ch_delete2, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def channel_delete2(message: Message, state: FSMContext):
+    all_details = await bot.get_chat(message.text)
+    channel_id = all_details.id
+    sql.execute(f"""SELECT chat_id FROM public.mandatorys2 WHERE chat_id = '{channel_id}'""")
+    data = sql.fetchone()
+
+    if data is None:
+        await message.reply("Bunday kanal yo'q", reply_markup=await AdminPanel.admin_channel())
+    else:
+        if message.text[0] == '@':
+            await PanelFunc.channel_delete2(channel_id)
+            await state.clear()
+            await message.reply("Kanal muvaffaqiyatli o'chirildi", reply_markup=await AdminPanel.admin_channel())
+        else:
+            await message.reply("Kanal useri xato kiritildi\nIltimos userni @coder_admin ko'rinishida kiriting",
+                                reply_markup=await AdminPanel.admin_channel())
+
+    await state.clear()
+
+
+@admin_router.message(F.text == "📋 Kanallar ro'yxati", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def channel_list(message: Message):
+    if len(await PanelFunc.channel_list2()) > 3:
+        await message.answer(await PanelFunc.channel_list2(), parse_mode='html')
+    else:
+        await message.answer("Hozircha kanallar yo'q")

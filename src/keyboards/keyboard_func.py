@@ -72,6 +72,33 @@ class PanelFunc:
         return str
 
     @staticmethod
+    async def channel_add2(chat_id, link):
+        sql.execute(f"INSERT INTO public.mandatorys2( chat_id, username ) VALUES({chat_id}, '{link}');")
+        db.commit()
+
+    @staticmethod
+    async def channel_delete2(id):
+        sql.execute(f'''DELETE FROM public.mandatorys2 WHERE chat_id = '{id}' ''')
+        db.commit()
+
+    @staticmethod
+    async def channel_list2():
+        sql.execute("SELECT chat_id, username from public.mandatorys2")
+        str = ''
+        for row in sql.fetchall():
+            chat_id = row[0]
+            try:
+                all_details = await bot.get_chat(chat_id=chat_id)
+                title = all_details.title
+                channel_id = all_details.id
+                channel_id = row[1]
+                info = all_details.description
+                str += f"------------------------------------------------\nKanal useri: > @{all_details.username}\nKamal nomi: > {title}\nKanal id si: > {channel_id}\nKanal haqida: > {info}\n"
+            except Exception as e:
+                str += f"Kanalni admin qiling\n\nError: {e}"
+        return str
+
+    @staticmethod
     async def admin_add(chat_id):
         sql.execute(f"INSERT INTO public.admins( user_id ) VALUES({chat_id});")
         db.commit()
