@@ -213,7 +213,7 @@ async def start_cmd(message: Message):
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Transkript yuklash 🗂", web_app=WebAppInfo(url="https://my.hemis.uz/"))]
         ])
-        await message.answer(text="Xabar- <b>O'qishni ko'chirishda asosiy hujjat transkript. Transkriptni yuklash uchun pastdagi havolani bosing</b> 👇\n\n",
+        await message.answer(text="<b>O'qishni ko'chirishda asosiy hujjat transkript. Transkriptni yuklash uchun pastdagi havolani bosing</b> 👇\n\n",
                              reply_markup=keyboard, parse_mode="html")
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
