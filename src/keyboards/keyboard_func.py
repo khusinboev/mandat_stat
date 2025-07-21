@@ -43,6 +43,42 @@ class CheckData:
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
+
+    @staticmethod
+    async def check_member2(bot: Bot, user_id: int):
+        sql.execute("SELECT chat_id FROM public.kanallar2")
+        mandatory = sql.fetchall()
+        if not mandatory:
+            return True, []
+
+        channels = []
+        for chat_id in mandatory:
+            try:
+                r = await bot.get_chat_member(chat_id=chat_id[0], user_id=user_id)
+                if r.status == "left" and user_id not in ADMIN_ID:
+                    channels.append(chat_id[0])
+                print(channels)
+            except Exception as e:
+                print(f"Xatolik: {e}")
+        return (len(channels) == 0), channels
+
+    @staticmethod
+    async def channels_btn2(channels: list):
+        keyboard = []
+        for index, channel_id in enumerate(channels, 1):
+            sql.execute("SELECT username FROM public.kanallar2 WHERE chat_id=%s", (channel_id,))
+            link = sql.fetchone()
+            if link:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        text=f"📢 Kanal-{index}",
+                        url=link[0]
+                    )
+                ])
+        keyboard.append([InlineKeyboardButton(text="✅Qo'shildim", callback_data="check2")])
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+
 class PanelFunc:
     @staticmethod
     async def channel_add(chat_id, link):

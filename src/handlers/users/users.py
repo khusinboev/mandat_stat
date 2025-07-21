@@ -53,6 +53,33 @@ async def check(call: CallbackQuery):
         await bot.send_message(chat_id=ADMIN_ID[0], text=f"Error in check:\n{e}")
 
 
+@user_router.callback_query(F.data == "check2", F.message.chat.type == ChatType.PRIVATE)
+async def check2(call: CallbackQuery):
+    user_id = call.from_user.id
+    try:
+        check_status, channels = await CheckData.check_member2(bot, user_id)
+        if check_status:
+            try:
+                await call.message.delete()
+                await call.answer()
+            except:
+                pass
+            await bot.send_message(chat_id=user_id,
+                                   text="Quyidagi menulardan birini tanlang!",
+                                   parse_mode="html", reply_markup=await UserPanels.asos_manu())
+        else:
+            try:
+                await call.answer(show_alert=True, text="Botimizdan foydalanish uchun barcha kanallarga a'zo bo'ling")
+            except:
+                try:
+                    await call.answer()
+                except:
+                    pass
+    except Exception as e:
+        await bot.forward_message(chat_id=ADMIN_ID[0], from_chat_id=call.message.chat.id, message_id=call.message.message_id)
+        await bot.send_message(chat_id=ADMIN_ID[0], text=f"Error in check:\n{e}")
+
+
 @user_router.message(F.text == "📕BAKALAVRIAT 2024")
 async def start_cmd2(message: Message):
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.main_manu())
@@ -68,7 +95,7 @@ async def start_cmd4(message: Message):
 
 @user_router.message(F.text == "📝 Baholash mezonlari️")
 async def start_cmd5(message: Message):
-    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+    check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
         await message.answer(
@@ -115,7 +142,7 @@ async def start_cmd5(message: Message):
 
 @user_router.message(F.text == "📚 Fanlar majmuasi️")
 async def start_cmd6(message: Message):
-    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+    check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
         await message.answer_document(document="BQACAgIAAxkBAAGQxtNoVAi8RFho9rDGd2uLPCfdPsC5YQACrUwAAtE4SEu0bZFBET334TYE",
@@ -131,7 +158,7 @@ async def start_cmd6(message: Message):
 
 @user_router.message(F.text == "📊 O'tish ballari️")
 async def start_cmd7(message: Message):
-    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+    check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
         await message.answer_photo(photo="AgACAgIAAxkBAAHxJvRofhQTCwdIp6X_ZwJrQ9eIPMDENAACNvIxG0SS-EtT5x82hi17mgEAAwIAA3kAAzYE", caption="<b>⚡️O‘qishni ko‘chirishda qancha ball to'plash kerak?</b>\n\n"
@@ -147,7 +174,7 @@ async def start_cmd7(message: Message):
 
 @user_router.message(F.text == "💰 Super kontrakt miqdori️")
 async def start_cmd8(message: Message):
-    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+    check_status, channels = await CheckData.check_membe2r(bot, message.from_user.id)
 
     if check_status:
         await message.answer("<b>⚡️O'QISHNI KO'CHIRISHDA SUPER KONTRAKT MIQDORI QANCHA❓</b>\n\n"
@@ -165,7 +192,7 @@ async def start_cmd8(message: Message):
 
 @user_router.message(F.text == "🧮 Tabaqalashtirilgan kontrakt miqdori")
 async def start_cmd9(message: Message):
-    check_status, channels = await CheckData.check_member(bot, message.from_user.id)
+    check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
         await message.answer_document(document="BQACAgIAAxkBAAGQx5toVAkCAX8b_5xpiuOVqfwWAdGstAACvEkAAs5EgUps3NE-tIIBSDYE",
@@ -176,6 +203,7 @@ async def start_cmd9(message: Message):
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
                              reply_markup=await CheckData.channels_btn(channels))
+
 
 
 @user_router.message(F.text == "📚 Namunaviy test topshiriqlari")

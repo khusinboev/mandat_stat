@@ -44,6 +44,23 @@ class AdminPanel:
         return admin_channel
 
     @staticmethod
+    async def admin_channel2():
+        admin_channel=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [
+                            KeyboardButton(text="➕Kanal qo'shish2"),
+                            KeyboardButton(text="❌Kanalni olib tashlash2"),
+                        ],
+                        [
+                            KeyboardButton(text="📋 Kanallar ro'yxati2"),
+                            KeyboardButton(text="🔙Orqaga qaytish2"),
+                        ]
+                    ],
+                    resize_keyboard=True,
+                )
+        return admin_channel
+
+    @staticmethod
     async def admin_add():
         admin_channel=ReplyKeyboardMarkup(
                     keyboard=[
