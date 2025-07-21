@@ -25,14 +25,14 @@ async def create_all_base():
     db.commit()
 
 
-    sql.execute("""CREATE TABLE IF NOT EXISTS public.mandatorys2
+    sql.execute("""CREATE TABLE IF NOT EXISTS public.kanallar2
     (
         id SERIAL NOT NULL,
         chat_id bigint NOT NULL,
         title character varying,
         username character varying,
         types character varying,
-        CONSTRAINT channels_pkey PRIMARY KEY (id)
+        CONSTRAINT kanallar2_pkey PRIMARY KEY (id)
     )""")
     db.commit()
 
