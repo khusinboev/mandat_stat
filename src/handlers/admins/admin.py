@@ -29,6 +29,12 @@ class Form(StatesGroup):
     clear_base = State()
 
 
+@admin_router.message(F.photo, F.from_user.id.in_(ADMIN_ID), F.chat.type == ChatType.PRIVATE)
+async def get_photo_file_id(message: Message):
+    file_id = message.photo[-1].file_id
+    await message.answer(f"File ID: {file_id}")
+
+
 # Admin panelga kirish
 @admin_router.message(Command("panel", "admin"), F.from_user.id.in_(ADMIN_ID), F.chat.type == ChatType.PRIVATE)#,
 async def panel_handler(message: Message) -> None:
