@@ -16,6 +16,10 @@ class AdminPanel:
                         [
                             KeyboardButton(text="🔧Adminlar👨‍💻"),
                             KeyboardButton(text="✍Xabarlar")
+                        ],
+                        [
+
+                            KeyboardButton(text="🔧Kanallar2")
                         ]
                     ],
                     resize_keyboard=True,
