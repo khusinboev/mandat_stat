@@ -134,7 +134,7 @@ async def start_cmd7(message: Message):
     check_status, channels = await CheckData.check_member(bot, message.from_user.id)
 
     if check_status:
-        await message.answer_photo(photo="AgACAgIAAxkBAAGQxxxoVAjVEf8a5s43QwHhXoyid0tLUgACedsxG_AkkUgGBTSHz-WUjwEAAwIAA3kAAzYE", caption="<b>⚡️O‘qishni ko‘chirishda qancha ball to'plash kerak?</b>\n\n"
+        await message.answer_photo(photo="AgACAgIAAxkBAAHxJvRofhQTCwdIp6X_ZwJrQ9eIPMDENAACNvIxG0SS-EtT5x82hi17mgEAAwIAA3kAAzYE", caption="<b>⚡️O‘qishni ko‘chirishda qancha ball to'plash kerak?</b>\n\n"
 "2025/2026-oʻquv yili uchun xorijiy va nodavlat oliy taʼlim muassasalaridan talabalar oʻqishini respublika <b>davlat oliy taʼlim muassasalariga koʻchirish boʻyicha oʻtkaziladigan maxsus sinovlar boʻyicha oʻtish ballari</b> tasdiqlangan.\n\n"
 "<b>Yuqoridagi o’tish ballari quyidagilarga taalluqli:</b>\n\n"
 "1️⃣ xorijdagi OTMlardan yurtimizdagi davlat OTMlariga o’qishini ko’chirmoqchi bo’lganlarga;\n"
