@@ -206,7 +206,7 @@ async def start_cmd9(message: Message):
 
 
 
-@user_router.message(F.text == "📚 Namunaviy test topshiriqlari")
+@user_router.message(F.text == "📄 Transkript yuklash")
 async def start_cmd(message: Message):
     check_status, channels = await CheckData.check_member(bot, message.from_user.id)
     if check_status:
