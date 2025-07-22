@@ -109,7 +109,7 @@ async def new(msg: Message):
 
 @admin_router.message(F.text == "🔙Orqaga qaytish2", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def backs(message: Message, state: FSMContext):
-    await message.reply("Orqaga qaytildi", reply_markup=await AdminPanel.admin_menu2())
+    await message.reply("Orqaga qaytildi", reply_markup=await AdminPanel.admin_menu())
     await state.clear()
 
 @admin_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID), Form.ch_add or Form.ch_delete)
