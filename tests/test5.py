@@ -62,7 +62,7 @@ def create_university_card(univer, faculty, lang, edu, grand, kont, olmp, name):
         draw.text((1500, 1600), edu, font=main_font, fill="white")
 
         # 5. Mandat yili
-        draw.text((2450, 1600), "2024", font=main_font, fill="white")
+        draw.text((2450, 1600), "2025", font=main_font, fill="white")
 
         # 6. Grantlar
         draw.text((650, 2120), grand, font=main_font, fill="black")

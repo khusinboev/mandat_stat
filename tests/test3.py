@@ -13,7 +13,7 @@ data = {
 }
 
 # POST so'rov yuborish
-response = requests.post("https://mandat.uzbmb.uz/Mandat2024/MainSearch", data=data)
+response = requests.post("https://mandat.uzbmb.uz/Mandat2025/MainSearch", data=data)
 
 # HTML sahifani BeautifulSoup bilan parse qilish
 soup = BeautifulSoup(response.text, "html.parser")

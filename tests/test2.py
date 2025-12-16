@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS photos (
 conn.commit()
 
 
-url1 = 'https://mandat.uzbmb.uz/Mandat2024/GetRegions?lang=uz'
+url1 = 'https://mandat.uzbmb.uz/Mandat2025/GetRegions?lang=uz'
 response = requests.get(url1)
 
 regions = response.json()
@@ -108,7 +108,7 @@ for region in regions:
         ''', (region_id, region_name))
     conn.commit()
 
-    url2 = f"https://mandat.uzbmb.uz/BallVuz2024/GetUniversities?RegionID={region_id}"
+    url2 = f"https://mandat.uzbmb.uz/BallVuz2025/GetUniversities?RegionID={region_id}"
     response = requests.get(url2)
     univers = response.json()
     for univer in univers:
@@ -123,7 +123,7 @@ for region in regions:
             ''', (region_id, un_disabled, un_group, un_selected, un_text, un_id))
         conn.commit()
 
-        url3 = f"https://mandat.uzbmb.uz/BallVuz2024/GetTypes?UniversityID={un_id}"
+        url3 = f"https://mandat.uzbmb.uz/BallVuz2025/GetTypes?UniversityID={un_id}"
         response = requests.get(url3)
         get_types = response.json()
         for get_type in get_types:
@@ -138,7 +138,7 @@ for region in regions:
                 ''', (region_id, un_id, ty_disabled, ty_group, ty_selected, ty_text, ty_id))
             conn.commit()
 
-            url4 = f"https://mandat.uzbmb.uz/BallVuz2024/GetLangs?UniversityID={un_id}"
+            url4 = f"https://mandat.uzbmb.uz/BallVuz2025/GetLangs?UniversityID={un_id}"
             response = requests.get(url4)
             get_langs = response.json()
             for get_lang in get_langs:
@@ -154,7 +154,7 @@ for region in regions:
                 ''', (region_id, un_id, ty_id, lan_disabled, lan_group, lan_selected, lan_text, lan_id))
 
                 # so'nggi API chaqiruv:
-                url5 = f"https://mandat.uzbmb.uz/BallVuz2024/GetAll?RegionID={region_id}&UniversityID={un_id}&EdTypeID={ty_id}&EdLangID={lan_id}"
+                url5 = f"https://mandat.uzbmb.uz/BallVuz2025/GetAll?RegionID={region_id}&UniversityID={un_id}&EdTypeID={ty_id}&EdLangID={lan_id}"
                 response = requests.get(url5)
                 get_datas = response.json()
                 for get_data in get_datas:

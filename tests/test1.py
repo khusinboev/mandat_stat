@@ -1,20 +1,20 @@
 '''
 OTM bo‘yicha o‘tish ballari 2024
 
-https://mandat.uzbmb.uz/Mandat2024/GetRegions?lang=uz
-https://mandat.uzbmb.uz/BallVuz2024/GetUniversities?RegionID=4
-https://mandat.uzbmb.uz/BallVuz2024/GetTypes?UniversityID=344
-https://mandat.uzbmb.uz/BallVuz2024/GetLangs?UniversityID=344
-https://mandat.uzbmb.uz/BallVuz2024/GetAll?RegionID=4&UniversityID=344&EdTypeID=1&EdLangID=1
+https://mandat.uzbmb.uz/Mandat2025/GetRegions?lang=uz
+https://mandat.uzbmb.uz/BallVuz2025/GetUniversities?RegionID=4
+https://mandat.uzbmb.uz/BallVuz2025/GetTypes?UniversityID=344
+https://mandat.uzbmb.uz/BallVuz2025/GetLangs?UniversityID=344
+https://mandat.uzbmb.uz/BallVuz2025/GetAll?RegionID=4&UniversityID=344&EdTypeID=1&EdLangID=1
 
 
 Kengaytirilgan qidiruv
 
-https://mandat.uzbmb.uz/Mandat2024/GetUniversitiesByRegion?lang=uz&regionid=1
-https://mandat.uzbmb.uz/Mandat2024/GetFacultiesByUniversity?lang=uz&universityid=352
-https://mandat.uzbmb.uz/Mandat2024/GetEdlangsByMvdir?mvdir=6054020094&universityid=352
-https://mandat.uzbmb.uz/Mandat2024/GetEdTypesByMvdirEdLang?lang=uz&universityid=352&mvdir=6054020094&educlangid=3
-https://mandat.uzbmb.uz/Mandat2024/GetAll?lang=uz&universityid=352&mvdir=6054020094&educlangid=3
+https://mandat.uzbmb.uz/Mandat2025/GetUniversitiesByRegion?lang=uz&regionid=1
+https://mandat.uzbmb.uz/Mandat2025/GetFacultiesByUniversity?lang=uz&universityid=352
+https://mandat.uzbmb.uz/Mandat2025/GetEdlangsByMvdir?mvdir=6054020094&universityid=352
+https://mandat.uzbmb.uz/Mandat2025/GetEdTypesByMvdirEdLang?lang=uz&universityid=352&mvdir=6054020094&educlangid=3
+https://mandat.uzbmb.uz/Mandat2025/GetAll?lang=uz&universityid=352&mvdir=6054020094&educlangid=3
 
 
 ID bo'yicha
@@ -32,7 +32,7 @@ ID bo'yicha
 # }
 #
 # # POST so'rov yuborish
-# response = requests.post("https://mandat.uzbmb.uz/Mandat2024/MainSearch", data=data)
+# response = requests.post("https://mandat.uzbmb.uz/Mandat2025/MainSearch", data=data)
 #
 # # HTML sahifani BeautifulSoup bilan parse qilish
 # soup = BeautifulSoup(response.text, "html.parser")
