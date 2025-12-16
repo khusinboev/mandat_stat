@@ -1,5 +1,5 @@
 '''
-OTM bo‘yicha o‘tish ballari 2024
+OTM bo‘yicha o‘tish ballari 2025
 
 https://mandat.uzbmb.uz/Mandat2025/GetRegions?lang=uz
 https://mandat.uzbmb.uz/BallVuz2025/GetUniversities?RegionID=4
