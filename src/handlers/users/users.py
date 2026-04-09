@@ -80,7 +80,7 @@ async def check2(call: CallbackQuery):
         await bot.send_message(chat_id=ADMIN_ID[0], text=f"Error in check:\n{e}")
 
 
-@user_router.message(F.text == "📕BAKALAVRIAT 2024")
+@user_router.message(F.text == "📕BAKALAVRIAT 2025")
 async def start_cmd2(message: Message):
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.main_manu())
 
@@ -149,7 +149,7 @@ async def start_cmd6(message: Message):
         caption="<b>📕 FANLAR MAJMUASI! \n\n"
 "📝 O'qishni ko'chirish imtihonlarida test topshiriladigan fanlar majmuasi.\n\n"
 "✔️ Yo'nalishlar bo'yicha qaysi fandan imtihon bo'lishi ko'rsatilgan.\n\n"
-"⚠️ Oʻqishni koʻchirishda aynan mana shu 2024/2025-o'quv yilidagi fanlar majmuasidan foydalaniladi. \n\n"
+"⚠️ Oʻqishni koʻchirishda aynan mana shu 2025/2026-o'quv yilidagi fanlar majmuasidan foydalaniladi. \n\n"
 "© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>"
     , parse_mode="html")
     else:
@@ -321,7 +321,7 @@ def create_card(univer, faculty, lang, edu, grand, kont, olmp, name):
         draw.text((1500, 1600), str(edu), font=main_font, fill="white")
 
         # 5. Mandat yili
-        draw.text((2450, 1600), "2024", font=main_font, fill="white")
+        draw.text((2450, 1600), "2025", font=main_font, fill="white")
 
         # 6. Grantlar
         draw.text((650, 2120), str(grand), font=main_font, fill="black")
