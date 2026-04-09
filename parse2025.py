@@ -1,13 +1,26 @@
 """
 parse2025.py — mandat.uzbmb.uz saytidan 2025 yil ma'lumotlarini tortib PostgreSQL ga yozuvchi parser.
 
+YANGILANISH STRATEGIYASI:
+  - Standart rejim (--update):  mandat jadvalidagi barcha yozuvlar o'chirilib, 2025 yilgi
+                                 ma'lumotlar bilan to'liq almashtiriladi.
+                                 regions/universities/gettypes/getlangs — UPSERT (saqlanib qoladi).
+  - --no-clean rejimi:          Hech narsa o'chirilmaydi, faqat UPSERT qilinadi.
+                                 2025 da yo'q bo'lgan 2024 yozuvlari bazada qoladi.
+
 Xavfsizlik choralari:
   - Har so'rovdan keyin tasodifiy kutish (rate limiting)
   - 429 / 5xx xatolarida eksponensial retry
   - Connection pool va session reuse
-  - Har bir INSERT UPSERT (ON CONFLICT DO NOTHING) — takrorlanmaydi
   - Progress saqlanadi: to'xtatilsa davom ettirish mumkin
   - Barcha xatolar parse2025_errors.log ga yoziladi
+
+ISHLATISH:
+  python parse2025.py                  # mandat ni tozalab 2025 yil bilan yozadi
+  python parse2025.py --no-clean       # tozalamasdan faqat upsert
+  python parse2025.py --no-resume      # progressni e'tiborsiz qoldirib boshidan
+  python parse2025.py --dry-run        # bazaga yozmaydi, faqat API ni tekshiradi
+  python parse2025.py --stats          # bazadagi joriy statistikani chiqaradi
 """
 
 import os
@@ -33,11 +46,10 @@ DB_CONFIG = {
     "port":     os.getenv("DB_PORT",     "5432"),
 }
 
-# 2025 API base URL (2024 -> 2025 ga o'zgartirildi)
 BASE_URL = "https://mandat.uzbmb.uz"
 YEAR     = "2025"
 
-REGIONS_URL     = f"{BASE_URL}/Mandat{YEAR}/GetRegions?lang=uz"
+REGIONS_URL      = f"{BASE_URL}/Mandat{YEAR}/GetRegions?lang=uz"
 UNIVERSITIES_URL = f"{BASE_URL}/BallVuz{YEAR}/GetUniversities?RegionID={{region_id}}"
 TYPES_URL        = f"{BASE_URL}/BallVuz{YEAR}/GetTypes?UniversityID={{un_id}}"
 LANGS_URL        = f"{BASE_URL}/BallVuz{YEAR}/GetLangs?UniversityID={{un_id}}"
@@ -46,13 +58,11 @@ ALL_URL          = (
     "?RegionID={region_id}&UniversityID={un_id}&EdTypeID={ty_id}&EdLangID={lan_id}"
 )
 
-# So'rovlar orasidagi kutish (sekund) — blokdan saqlanish uchun
 DELAY_MIN = 0.8
 DELAY_MAX = 2.0
 
-# Retry parametrlari
 MAX_RETRIES        = 5
-BACKOFF_FACTOR     = 2      # 1s, 2s, 4s, 8s, 16s
+BACKOFF_FACTOR     = 2
 RETRY_STATUS_CODES = [429, 500, 502, 503, 504]
 
 # ──────────────────────────── LOGGING ────────────────────────────
@@ -70,7 +80,6 @@ log = logging.getLogger(__name__)
 # ──────────────────────────── HTTP SESSION ────────────────────────────
 
 def make_session() -> requests.Session:
-    """Retry va timeout sozlangan session."""
     session = requests.Session()
     retry = Retry(
         total=MAX_RETRIES,
@@ -96,10 +105,6 @@ def make_session() -> requests.Session:
 
 
 def safe_get(session: requests.Session, url: str, timeout: int = 30):
-    """
-    GET so'rov yuboradi.
-    429 holida qo'shimcha uxlaydi; boshqa xatolarda None qaytaradi.
-    """
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             resp = session.get(url, timeout=timeout)
@@ -127,7 +132,6 @@ def safe_get(session: requests.Session, url: str, timeout: int = 30):
 
 
 def sleep_rand():
-    """Har so'rovdan keyin tasodifiy kutish."""
     time.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
 # ──────────────────────────── DATABASE ────────────────────────────
@@ -139,7 +143,6 @@ def get_conn():
 def create_tables(conn):
     """Zarur jadvallarni yaratadi (agar mavjud bo'lmasa)."""
     with conn.cursor() as cur:
-        # Regionlar
         cur.execute("""
             CREATE TABLE IF NOT EXISTS regions (
                 id          SERIAL PRIMARY KEY,
@@ -147,8 +150,6 @@ def create_tables(conn):
                 region_name VARCHAR UNIQUE
             )
         """)
-
-        # Universitetlar
         cur.execute("""
             CREATE TABLE IF NOT EXISTS universities (
                 id          SERIAL PRIMARY KEY,
@@ -160,8 +161,6 @@ def create_tables(conn):
                 un_id       VARCHAR UNIQUE
             )
         """)
-
-        # Ta'lim shakllari
         cur.execute("""
             CREATE TABLE IF NOT EXISTS gettypes (
                 id          SERIAL PRIMARY KEY,
@@ -175,14 +174,12 @@ def create_tables(conn):
                 UNIQUE (region_id, un_id, ty_text, ty_id)
             )
         """)
-
-        # Ta'lim tillari
         cur.execute("""
             CREATE TABLE IF NOT EXISTS getlangs (
-                id          SERIAL PRIMARY KEY,
-                region_id   INTEGER,
-                un_id       VARCHAR,
-                ty_id       VARCHAR,
+                id           SERIAL PRIMARY KEY,
+                region_id    INTEGER,
+                un_id        VARCHAR,
+                ty_id        VARCHAR,
                 lan_disabled VARCHAR,
                 lan_group    VARCHAR,
                 lan_selected VARCHAR,
@@ -191,8 +188,6 @@ def create_tables(conn):
                 UNIQUE (region_id, un_id, ty_id, lan_text, lan_id)
             )
         """)
-
-        # Mandat (asosiy jadval)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS mandat (
                 id        SERIAL PRIMARY KEY,
@@ -210,8 +205,6 @@ def create_tables(conn):
                 UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi)
             )
         """)
-
-        # Foto kesh
         cur.execute("""
             CREATE TABLE IF NOT EXISTS photos (
                 id      SERIAL PRIMARY KEY,
@@ -223,19 +216,34 @@ def create_tables(conn):
                 UNIQUE (un_id, ty_id, lan_id, mvdir)
             )
         """)
-
     conn.commit()
     log.info("Jadvallar tayyor.")
 
 
+def clean_mandat(conn):
+    """
+    mandat jadvalidagi barcha yozuvlarni o'chiradi.
+    photos ham o'chiriladi — chunki eski karta rasmlari 2025 ball bilan mos kelmaydi.
+
+    Faqat mandat va photos o'chiriladi. regions/universities/gettypes/getlangs
+    saqlanib qoladi (ular tarkiban o'zgarishi kam).
+    """
+    with conn.cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM mandat")
+        count = cur.fetchone()[0]
+        log.info(f"mandat jadvalidagi mavjud yozuvlar soni: {count}")
+
+        cur.execute("DELETE FROM photos")
+        cur.execute("DELETE FROM mandat")
+    conn.commit()
+    log.info("✓ mandat va photos jadvallari tozalandi. 2025 yil ma'lumotlari yoziladi...")
+
 # ──────────────────────────── PROGRESS ────────────────────────────
-# Oddiy fayl-asosidagi progress: to'xtatilsa, oxirgi region_id dan davom ettiradi.
 
 PROGRESS_FILE = "parse2025_progress.txt"
 
 
 def load_progress() -> int:
-    """Oxirgi muvaffaqiyatli region_id ni qaytaradi (0 — boshidan)."""
     if os.path.exists(PROGRESS_FILE):
         try:
             with open(PROGRESS_FILE) as f:
@@ -255,9 +263,9 @@ def reset_progress():
         os.remove(PROGRESS_FILE)
     log.info("Progress tozalandi — boshidan boshlanadi.")
 
-# ──────────────────────────── UPSERT YORDAMCHI ────────────────────────────
+# ──────────────────────────── UPSERT ────────────────────────────
 
-def upsert_region(cur, region_id: int, region_name: str):
+def upsert_region(cur, region_id, region_name):
     cur.execute("""
         INSERT INTO regions (region_id, region_name)
         VALUES (%s, %s)
@@ -291,6 +299,10 @@ def upsert_lang(cur, region_id, un_id, ty_id, lan_disabled, lan_group, lan_selec
 
 def upsert_mandat(cur, region_id, un_id, ty_id, lan_id,
                   mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp):
+    """
+    Agar yozuv mavjud bo'lsa — balllarni yangilaydi.
+    Yangi yo'nalish bo'lsa — qo'shadi.
+    """
     cur.execute("""
         INSERT INTO mandat (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -305,12 +317,13 @@ def upsert_mandat(cur, region_id, un_id, ty_id, lan_id,
 
 # ──────────────────────────── ASOSIY PARSER ────────────────────────────
 
-def parse(resume: bool = True, dry_run: bool = False):
+def parse(resume: bool = True, dry_run: bool = False, clean: bool = True):
     """
     Barcha ma'lumotlarni API dan tortib bazaga yozadi.
 
-    :param resume:  True bo'lsa — oldingi progress dan davom ettiradi
+    :param resume:  True bo'lsa — oldingi progressdan davom ettiradi
     :param dry_run: True bo'lsa — bazaga yozmaydi (test rejimi)
+    :param clean:   True bo'lsa — mandat va photos jadvallarini tozalaydi (tavsiya etiladi)
     """
     last_region = load_progress() if resume else 0
     if not resume:
@@ -322,11 +335,23 @@ def parse(resume: bool = True, dry_run: bool = False):
     if conn:
         create_tables(conn)
 
-    # ── 1. Regionlar ──────────────────────────────────────────────
+        # --no-clean berilmasa mandat ni tozalaymiz
+        if clean and last_region == 0:
+            # Progressdan davom etilayotgan bo'lsa tozalamaymiz (qisman yangilangan bo'lishi mumkin)
+            clean_mandat(conn)
+        elif clean and last_region > 0:
+            log.info(
+                f"Progress mavjud (oxirgi region: {last_region}). "
+                "Mandat tozalanmaydi — davom etish rejimi."
+            )
+
+    # 1. Regionlar
     log.info(f"Regionlar yuklanmoqda: {REGIONS_URL}")
     regions = safe_get(session, REGIONS_URL)
     if not regions:
         log.error("Regionlarni yuklash muvaffaqiyatsiz. Dastur to'xtatildi.")
+        if conn:
+            conn.close()
         return
     sleep_rand()
 
@@ -339,7 +364,6 @@ def parse(resume: bool = True, dry_run: bool = False):
         region_id   = int(region["region_id"])
         region_name = region["region_name"]
 
-        # Progress: o'tib ketilgan regionlar
         if region_id <= last_region:
             log.info(f"[{r_idx}/{len(regions)}] Region #{region_id} '{region_name}' — o'tkazildi (progress)")
             skipped += 1
@@ -352,7 +376,7 @@ def parse(resume: bool = True, dry_run: bool = False):
                 upsert_region(cur, region_id, region_name)
             conn.commit()
 
-        # ── 2. Universitetlar ──────────────────────────────────────
+        # 2. Universitetlar
         url = UNIVERSITIES_URL.format(region_id=region_id)
         univers = safe_get(session, url)
         sleep_rand()
@@ -373,11 +397,10 @@ def parse(resume: bool = True, dry_run: bool = False):
 
             if conn:
                 with conn.cursor() as cur:
-                    upsert_university(cur, region_id, un_disabled, un_group,
-                                      un_selected, un_text, un_id)
+                    upsert_university(cur, region_id, un_disabled, un_group, un_selected, un_text, un_id)
                 conn.commit()
 
-            # ── 3. Ta'lim shakllari ────────────────────────────────
+            # 3. Ta'lim shakllari
             url = TYPES_URL.format(un_id=un_id)
             get_types = safe_get(session, url)
             sleep_rand()
@@ -386,7 +409,7 @@ def parse(resume: bool = True, dry_run: bool = False):
                 log.warning(f"    Types topilmadi: un_id={un_id}")
                 continue
 
-            # ── 4. Ta'lim tillari ──────────────────────────────────
+            # 4. Ta'lim tillari
             url = LANGS_URL.format(un_id=un_id)
             get_langs = safe_get(session, url)
             sleep_rand()
@@ -418,11 +441,10 @@ def parse(resume: bool = True, dry_run: bool = False):
                     if conn:
                         with conn.cursor() as cur:
                             upsert_lang(cur, region_id, un_id, ty_id,
-                                        lan_disabled, lan_group, lan_selected,
-                                        lan_text, lan_id)
+                                        lan_disabled, lan_group, lan_selected, lan_text, lan_id)
                         conn.commit()
 
-                    # ── 5. Asosiy mandat ma'lumotlari ──────────────
+                    # 5. Mandat ma'lumotlari
                     url = ALL_URL.format(
                         region_id=region_id,
                         un_id=un_id,
@@ -456,13 +478,12 @@ def parse(resume: bool = True, dry_run: bool = False):
                         f"      ty={ty_id} lan={lan_id} → {len(get_datas)} yo'nalish saqlandi"
                     )
 
-        # Region muvaffaqiyatli tugadi — progressni saqlaymiz
         save_progress(region_id)
         log.info(f"  ✓ Region #{region_id} tugadi. Jami mandat: {total_mandat}")
 
-    # ── Yakuniy hisobot ──────────────────────────────────────────
+    # Yakuniy hisobot
     log.info("=" * 60)
-    log.info(f"✅ PARSE YAKUNLANDI")
+    log.info("✅ PARSE YAKUNLANDI")
     log.info(f"   O'tkazilgan regionlar (resume): {skipped}")
     log.info(f"   Jami saqlangan mandat yozuvlari: {total_mandat}")
     log.info("=" * 60)
@@ -470,21 +491,24 @@ def parse(resume: bool = True, dry_run: bool = False):
     if conn:
         conn.close()
 
-    # Progress faylini tozalaymiz
     if os.path.exists(PROGRESS_FILE):
         os.remove(PROGRESS_FILE)
+        log.info("Progress fayli o'chirildi.")
 
 
 # ──────────────────────────── STATISTIKA ────────────────────────────
 
 def print_stats():
-    """Bazadagi joriy statistikani chiqaradi."""
     conn = get_conn()
     cur  = conn.cursor()
-    for table in ("regions", "universities", "gettypes", "getlangs", "mandat"):
-        cur.execute(f"SELECT COUNT(*) FROM {table}")
-        count = cur.fetchone()[0]
-        print(f"  {table:<20}: {count:>8} ta yozuv")
+    print("\n📊 Baza statistikasi:")
+    for table in ("regions", "universities", "gettypes", "getlangs", "mandat", "photos"):
+        try:
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            count = cur.fetchone()[0]
+            print(f"  {table:<20}: {count:>8} ta yozuv")
+        except Exception:
+            print(f"  {table:<20}: jadval topilmadi")
     cur.close()
     conn.close()
 
@@ -493,46 +517,60 @@ def print_stats():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="mandat.uzbmb.uz — 2025 yil ma'lumotlarini yuklovchi parser"
+        description="mandat.uzbmb.uz — 2025 yil ma'lumotlarini yuklovchi va yangilovchi parser",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""
+Misollar:
+  python parse2025.py                 # Standart: mandat tozalanib 2025 yil yoziladi
+  python parse2025.py --no-clean      # Tozalamasdan upsert (2024 yozuvlari qoladi)
+  python parse2025.py --no-resume     # Progressni e'tiborsiz qoldirib boshidan
+  python parse2025.py --dry-run       # Bazaga yozmaydi, faqat API ni tekshiradi
+  python parse2025.py --stats         # Bazadagi statistikani chiqaradi
+        """
+    )
+    parser.add_argument(
+        "--no-clean",
+        action="store_true",
+        help="mandat jadvalini tozalamasdan faqat upsert qiladi\n"
+             "(2024 da bor, 2025 da yo'q yozuvlar bazada qoladi)"
     )
     parser.add_argument(
         "--no-resume",
         action="store_true",
-        help="Progressni e'tiborsiz qoldirib boshidan boshlaydi",
+        help="Progressni e'tiborsiz qoldirib boshidan boshlaydi"
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Bazaga yozmaydi — faqat API so'rovlarini tekshiradi",
+        help="Bazaga yozmaydi — faqat API so'rovlarini tekshiradi"
     )
     parser.add_argument(
         "--stats",
         action="store_true",
-        help="Bazadagi joriy statistikani chiqaradi",
+        help="Bazadagi joriy statistikani chiqaradi"
     )
     parser.add_argument(
         "--delay-min",
         type=float,
         default=DELAY_MIN,
-        help=f"So'rovlar orasidagi minimal kutish (default: {DELAY_MIN}s)",
+        help=f"So'rovlar orasidagi minimal kutish (default: {DELAY_MIN}s)"
     )
     parser.add_argument(
         "--delay-max",
         type=float,
         default=DELAY_MAX,
-        help=f"So'rovlar orasidagi maksimal kutish (default: {DELAY_MAX}s)",
+        help=f"So'rovlar orasidagi maksimal kutish (default: {DELAY_MAX}s)"
     )
     args = parser.parse_args()
 
-    # Global delay ni yangilash
     DELAY_MIN = args.delay_min
     DELAY_MAX = args.delay_max
 
     if args.stats:
-        print("\n📊 Baza statistikasi:")
         print_stats()
     else:
         parse(
             resume  = not args.no_resume,
             dry_run = args.dry_run,
+            clean   = not args.no_clean,
         )
