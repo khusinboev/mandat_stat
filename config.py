@@ -6,6 +6,7 @@ import psycopg2
 from psycopg2 import pool
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
@@ -31,14 +32,17 @@ DB_CONFIG = {
     "port":     DB_PORT,
 }
 
-# ─── CONNECTION POOL (50k+ user uchun) ────────────────────────────────
-# minconn=5: bot ishga tushganda 5 ta tayyor connection
-# maxconn=20: bir vaqtda maksimal 20 ta parallel so'rov
+# ─── REDIS ─────────────────────────────────────────────────────────────
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+REDIS_DB   = int(os.getenv("REDIS_DB", "0"))
+
+# ─── CONNECTION POOL ───────────────────────────────────────────────────
 _db_pool: Optional[pool.ThreadedConnectionPool] = None
 
 
 def get_pool() -> pool.ThreadedConnectionPool:
-    """Global connection pool. Birinchi chaqiruvda yaratiladi."""
     global _db_pool
     if _db_pool is None or _db_pool.closed:
         _db_pool = pool.ThreadedConnectionPool(
@@ -46,21 +50,15 @@ def get_pool() -> pool.ThreadedConnectionPool:
             maxconn=20,
             **DB_CONFIG,
         )
-        logger.info("PostgreSQL connection pool yaratildi (min=5, max=20)")  # noqa
+        logger.info("PostgreSQL connection pool yaratildi (min=5, max=20)")
     return _db_pool
 
 
 def get_db_connection() -> psycopg2.extensions.connection:
-    """
-    Pool dan bitta connection oling.
-    Ishlatib bo'lgach release_db_connection() ni chaqiring.
-    Yoki context manager sifatida db_connection() ishlatish tavsiya etiladi.
-    """
     return get_pool().getconn()
 
 
 def release_db_connection(conn: psycopg2.extensions.connection) -> None:
-    """Connectionni poolga qaytaradi."""
     try:
         get_pool().putconn(conn)
     except Exception as e:
@@ -71,12 +69,6 @@ class db_connection:
     """
     Context manager: with db_connection() as (conn, cur): ...
     Avtomatik commit/rollback va connectionni poolga qaytaradi.
-
-    Misol:
-        async def some_func():
-            with db_connection() as (conn, cur):
-                cur.execute("SELECT ...")
-                rows = cur.fetchall()
     """
     def __init__(self, autocommit: bool = False):
         self.autocommit = autocommit
@@ -98,15 +90,14 @@ class db_connection:
                     self.conn.commit()
             self.cur.close()
             release_db_connection(self.conn)
-        return False  # Exceptionni suppress qilmaymiz
+        return False
 
 
-# ─── LEGACY GLOBAL CURSOR (eski kod uchun, asta-sekin olib tashlanadi) ─
-# DIQQAT: Bu faqat sinxron, oddiy so'rovlar uchun. Async broadcast da ishlatmang!
+# ─── LEGACY GLOBAL CURSOR ──────────────────────────────────────────────
 _legacy_conn  = psycopg2.connect(**DB_CONFIG)
 _legacy_conn.autocommit = True
-sql = _legacy_conn.cursor()
-db  = _legacy_conn
+sql    = _legacy_conn.cursor()
+db     = _legacy_conn
 conn   = _legacy_conn
 cursor = sql
 
@@ -115,10 +106,36 @@ ADMIN_ID = ADMINS = [
     int(aid) for aid in os.getenv("ADMINS_ID", "").split(",") if aid.strip()
 ]
 
-# ─── BOT & DISPATCHER ──────────────────────────────────────────────────
+# ─── BOT ───────────────────────────────────────────────────────────────
 bot = Bot(
     token=BOT_TOKEN,
     default=DefaultBotProperties(link_preview_is_disabled=True),
 )
-storage = MemoryStorage()
+
+# ─── STORAGE: Redis yoki Memory ────────────────────────────────────────
+def _make_storage():
+    """
+    Redis mavjud bo'lsa RedisStorage, aks holda MemoryStorage.
+    50k+ foydalanuvchi uchun Redis tavsiya etiladi.
+    """
+    try:
+        from redis.asyncio import Redis as AioRedis
+        redis_kwargs = {
+            "host": REDIS_HOST,
+            "port": REDIS_PORT,
+            "db":   REDIS_DB,
+        }
+        if REDIS_PASSWORD:
+            redis_kwargs["password"] = REDIS_PASSWORD
+
+        redis_client = AioRedis(**redis_kwargs)
+        storage = RedisStorage(redis=redis_client)
+        logger.info(f"RedisStorage ulandi: {REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
+        return storage
+    except Exception as e:
+        logger.warning(f"Redis ulanmadi ({e}), MemoryStorage ishlatiladi")
+        return MemoryStorage()
+
+
+storage = _make_storage()
 dp      = Dispatcher(storage=storage)

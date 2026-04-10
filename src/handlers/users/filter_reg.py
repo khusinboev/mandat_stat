@@ -1,3 +1,11 @@
+"""
+filter_reg.py — Viloyat bo'yicha qidirish.
+
+Tuzatilgan muammolar:
+  1. Inline handler o'z state iga bog'liq
+  2. Eski xabarlar tozalanadi
+  3. Har bir step oldingi xabarlarni o'chiradi
+"""
 import os
 import logging
 
@@ -23,19 +31,46 @@ BOT_USERNAME = "mandatjavobbot"
 
 
 class FormReg(StatesGroup):
-    reg1 = State()
-    reg2 = State()
-    reg3 = State()
-    reg4 = State()
-    reg5 = State()
+    reg1 = State()   # Hudud
+    reg2 = State()   # Universitet
+    reg3 = State()   # Ta'lim shakli
+    reg4 = State()   # Ta'lim tili
+    reg5 = State()   # Yo'nalish → natija
+
+
+# ─── YORDAMCHI ─────────────────────────────────────────────────────────
+
+async def _delete_old_msgs(state: FSMContext, chat_id: int):
+    data = await state.get_data()
+    for mid in data.get("_bot_msgs", []):
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=mid)
+        except Exception:
+            pass
+    await state.update_data(_bot_msgs=[])
+
+
+async def _track_msg(state: FSMContext, msg: Message):
+    data = await state.get_data()
+    ids  = data.get("_bot_msgs", [])
+    ids.append(msg.message_id)
+    await state.update_data(_bot_msgs=ids)
+
+
+async def _safe_delete(message: Message):
+    try:
+        await message.delete()
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════
-#  REG1 — HUDUD TANLASH
+#  REG1 — HUDUD TANLASH  (inline FormReg.reg1 ga bog'liq)
 # ═══════════════════════════════════════════════════════════════
 
 @reg_router.message(F.text == "📈 Viloyatlar kesimida", F.chat.type == ChatType.PRIVATE)
 async def enter_direction(message: Message, state: FSMContext):
+    await _safe_delete(message)
     ok, channels = await CheckData.check_member(bot, message.from_user.id)
     if not ok:
         await message.answer(
@@ -43,6 +78,8 @@ async def enter_direction(message: Message, state: FSMContext):
             reply_markup=await CheckData.channels_btn(channels),
         )
         return
+
+    await state.clear()
 
     with db_connection() as (conn, cur):
         cur.execute("SELECT region_id, region_name FROM regions ORDER BY region_name")
@@ -55,9 +92,11 @@ async def enter_direction(message: Message, state: FSMContext):
     keyboard.append([KeyboardButton(text="🔙 Ortga")])
     btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
-    await message.answer("<b>📍 Hududni tanlang:</b>", parse_mode="html", reply_markup=btn)
-    await message.answer("<b>Tezkor qidiruvdan foydalaning...👇</b>", parse_mode="html", reply_markup=kb)
+    m1 = await message.answer("<b>📍 Hududni tanlang:</b>", parse_mode="html", reply_markup=btn)
+    m2 = await message.answer("<b>Tezkor qidiruvdan foydalaning...👇</b>", parse_mode="html", reply_markup=kb)
     await state.set_state(FormReg.reg1)
+    await _track_msg(state, m1)
+    await _track_msg(state, m2)
 
 
 @reg_router.inline_query(FormReg.reg1)
@@ -66,11 +105,11 @@ async def inline_reg1(inline_query: InlineQuery):
     with db_connection() as (conn, cur):
         if text:
             cur.execute(
-                "SELECT id, region_id, region_name FROM regions WHERE lower(region_name) LIKE %s",
+                "SELECT id, region_id, region_name FROM regions WHERE lower(region_name) LIKE %s ORDER BY region_name",
                 (f"%{text}%",)
             )
         else:
-            cur.execute("SELECT id, region_id, region_name FROM regions")
+            cur.execute("SELECT id, region_id, region_name FROM regions ORDER BY region_name")
         rows = cur.fetchall()
 
     results = [
@@ -88,8 +127,10 @@ async def inline_reg1(inline_query: InlineQuery):
 
 @reg_router.message(FormReg.reg1)
 async def chosen_region(message: Message, state: FSMContext):
+    await _safe_delete(message)
+
     if message.text in ("🔙 Ortga", "🔙 Bosh menu"):
-        await message.delete()
+        await _delete_old_msgs(state, message.chat.id)
         await state.clear()
         await message.answer(
             "<b>Quyidagi menulardan birini tanlang 👇</b>",
@@ -100,7 +141,10 @@ async def chosen_region(message: Message, state: FSMContext):
 
     region_name = message.text
     with db_connection() as (conn, cur):
-        cur.execute("SELECT region_id FROM regions WHERE region_name = %s", (region_name,))
+        cur.execute(
+            "SELECT region_id FROM regions WHERE region_name = %s",
+            (region_name,)
+        )
         row = cur.fetchone()
         if not row:
             return
@@ -114,9 +158,14 @@ async def chosen_region(message: Message, state: FSMContext):
         universities = cur.fetchall()
 
     if not universities:
-        await message.answer("<b>🤷🏻‍♂️ Bu hududda oliygoh topilmadi</b>", parse_mode="html")
+        m = await message.answer(
+            "<b>🤷🏻‍♂️ Bu hududda oliygoh topilmadi</b>",
+            parse_mode="html",
+        )
+        await _track_msg(state, m)
         return
 
+    await _delete_old_msgs(state, message.chat.id)
     await state.update_data(region_name=region_name, region_id=region_id)
     await state.set_state(FormReg.reg2)
 
@@ -127,16 +176,22 @@ async def chosen_region(message: Message, state: FSMContext):
     keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
     btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
-    await message.answer(
+    m1 = await message.answer(
         f"<b>Siz tanlagan hududda {len(universities)} ta oliygoh mavjud\n\n🏢 OTMni tanlang:</b>",
         parse_mode="html",
         reply_markup=btn,
     )
-    await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+    m2 = await message.answer(
+        "<b>Tezkor qidiruvdan foydalaning...</b>",
+        parse_mode="html",
+        reply_markup=kb,
+    )
+    await _track_msg(state, m1)
+    await _track_msg(state, m2)
 
 
 # ═══════════════════════════════════════════════════════════════
-#  REG2 — UNIVERSITET TANLASH
+#  REG2 — UNIVERSITET TANLASH  (inline FormReg.reg2 ga bog'liq)
 # ═══════════════════════════════════════════════════════════════
 
 @reg_router.inline_query(FormReg.reg2)
@@ -159,7 +214,7 @@ async def inline_reg2(inline_query: InlineQuery, state: FSMContext):
                 JOIN universities u ON r.region_id = u.region_id
                 WHERE r.region_name = %s ORDER BY u.un_text
             """, (region_name,))
-        universities = list(dict.fromkeys(cur.fetchall()))[:50]
+        universities = cur.fetchall()[:50]
 
     results = [
         InlineQueryResultArticle(
@@ -174,23 +229,30 @@ async def inline_reg2(inline_query: InlineQuery, state: FSMContext):
 
 @reg_router.message(FormReg.reg2)
 async def chosen_university(message: Message, state: FSMContext):
+    await _safe_delete(message)
+
     if message.text == "🔙 Ortga":
+        await _delete_old_msgs(state, message.chat.id)
+        await state.set_state(FormReg.reg1)
+
         with db_connection() as (conn, cur):
             cur.execute("SELECT region_id, region_name FROM regions ORDER BY region_name")
             rows = cur.fetchall()
+
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
         keyboard = [[KeyboardButton(text=rn)] for _, rn in rows]
         keyboard.append([KeyboardButton(text="🔙 Ortga")])
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-        await message.answer("<b>📍 Hududni tanlang:</b>", parse_mode="html", reply_markup=btn)
-        await message.answer("<b>Tezkor qidiruvdan foydalaning...👇</b>", parse_mode="html", reply_markup=kb)
-        await state.set_state(FormReg.reg1)
+        m1 = await message.answer("<b>📍 Hududni tanlang:</b>", parse_mode="html", reply_markup=btn)
+        m2 = await message.answer("<b>Tezkor qidiruvdan foydalaning...👇</b>", parse_mode="html", reply_markup=kb)
+        await _track_msg(state, m1)
+        await _track_msg(state, m2)
         return
 
     if message.text == "🔙 Bosh menu":
-        await message.delete()
+        await _delete_old_msgs(state, message.chat.id)
         await state.clear()
         await message.answer(
             "<b>Quyidagi menulardan birini tanlang 👇</b>",
@@ -201,7 +263,10 @@ async def chosen_university(message: Message, state: FSMContext):
 
     un_name = message.text
     with db_connection() as (conn, cur):
-        cur.execute("SELECT un_id FROM universities WHERE lower(un_text) = %s", (un_name.lower(),))
+        cur.execute(
+            "SELECT un_id FROM universities WHERE lower(un_text) = %s",
+            (un_name.lower(),)
+        )
         row = cur.fetchone()
         if not row:
             return
@@ -210,22 +275,32 @@ async def chosen_university(message: Message, state: FSMContext):
         data      = await state.get_data()
         region_id = data.get("region_id")
         cur.execute(
-            "SELECT ty_id, ty_text FROM gettypes WHERE region_id = %s AND un_id = %s",
+            "SELECT ty_id, ty_text FROM gettypes WHERE region_id = %s AND un_id = %s ORDER BY ty_text",
             (region_id, un_id)
         )
         types = cur.fetchall()
 
     if not types:
-        await message.answer("<b>🤷🏻‍♂️ Ta'lim shakllari topilmadi</b>", parse_mode="html")
+        m = await message.answer(
+            "<b>🤷🏻‍♂️ Ta'lim shakllari topilmadi</b>",
+            parse_mode="html",
+        )
+        await _track_msg(state, m)
         return
 
+    await _delete_old_msgs(state, message.chat.id)
     await state.update_data(un_id=un_id)
     await state.set_state(FormReg.reg3)
 
     keyboard = [[KeyboardButton(text=ty_text)] for _, ty_text in types]
     keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
     btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-    await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+    m = await message.answer(
+        "<b>🔰 Ta'lim shaklini tanlang: 👇</b>",
+        parse_mode="html",
+        reply_markup=btn,
+    )
+    await _track_msg(state, m)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -234,11 +309,13 @@ async def chosen_university(message: Message, state: FSMContext):
 
 @reg_router.message(FormReg.reg3)
 async def chosen_type(message: Message, state: FSMContext):
+    await _safe_delete(message)
+
     if message.text == "🔙 Ortga":
-        await message.delete()
-        await state.set_state(FormReg.reg2)
-        data    = await state.get_data()
+        await _delete_old_msgs(state, message.chat.id)
+        data        = await state.get_data()
         region_name = data.get("region_name")
+
         with db_connection() as (conn, cur):
             cur.execute("""
                 SELECT u.un_text FROM regions r
@@ -246,21 +323,30 @@ async def chosen_type(message: Message, state: FSMContext):
                 WHERE r.region_name = %s ORDER BY u.un_text
             """, (region_name,))
             universities = cur.fetchall()
+
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
         ])
         keyboard = [[KeyboardButton(text=un_text)] for (un_text,) in universities]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-        await message.answer(
+        await state.set_state(FormReg.reg2)
+        m1 = await message.answer(
             f"<b>{len(universities)} ta oliygoh\n\n🏢 OTMni tanlang:</b>",
-            parse_mode="html", reply_markup=btn
+            parse_mode="html",
+            reply_markup=btn,
         )
-        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+        m2 = await message.answer(
+            "<b>Tezkor qidiruvdan foydalaning...</b>",
+            parse_mode="html",
+            reply_markup=kb,
+        )
+        await _track_msg(state, m1)
+        await _track_msg(state, m2)
         return
 
     if message.text == "🔙 Bosh menu":
-        await message.delete()
+        await _delete_old_msgs(state, message.chat.id)
         await state.clear()
         await message.answer(
             "<b>Quyidagi menulardan birini tanlang 👇</b>",
@@ -280,19 +366,27 @@ async def chosen_type(message: Message, state: FSMContext):
         data  = await state.get_data()
         un_id = data.get("un_id")
         cur.execute("""
-            SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m
-            JOIN getlangs g ON m.lan_id = g.lan_id
-            WHERE m.un_id = %s AND m.ty_id = %s
+            SELECT DISTINCT g.lan_id, g.lan_text
+            FROM mandat mn
+            JOIN getlangs g ON mn.lan_id = g.lan_id
+            WHERE mn.un_id = %s AND mn.ty_id = %s
+            ORDER BY g.lan_text
         """, (un_id, ty_id))
         langs = cur.fetchall()
 
+    await _delete_old_msgs(state, message.chat.id)
     await state.update_data(ty_id=ty_id)
     await state.set_state(FormReg.reg4)
 
     keyboard = [[KeyboardButton(text=lan_text[:60])] for _, lan_text in langs]
     keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
     btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-    await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
+    m = await message.answer(
+        "<b>🇺🇿 Ta'lim tilini tanlang:</b>",
+        parse_mode="html",
+        reply_markup=btn,
+    )
+    await _track_msg(state, m)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -301,26 +395,35 @@ async def chosen_type(message: Message, state: FSMContext):
 
 @reg_router.message(FormReg.reg4)
 async def chosen_lang(message: Message, state: FSMContext):
+    await _safe_delete(message)
+
     if message.text == "🔙 Ortga":
-        await message.delete()
-        await state.set_state(FormReg.reg3)
-        data  = await state.get_data()
-        un_id = data.get("un_id")
+        await _delete_old_msgs(state, message.chat.id)
+        data      = await state.get_data()
+        un_id     = data.get("un_id")
         region_id = data.get("region_id")
+
         with db_connection() as (conn, cur):
             cur.execute(
-                "SELECT ty_id, ty_text FROM gettypes WHERE region_id = %s AND un_id = %s",
+                "SELECT ty_id, ty_text FROM gettypes WHERE region_id = %s AND un_id = %s ORDER BY ty_text",
                 (region_id, un_id)
             )
             types = cur.fetchall()
+
         keyboard = [[KeyboardButton(text=ty_text)] for _, ty_text in types]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-        await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+        await state.set_state(FormReg.reg3)
+        m = await message.answer(
+            "<b>🔰 Ta'lim shaklini tanlang: 👇</b>",
+            parse_mode="html",
+            reply_markup=btn,
+        )
+        await _track_msg(state, m)
         return
 
     if message.text == "🔙 Bosh menu":
-        await message.delete()
+        await _delete_old_msgs(state, message.chat.id)
         await state.clear()
         await message.answer(
             "<b>Quyidagi menulardan birini tanlang 👇</b>",
@@ -331,7 +434,10 @@ async def chosen_lang(message: Message, state: FSMContext):
 
     lan_text_input = message.text.lower()
     with db_connection() as (conn, cur):
-        cur.execute("SELECT lan_id FROM getlangs WHERE lower(lan_text) = %s", (lan_text_input,))
+        cur.execute(
+            "SELECT lan_id FROM getlangs WHERE lower(lan_text) = %s",
+            (lan_text_input,)
+        )
         row = cur.fetchone()
         if not row:
             return
@@ -343,12 +449,14 @@ async def chosen_lang(message: Message, state: FSMContext):
     ty_id     = data["ty_id"]
 
     with db_connection() as (conn, cur):
-        cur.execute(
-            "SELECT mvdir, nomi FROM mandat WHERE region_id = %s AND un_id = %s AND ty_id = %s AND lan_id = %s",
-            (region_id, un_id, ty_id, lan_id)
-        )
+        cur.execute("""
+            SELECT mvdir, nomi FROM mandat
+            WHERE region_id = %s AND un_id = %s AND ty_id = %s AND lan_id = %s
+            ORDER BY nomi
+        """, (region_id, un_id, ty_id, lan_id))
         rows = cur.fetchall()
 
+    await _delete_old_msgs(state, message.chat.id)
     await state.update_data(lan_id=lan_id)
     await state.set_state(FormReg.reg5)
 
@@ -358,16 +466,22 @@ async def chosen_lang(message: Message, state: FSMContext):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
     ])
-    await message.answer(
-        f"{len(rows)} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:",
+    m1 = await message.answer(
+        f"<b>{len(rows)} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:</b>",
         parse_mode="html",
         reply_markup=btn,
     )
-    await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+    m2 = await message.answer(
+        "<b>Tezkor qidiruvdan foydalaning...</b>",
+        parse_mode="html",
+        reply_markup=kb,
+    )
+    await _track_msg(state, m1)
+    await _track_msg(state, m2)
 
 
 # ═══════════════════════════════════════════════════════════════
-#  REG5 — YO'NALISH TANLASH VA NATIJA
+#  REG5 — YO'NALISH TANLASH VA NATIJA  (inline FormReg.reg5 ga bog'liq)
 # ═══════════════════════════════════════════════════════════════
 
 @reg_router.inline_query(FormReg.reg5)
@@ -384,14 +498,16 @@ async def inline_reg5(inline_query: InlineQuery, state: FSMContext):
             cur.execute("""
                 SELECT id, mvdir, nomi FROM mandat
                 WHERE lower(nomi) LIKE %s AND region_id = %s AND un_id = %s
-                AND ty_id = %s AND lan_id = %s
+                  AND ty_id = %s AND lan_id = %s
+                ORDER BY nomi
             """, (f"%{text}%", region_id, un_id, ty_id, lan_id))
         else:
             cur.execute("""
                 SELECT id, mvdir, nomi FROM mandat
                 WHERE region_id = %s AND un_id = %s AND ty_id = %s AND lan_id = %s
+                ORDER BY nomi
             """, (region_id, un_id, ty_id, lan_id))
-        facs = list(dict.fromkeys(cur.fetchall()))[:50]
+        facs = cur.fetchall()[:50]
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
@@ -412,27 +528,38 @@ async def inline_reg5(inline_query: InlineQuery, state: FSMContext):
 
 @reg_router.message(FormReg.reg5)
 async def chosen_direction(message: Message, state: FSMContext):
+    await _safe_delete(message)
+
     if message.text == "🔙 Ortga":
-        await message.delete()
-        await state.set_state(FormReg.reg4)
+        await _delete_old_msgs(state, message.chat.id)
         data  = await state.get_data()
         un_id = data.get("un_id")
         ty_id = data.get("ty_id")
+
         with db_connection() as (conn, cur):
             cur.execute("""
-                SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m
-                JOIN getlangs g ON m.lan_id = g.lan_id
-                WHERE m.un_id = %s AND m.ty_id = %s
+                SELECT DISTINCT g.lan_id, g.lan_text
+                FROM mandat mn
+                JOIN getlangs g ON mn.lan_id = g.lan_id
+                WHERE mn.un_id = %s AND mn.ty_id = %s
+                ORDER BY g.lan_text
             """, (un_id, ty_id))
             langs = cur.fetchall()
+
         keyboard = [[KeyboardButton(text=lan_text[:60])] for _, lan_text in langs]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-        await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
+        await state.set_state(FormReg.reg4)
+        m = await message.answer(
+            "<b>🇺🇿 Ta'lim tilini tanlang:</b>",
+            parse_mode="html",
+            reply_markup=btn,
+        )
+        await _track_msg(state, m)
         return
 
     if message.text == "🔙 Bosh menu":
-        await message.delete()
+        await _delete_old_msgs(state, message.chat.id)
         await state.clear()
         await message.answer(
             "<b>Quyidagi menulardan birini tanlang 👇</b>",
@@ -446,13 +573,13 @@ async def chosen_direction(message: Message, state: FSMContext):
         return
     mvdir, nomi = parts[0].strip(), parts[1].strip()
 
-    data      = await state.get_data()
-    un_id     = data["un_id"]
-    ty_id     = data["ty_id"]
-    lan_id    = data["lan_id"]
+    data   = await state.get_data()
+    un_id  = data["un_id"]
+    ty_id  = data["ty_id"]
+    lan_id = data["lan_id"]
 
     with db_connection() as (conn, cur):
-        cur.execute("SELECT un_text  FROM universities WHERE un_id = %s", (un_id,))
+        cur.execute("SELECT un_text  FROM universities WHERE un_id  = %s", (un_id,))
         un_name_row  = cur.fetchone()
         cur.execute("SELECT lan_text FROM getlangs    WHERE lan_id = %s", (lan_id,))
         lan_text_row = cur.fetchone()
@@ -465,7 +592,11 @@ async def chosen_direction(message: Message, state: FSMContext):
         result = cur.fetchone()
 
     if not result:
-        await message.answer("<b>🤷🏻‍♂️ Ma'lumot topilmadi</b>", parse_mode="html")
+        m = await message.answer(
+            "<b>🤷🏻‍♂️ Ma'lumot topilmadi</b>",
+            parse_mode="html",
+        )
+        await _track_msg(state, m)
         return
 
     gr_b, con_b, olimp = result
@@ -485,6 +616,8 @@ async def chosen_direction(message: Message, state: FSMContext):
         "— oʻtish ballari va mandat natijalari</b>"
     )
 
+    await _delete_old_msgs(state, message.chat.id)
+
     user_id = message.from_user.id
     with db_connection() as (conn, cur):
         cur.execute(
@@ -497,12 +630,17 @@ async def chosen_direction(message: Message, state: FSMContext):
         await message.answer_photo(photo=old[0], caption=msg_text, parse_mode="html")
         return
 
-    if create_card(univer=un_name, faculty=f"{mvdir} - {nomi}", lang=lan_text, edu=ty_text,
-                   grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
+    if create_card(
+        univer=un_name, faculty=f"{mvdir} - {nomi}",
+        lang=lan_text, edu=ty_text,
+        grand=gr_b, kont=con_b, olmp=olimp, name=user_id
+    ):
         CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
         file_path   = os.path.join(CURRENT_DIR, "photos", f"{user_id}.jpg")
         try:
-            sent    = await message.answer_photo(photo=FSInputFile(file_path), caption=msg_text, parse_mode="html")
+            sent    = await message.answer_photo(
+                photo=FSInputFile(file_path), caption=msg_text, parse_mode="html"
+            )
             file_id = sent.photo[-1].file_id
             with db_connection() as (conn, cur):
                 cur.execute("""
