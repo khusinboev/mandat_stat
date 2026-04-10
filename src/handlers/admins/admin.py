@@ -1,46 +1,38 @@
-"""
-admin.py — Admin panel: statistika, kanallar 1-guruh va 2-guruh.
-
-Optimizatsiyalar:
-  - Takroriy back handler olib tashlandi (add_admin.py da allaqachon bor)
-  - markup/markup2 modul darajasida bir marta e'lon qilinadi
-  - db_connection pool ishlatiladi
-  - Kod tuzilishi soddalashtirildi
-"""
 import logging
 from datetime import datetime, timedelta
 
+import psycopg2
 import pytz
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import (
+    Message, ReplyKeyboardMarkup, KeyboardButton, ChatInviteLink
+)
 from aiogram.enums import ChatType
 from dateutil.relativedelta import relativedelta
 
 from src.keyboards.buttons import AdminPanel
-from config import ADMIN_ID, bot, db_connection
+from config import ADMIN_ID, DB_CONFIG, bot, db_connection
 from src.keyboards.keyboard_func import PanelFunc
 
 logger = logging.getLogger(__name__)
 admin_router = Router()
 
-# ─── STATE ─────────────────────────────────────────────────────────────
 
 class Form(StatesGroup):
-    ch_add        = State()
-    for_username  = State()
-    ch_delete     = State()
+    ch_add       = State()
+    for_username = State()
+    ch_delete    = State()
+
     ch_add2       = State()
     for_username2 = State()
     ch_delete2    = State()
 
 
-# ─── KLAVIATURALAR ─────────────────────────────────────────────────────
-
-_back_btn  = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text="🔙Orqaga qaytish")]])
-_back_btn2 = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text="🔙Orqaga qaytish2")]])
+markup  = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text="🔙Orqaga qaytish")]])
+markup2 = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton(text="🔙Orqaga qaytish2")]])
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -54,6 +46,12 @@ _back_btn2 = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[[KeyboardButton
 )
 async def panel_handler(message: Message):
     await message.answer("Admin panel 👇", reply_markup=await AdminPanel.admin_menu())
+
+
+@admin_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def back_to_menu(message: Message, state: FSMContext):
+    await state.clear()
+    await message.reply("Orqaga qaytildi", reply_markup=await AdminPanel.admin_menu())
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -84,7 +82,9 @@ async def statistika(message: Message):
         last_7_days = {}
         for i in range(7):
             day = now - timedelta(days=i)
-            cur.execute("SELECT COUNT(*) FROM accounts WHERE date::date = %s", (day,))
+            cur.execute(
+                "SELECT COUNT(*) FROM accounts WHERE date::date = %s", (day,)
+            )
             last_7_days[str(day)] = cur.fetchone()[0] or 0
 
     text = (
@@ -120,7 +120,7 @@ async def kanal_qoshish(message: Message, state: FSMContext):
             "1. <code>https://t.me/kanaluser</code> havolasini yuboring\n"
             "2. <code>@kanaluser</code> username ni yuboring"
         ),
-        reply_markup=_back_btn,
+        reply_markup=markup,
         parse_mode="html",
     )
     await state.set_state(Form.ch_add)
@@ -129,22 +129,24 @@ async def kanal_qoshish(message: Message, state: FSMContext):
 @admin_router.message(Form.ch_add, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def kanal_qoshish_2(message: Message, state: FSMContext):
     raw = message.text or ""
-    chat_link = _parse_chat_link(raw)
+    chat_link = None
+
+    if "https://t.me/" in raw:
+        chat_link = "@" + raw.split("https://t.me/", 1)[1].split("/")[0]
+    elif raw.startswith("@"):
+        chat_link = raw
 
     if not chat_link:
-        await message.answer(
-            "Kanal <b>username</b> yoki havolasini yuboring",
-            reply_markup=_back_btn, parse_mode="html"
-        )
+        await message.answer("Kanal <b>username</b> yoki havolasini yuboring", reply_markup=markup, parse_mode="html")
         return
 
     try:
         chat = await bot.get_chat(chat_link)
-    except Exception:
+    except Exception as e:
         await state.clear()
         await bot.send_message(
             message.chat.id,
-            text="Bot kanalga <b>admin emas!</b> yoki kanal topilmadi.",
+            text="Bot kanalga <b>admin emas!</b> yoki kanal topilmadi. Tekshirib qaytadan urining.",
             reply_markup=await AdminPanel.admin_channel(),
             parse_mode="html",
         )
@@ -160,8 +162,10 @@ async def kanal_qoshish_2(message: Message, state: FSMContext):
         return
 
     await message.reply(
-        "Kanal qabul qilindi. Taklif havolasini yuboring (<code>https://t.me/+</code>).",
-        reply_markup=_back_btn, parse_mode="html",
+        "Kanal qabul qilindi. Endi taklif havolasini yuboring. "
+        "U <code>https://t.me/+</code> deb boshlanadi.",
+        reply_markup=markup,
+        parse_mode="html",
     )
     await state.update_data(channel_id=str(chat.id))
     await state.set_state(Form.for_username)
@@ -172,19 +176,21 @@ async def kanal_link_saqlash(message: Message, state: FSMContext):
     link = message.text or ""
     if "https://t.me/" not in link:
         await message.answer(
-            "Taklif havolasini yuboring (<code>https://t.me/+</code>).",
-            reply_markup=_back_btn, parse_mode="html",
+            "Taklif havolasini yuboring. <code>https://t.me/+</code> deb boshlanadi.",
+            reply_markup=markup,
+            parse_mode="html",
         )
         return
     data = await state.get_data()
-    await PanelFunc.channel_add(data["channel_id"], link)
+    channel_id = data["channel_id"]
+    await PanelFunc.channel_add(channel_id, link)
     await state.clear()
     await message.reply("Kanal qo'shildi 🎉", reply_markup=await AdminPanel.admin_channel())
 
 
 @admin_router.message(F.text == "❌Kanalni olib tashlash", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def kanal_ochirish(message: Message, state: FSMContext):
-    await message.reply("O'chiriladigan kanalning @username ni yuboring.", reply_markup=_back_btn)
+    await message.reply("O'chiriladigan kanalning @username ni yuboring.", reply_markup=markup)
     await state.set_state(Form.ch_delete)
 
 
@@ -194,7 +200,7 @@ async def kanal_ochirish_2(message: Message, state: FSMContext):
     try:
         chat = await bot.get_chat(raw)
     except Exception:
-        await message.reply("Kanal topilmadi. @username ko'rinishida kiriting.", reply_markup=_back_btn)
+        await message.reply("Kanal topilmadi. @username ko'rinishida kiriting.", reply_markup=markup)
         return
 
     with db_connection() as (conn, cur):
@@ -206,13 +212,17 @@ async def kanal_ochirish_2(message: Message, state: FSMContext):
     else:
         await PanelFunc.channel_delete(chat.id)
         await message.reply("Kanal muvaffaqiyatli o'chirildi", reply_markup=await AdminPanel.admin_channel())
+
     await state.clear()
 
 
 @admin_router.message(F.text == "📋 Kanallar ro'yxati", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def kanallar_royxati(message: Message):
     result = await PanelFunc.channel_list()
-    await message.answer(result if len(result) > 3 else "Hozircha kanallar yo'q")
+    if len(result) > 3:
+        await message.answer(result, parse_mode="html")
+    else:
+        await message.answer("Hozircha kanallar yo'q")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -239,7 +249,7 @@ async def kanal_qoshish2(message: Message, state: FSMContext):
             "1. <code>https://t.me/kanaluser</code> havolasini yuboring\n"
             "2. <code>@kanaluser</code> username ni yuboring"
         ),
-        reply_markup=_back_btn2,
+        reply_markup=markup2,
         parse_mode="html",
     )
     await state.set_state(Form.ch_add2)
@@ -248,13 +258,15 @@ async def kanal_qoshish2(message: Message, state: FSMContext):
 @admin_router.message(Form.ch_add2, F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def kanal_qoshish2_2(message: Message, state: FSMContext):
     raw = message.text or ""
-    chat_link = _parse_chat_link(raw)
+    chat_link = None
+
+    if "https://t.me/" in raw:
+        chat_link = "@" + raw.split("https://t.me/", 1)[1].split("/")[0]
+    elif raw.startswith("@"):
+        chat_link = raw
 
     if not chat_link:
-        await message.answer(
-            "Kanal <b>username</b> yoki havolasini yuboring",
-            reply_markup=_back_btn2, parse_mode="html"
-        )
+        await message.answer("Kanal <b>username</b> yoki havolasini yuboring", reply_markup=markup2, parse_mode="html")
         return
 
     try:
@@ -274,12 +286,13 @@ async def kanal_qoshish2_2(message: Message, state: FSMContext):
         exists = cur.fetchone()
 
     if exists:
-        await message.reply("Bu kanal avvaldan bor", reply_markup=_back_btn2)
+        await message.reply("Bu kanal avvaldan bor", reply_markup=markup2)
         return
 
     await message.reply(
         "Kanal qabul qilindi. Taklif havolasini yuboring (<code>https://t.me/+</code>).",
-        reply_markup=_back_btn2, parse_mode="html",
+        reply_markup=markup2,
+        parse_mode="html",
     )
     await state.update_data(channel_id=str(chat.id))
     await state.set_state(Form.for_username2)
@@ -291,18 +304,20 @@ async def kanal_link_saqlash2(message: Message, state: FSMContext):
     if "https://t.me/" not in link:
         await message.answer(
             "Taklif havolasini yuboring (<code>https://t.me/+</code>).",
-            reply_markup=_back_btn2, parse_mode="html",
+            reply_markup=markup2,
+            parse_mode="html",
         )
         return
     data = await state.get_data()
-    await PanelFunc.channel_add2(data["channel_id"], link)
+    channel_id = data["channel_id"]
+    await PanelFunc.channel_add2(channel_id, link)
     await state.clear()
     await message.reply("Kanal qo'shildi 🎉", reply_markup=await AdminPanel.admin_channel2())
 
 
 @admin_router.message(F.text == "❌Kanalni olib tashlash2", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def kanal_ochirish2(message: Message, state: FSMContext):
-    await message.reply("O'chiriladigan kanalning @username ni yuboring.", reply_markup=_back_btn2)
+    await message.reply("O'chiriladigan kanalning @username ni yuboring.", reply_markup=markup2)
     await state.set_state(Form.ch_delete2)
 
 
@@ -312,7 +327,7 @@ async def kanal_ochirish2_2(message: Message, state: FSMContext):
     try:
         chat = await bot.get_chat(raw)
     except Exception:
-        await message.reply("Kanal topilmadi.", reply_markup=_back_btn2)
+        await message.reply("Kanal topilmadi.", reply_markup=markup2)
         return
 
     with db_connection() as (conn, cur):
@@ -324,21 +339,14 @@ async def kanal_ochirish2_2(message: Message, state: FSMContext):
     else:
         await PanelFunc.channel_delete2(chat.id)
         await message.reply("Kanal muvaffaqiyatli o'chirildi", reply_markup=await AdminPanel.admin_channel2())
+
     await state.clear()
 
 
 @admin_router.message(F.text == "📋 Kanallar ro'yxati2", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def kanallar2_royxati(message: Message):
     result = await PanelFunc.channel_list2()
-    await message.answer(result if len(result) > 3 else "Hozircha kanallar yo'q")
-
-
-# ─── YORDAMCHI ─────────────────────────────────────────────────────────
-
-def _parse_chat_link(raw: str) -> str | None:
-    """URL yoki @username dan chat linkni ajratib oladi."""
-    if "https://t.me/" in raw:
-        return "@" + raw.split("https://t.me/", 1)[1].split("/")[0]
-    if raw.startswith("@"):
-        return raw
-    return None
+    if len(result) > 3:
+        await message.answer(result, parse_mode="html")
+    else:
+        await message.answer("Hozircha kanallar yo'q")

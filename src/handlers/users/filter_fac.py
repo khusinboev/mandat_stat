@@ -2,12 +2,10 @@
 filter_fac.py — Yo'nalish bo'yicha qidirish.
 
 Tuzatilgan muammolar:
-  1. Til dublikatlari: DISTINCT ON (lan_id) ishlatildi
-  2. COUNT(DISTINCT ...) → subquery bilan to'g'rilandi
-  3. Inline handler o'z state iga bog'liq
-  4. Eski xabarlar tozalanadi
+  1. COUNT(DISTINCT col1, col2, ...) → COUNT(*) FROM (SELECT DISTINCT ...) subquery
+  2. Inline handler o'z state iga bog'liq
+  3. Eski xabarlar tozalanadi
 """
-import hashlib
 import os
 import logging
 
@@ -65,22 +63,8 @@ async def _safe_delete(message: Message):
         pass
 
 
-def _get_unique_langs_for_fac(cur, un_id, ty_id):
-    """
-    ✅ DISTINCT ON (lan_id) — bir xil lan_id uchun faqat bitta lan_text.
-    """
-    cur.execute("""
-        SELECT DISTINCT ON (g.lan_id) g.lan_id, g.lan_text
-        FROM mandat mn
-        JOIN getlangs g ON mn.lan_id = g.lan_id
-        WHERE mn.un_id = %s AND mn.ty_id = %s
-        ORDER BY g.lan_id, g.lan_text
-    """, (un_id, ty_id))
-    return cur.fetchall()
-
-
 # ═══════════════════════════════════════════════════════════════
-#  FAC1 — YO'NALISH QIDIRISH
+#  FAC1 — YO'NALISH QIDIRISH  (inline FormFac.fac1 ga bog'liq)
 # ═══════════════════════════════════════════════════════════════
 
 @fac_router.message(F.text == "📚 Yoʻnalishlar boʻyicha", F.chat.type == ChatType.PRIVATE)
@@ -96,6 +80,7 @@ async def enter_direction(message: Message, state: FSMContext):
 
     await state.clear()
 
+    # ✅ TUZATILDI: COUNT(DISTINCT ...) o'rniga subquery
     with db_connection() as (conn, cur):
         cur.execute("""
             SELECT COUNT(*) FROM (
@@ -138,7 +123,7 @@ async def inline_fac1(inline_query: InlineQuery):
 
     results = [
         InlineQueryResultArticle(
-            id=hashlib.md5(f"{mvdir}___{nomi}".encode()).hexdigest(),  # ← SHU
+            id=f"{mvdir}___{nomi}",
             title=f"{mvdir} - {nomi}",
             input_message_content=InputTextMessageContent(
                 message_text=f"{mvdir} - {nomi}", parse_mode="HTML"
@@ -295,7 +280,7 @@ async def chosen_university(message: Message, state: FSMContext):
         un_id = row[0]
 
         cur.execute(
-            "SELECT DISTINCT ty_id, ty_text FROM gettypes WHERE un_id = %s ORDER BY ty_text",
+            "SELECT ty_id, ty_text FROM gettypes WHERE un_id = %s ORDER BY ty_text",
             (un_id,)
         )
         types = cur.fetchall()
@@ -333,7 +318,7 @@ async def inline_fac3(inline_query: InlineQuery, state: FSMContext):
             )
         else:
             cur.execute(
-                "SELECT DISTINCT ty_id, ty_text FROM gettypes WHERE un_id = %s ORDER BY ty_text",
+                "SELECT ty_id, ty_text FROM gettypes WHERE un_id = %s ORDER BY ty_text",
                 (un_id,)
             )
         types = cur.fetchall()[:50]
@@ -402,7 +387,7 @@ async def chosen_type(message: Message, state: FSMContext):
 
     with db_connection() as (conn, cur):
         cur.execute(
-            "SELECT ty_id FROM gettypes WHERE lower(ty_text) = %s AND un_id = %s LIMIT 1",
+            "SELECT ty_id FROM gettypes WHERE lower(ty_text) = %s AND un_id = %s",
             (name, un_id)
         )
         row = cur.fetchone()
@@ -410,8 +395,14 @@ async def chosen_type(message: Message, state: FSMContext):
             return
         ty_id = row[0]
 
-        # ✅ TUZATILDI: DISTINCT ON (lan_id)
-        langs = _get_unique_langs_for_fac(cur, un_id, ty_id)
+        cur.execute("""
+            SELECT DISTINCT g.lan_id, g.lan_text
+            FROM mandat mn
+            JOIN getlangs g ON mn.lan_id = g.lan_id
+            WHERE mn.un_id = %s AND mn.ty_id = %s
+            ORDER BY g.lan_text
+        """, (un_id, ty_id))
+        langs = cur.fetchall()
 
     await _delete_old_msgs(state, message.chat.id)
     await state.update_data(ty_id=ty_id)
@@ -440,23 +431,17 @@ async def chosen_lang(message: Message, state: FSMContext):
         await _delete_old_msgs(state, message.chat.id)
         data  = await state.get_data()
         un_id = data["un_id"]
-        ty_id = data["ty_id"]
-
-        with db_connection() as (conn, cur):
-            langs = _get_unique_langs_for_fac(cur, un_id, ty_id)
-
-        keyboard = [[KeyboardButton(text=lan_text[:60])] for _, lan_text in langs]
 
         with db_connection() as (conn, cur):
             cur.execute(
-                "SELECT DISTINCT ty_id, ty_text FROM gettypes WHERE un_id = %s ORDER BY ty_text",
+                "SELECT ty_id, ty_text FROM gettypes WHERE un_id = %s ORDER BY ty_text",
                 (un_id,)
             )
             types = cur.fetchall()
 
-        keyboard_types = [[KeyboardButton(text=ty_text)] for _, ty_text in types]
-        keyboard_types.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-        btn = ReplyKeyboardMarkup(keyboard=keyboard_types, resize_keyboard=True)
+        keyboard = [[KeyboardButton(text=ty_text)] for _, ty_text in types]
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
         await state.set_state(FormFac.fac3)
         m = await message.answer(
             "<b>🔰 Ta'lim shaklini tanlang: 👇</b>",
@@ -477,10 +462,9 @@ async def chosen_lang(message: Message, state: FSMContext):
         return
 
     lan_text_input = message.text.lower()
-    # ✅ TUZATILDI: DISTINCT ON (lan_id)
     with db_connection() as (conn, cur):
         cur.execute(
-            "SELECT DISTINCT ON (lan_id) lan_id FROM getlangs WHERE lower(lan_text) = %s ORDER BY lan_id",
+            "SELECT lan_id FROM getlangs WHERE lower(lan_text) = %s",
             (lan_text_input,)
         )
         row = cur.fetchone()
@@ -495,15 +479,11 @@ async def chosen_lang(message: Message, state: FSMContext):
     fac_name = str(data["fac_name"])
 
     with db_connection() as (conn, cur):
-        cur.execute("SELECT un_text FROM universities WHERE un_id = %s", (un_id,))
+        cur.execute("SELECT un_text  FROM universities WHERE un_id  = %s", (un_id,))
         un_name_row  = cur.fetchone()
-        # ✅ TUZATILDI
-        cur.execute(
-            "SELECT DISTINCT ON (lan_id) lan_text FROM getlangs WHERE lan_id = %s ORDER BY lan_id",
-            (lan_id,)
-        )
+        cur.execute("SELECT lan_text FROM getlangs    WHERE lan_id = %s", (lan_id,))
         lan_text_row = cur.fetchone()
-        cur.execute("SELECT ty_text FROM gettypes WHERE ty_id = %s LIMIT 1", (ty_id,))
+        cur.execute("SELECT ty_text  FROM gettypes    WHERE ty_id  = %s", (ty_id,))
         ty_text_row  = cur.fetchone()
         cur.execute("""
             SELECT mvdir, nomi, gr_b, con_b, olimp FROM mandat
@@ -512,7 +492,10 @@ async def chosen_lang(message: Message, state: FSMContext):
         kayp = cur.fetchone()
 
     if not kayp:
-        m = await message.answer("<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>", parse_mode="html")
+        m = await message.answer(
+            "<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>",
+            parse_mode="html",
+        )
         await _track_msg(state, m)
         return
 

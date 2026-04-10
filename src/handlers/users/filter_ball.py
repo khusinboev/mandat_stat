@@ -2,11 +2,10 @@
 filter_ball.py — Ball bo'yicha yo'nalish qidirish.
 
 Tuzatilgan muammolar:
-  1. Til dublikatlari: lan_id bo'yicha DISTINCT ON ishlatildi
-  2. SQL alias xatosi: to'g'ri ustun nomlari
-  3. Inline query handler o'z state iga bog'liq
-  4. Har bir stepda eski xabarlar o'chiriladi
-  5. COUNT(DISTINCT ...) to'g'ri yozildi
+  1. SQL alias xatosi: "m.con_b" → to'g'ri alias bilan subquery
+  2. Inline query handler o'z state iga bog'liq — boshqa stepda ishlamaydi
+  3. Har bir stepda eski xabarlar o'chiriladi (msg_id state da saqlanadi)
+  4. COUNT(DISTINCT ...) to'g'ri yozildi
 """
 import os
 import logging
@@ -45,12 +44,16 @@ class FormBall(StatesGroup):
 # ─── YORDAMCHI FUNKSIYALAR ─────────────────────────────────────────────
 
 def _ball_condition(shakl: str) -> str:
+    """
+    SQL WHERE sharti — alias ishlatilmaydi, to'g'ridan-to'g'ri ustun nomi.
+    """
     if shakl == "gr":
         return "gr_b <= %s AND gr_b != 0 AND ty_id = '1'"
     return "con_b <= %s AND con_b != 0"
 
 
 async def _delete_old_msgs(state: FSMContext, chat_id: int):
+    """State da saqlangan eski bot xabarlarini o'chiradi."""
     data = await state.get_data()
     old_ids: list = data.get("_bot_msgs", [])
     for mid in old_ids:
@@ -62,6 +65,7 @@ async def _delete_old_msgs(state: FSMContext, chat_id: int):
 
 
 async def _track_msg(state: FSMContext, msg: Message):
+    """Yangi bot xabarini state ga qo'shadi."""
     data = await state.get_data()
     old_ids: list = data.get("_bot_msgs", [])
     old_ids.append(msg.message_id)
@@ -75,21 +79,6 @@ async def _safe_delete(message: Message):
         pass
 
 
-def _get_unique_langs(cur, un_id, ty_id, reg_id, cond, ball):
-    """
-    Bir xil lan_id uchun faqat bitta lan_text qaytaradi.
-    DISTINCT ON (lan_id) bilan dublikatlarni yo'q qiladi.
-    """
-    cur.execute(f"""
-        SELECT DISTINCT ON (g.lan_id) g.lan_id, g.lan_text
-        FROM mandat mn
-        JOIN getlangs g ON mn.lan_id = g.lan_id
-        WHERE mn.un_id = %s AND mn.ty_id = %s AND mn.region_id = %s AND {cond}
-        ORDER BY g.lan_id, g.lan_text
-    """, (un_id, ty_id, reg_id, ball))
-    return cur.fetchall()
-
-
 # ═══════════════════════════════════════════════════════════════
 #  KIRISH — Grand / Kontrakt tanlash
 # ═══════════════════════════════════════════════════════════════
@@ -99,7 +88,7 @@ async def enter_ball_menu(message: Message, state: FSMContext):
     await _safe_delete(message)
     ok, channels = await CheckData.check_member(bot, message.from_user.id)
     if not ok:
-        await message.answer(
+        m = await message.answer(
             "❗ Iltimos, quyidagi kanallarga a'zo bo'ling:",
             reply_markup=await CheckData.channels_btn(channels),
         )
@@ -154,7 +143,7 @@ async def enter_ball(message: Message, state: FSMContext):
     if message.text == "🔙 Bosh menu":
         await _delete_old_msgs(state, message.chat.id)
         await state.clear()
-        await message.answer(
+        m = await message.answer(
             "<b>Quyidagi menulardan birini tanlang 👇</b>",
             parse_mode="html",
             reply_markup=await UserPanels.main_manu(),
@@ -234,7 +223,7 @@ async def enter_ball(message: Message, state: FSMContext):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  BALL2 — Hudud tanlash
+#  BALL2 — Hudud tanlash  (inline FormBall.ball2 ga bog'liq)
 # ═══════════════════════════════════════════════════════════════
 
 @ball_router.inline_query(FormBall.ball2)
@@ -279,6 +268,10 @@ async def chosen_region(message: Message, state: FSMContext):
 
     if message.text == "🔙 Ortga":
         await _delete_old_msgs(state, message.chat.id)
+        data  = await state.get_data()
+        shakl = data["shakl"]
+        ball  = data["ball"]
+        cond  = _ball_condition(shakl)
         await state.set_state(FormBall.s_ball1)
         m = await message.answer(
             "<b>Saralash uchun ballni kiriting:</b>",
@@ -345,7 +338,7 @@ async def chosen_region(message: Message, state: FSMContext):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  BALL3 — Universitet tanlash
+#  BALL3 — Universitet tanlash  (inline FormBall.ball3 ga bog'liq)
 # ═══════════════════════════════════════════════════════════════
 
 @ball_router.inline_query(FormBall.ball3)
@@ -469,7 +462,10 @@ async def chosen_university(message: Message, state: FSMContext):
     await state.update_data(un_id=un_id)
     await state.set_state(FormBall.ball4)
 
-    keyboard = [[KeyboardButton(text=ty_text)] for _, ty_text in types]
+    keyboard = [
+        [KeyboardButton(text=ty_text if isinstance(ty_text, str) else ty_text)]
+        for _, ty_text in types
+    ]
     keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
     btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     m = await message.answer(
@@ -551,9 +547,14 @@ async def chosen_type(message: Message, state: FSMContext):
     ball   = data["ball"]
     cond   = _ball_condition(shakl)
 
-    # ✅ TUZATILDI: DISTINCT ON (lan_id) bilan dublikatlarni yo'q qilish
     with db_connection() as (conn, cur):
-        langs = _get_unique_langs(cur, un_id, ty_id, reg_id, cond, ball)
+        cur.execute(f"""
+            SELECT DISTINCT g.lan_id, g.lan_text
+            FROM mandat mn
+            JOIN getlangs g ON mn.lan_id = g.lan_id
+            WHERE mn.un_id = %s AND mn.ty_id = %s AND mn.region_id = %s AND {cond}
+        """, (un_id, ty_id, reg_id, ball))
+        langs = cur.fetchall()
 
     await _delete_old_msgs(state, message.chat.id)
     await state.update_data(ty_id=ty_id)
@@ -599,7 +600,7 @@ async def chosen_lang(message: Message, state: FSMContext):
                 """, (reg_id, str(un_id), ball))
                 types = cur.fetchall()
 
-        keyboard = [[KeyboardButton(text=t[1])] for t in types]
+        keyboard = [[KeyboardButton(text=t[1] if len(t) > 1 else t[0])] for t in types]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
         await state.set_state(FormBall.ball4)
@@ -622,10 +623,9 @@ async def chosen_lang(message: Message, state: FSMContext):
         return
 
     lan_text_input = message.text.lower()
-    # ✅ TUZATILDI: lan_id bo'yicha birinchi mos yozuvni olamiz
     with db_connection() as (conn, cur):
         cur.execute(
-            "SELECT DISTINCT ON (lan_id) lan_id FROM getlangs WHERE lower(lan_text) = %s ORDER BY lan_id",
+            "SELECT lan_id FROM getlangs WHERE lower(lan_text) = %s",
             (lan_text_input,)
         )
         row = cur.fetchone()
@@ -641,6 +641,7 @@ async def chosen_lang(message: Message, state: FSMContext):
     ball   = data["ball"]
     cond   = _ball_condition(shakl)
 
+    # ✅ TUZATILDI: SQL da alias "m." yo'q, to'g'ri ustun nomlari ishlatiladi
     with db_connection() as (conn, cur):
         cur.execute(f"""
             SELECT mvdir, nomi
@@ -679,7 +680,7 @@ async def chosen_lang(message: Message, state: FSMContext):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  BALL6 — Yo'nalish inline + natija
+#  BALL6 — Yo'nalish inline + natija  (inline FormBall.ball6 ga bog'liq)
 # ═══════════════════════════════════════════════════════════════
 
 @ball_router.inline_query(FormBall.ball6)
@@ -744,7 +745,13 @@ async def chosen_direction(message: Message, state: FSMContext):
         cond   = _ball_condition(shakl)
 
         with db_connection() as (conn, cur):
-            langs = _get_unique_langs(cur, un_id, ty_id, reg_id, cond, ball)
+            cur.execute(f"""
+                SELECT DISTINCT g.lan_id, g.lan_text
+                FROM mandat mn
+                JOIN getlangs g ON mn.lan_id = g.lan_id
+                WHERE mn.un_id = %s AND mn.ty_id = %s AND mn.region_id = %s AND {cond}
+            """, (un_id, ty_id, reg_id, ball))
+            langs = cur.fetchall()
 
         keyboard = [[KeyboardButton(text=lan_text[:60])] for _, lan_text in langs]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
@@ -788,7 +795,10 @@ async def chosen_direction(message: Message, state: FSMContext):
         kaup = cur.fetchone()
 
         if not kaup:
-            m = await message.answer("<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>", parse_mode="html")
+            m = await message.answer(
+                "<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>",
+                parse_mode="html",
+            )
             await _track_msg(state, m)
             return
 
@@ -796,11 +806,7 @@ async def chosen_direction(message: Message, state: FSMContext):
 
         cur.execute("SELECT un_text  FROM universities WHERE un_id  = %s", (un_id,))
         un_name_row  = cur.fetchone()
-        # ✅ lan_id bo'yicha birinchi lan_text ni olamiz
-        cur.execute(
-            "SELECT DISTINCT ON (lan_id) lan_text FROM getlangs WHERE lan_id = %s ORDER BY lan_id",
-            (lan_id,)
-        )
+        cur.execute("SELECT lan_text FROM getlangs    WHERE lan_id = %s", (lan_id,))
         lan_text_row = cur.fetchone()
         cur.execute("SELECT ty_text  FROM gettypes    WHERE ty_id  = %s", (ty_id,))
         ty_text_row  = cur.fetchone()

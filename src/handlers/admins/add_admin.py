@@ -1,11 +1,3 @@
-"""
-add_admin.py — Admin qo'shish va o'chirish.
-
-Optimizatsiyalar:
-  - "🔙Orqaga qaytish" handler bu yerda qoladi (admin.py dagi takroriy o'chirildi)
-  - markup modul darajasida bir marta e'lon qilinadi
-  - Kod soddalashtirildi
-"""
 import logging
 
 from aiogram import Router, F
@@ -27,13 +19,11 @@ class AdminAdd(StatesGroup):
     admin_delete = State()
 
 
-_back_btn = ReplyKeyboardMarkup(
+markup = ReplyKeyboardMarkup(
     resize_keyboard=True,
     keyboard=[[KeyboardButton(text="🔙Orqaga qaytish")]],
 )
 
-
-# ─── BOSH MENYU ────────────────────────────────────────────────────────
 
 @add_router.message(F.text == "🔧Adminlar👨‍💻", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def adminlar_menu(message: Message):
@@ -43,16 +33,15 @@ async def adminlar_menu(message: Message):
 @add_router.message(F.text == "🔙Orqaga qaytish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def back(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Orqaga qaytildi", reply_markup=await AdminPanel.admin_menu())
+    await message.answer("Orqaga qaytildi", reply_markup=await AdminPanel.admin_add())
 
-
-# ─── ADMIN QO'SHISH ────────────────────────────────────────────────────
 
 @add_router.message(F.text == "➕Admin qo'shish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def admin_qoshish(message: Message, state: FSMContext):
-    await message.answer(
-        "Qo'shish kerak bo'lgan admin ID sini yuboring. ID ni @ShowJsonBot orqali bilishingiz mumkin.",
-        reply_markup=_back_btn,
+    await bot.send_message(
+        message.chat.id,
+        text="Qo'shish kerak bo'lgan admin ID sini yuboring. ID ni @ShowJsonBot orqali bilishingiz mumkin.",
+        reply_markup=markup,
         parse_mode="html",
     )
     await state.set_state(AdminAdd.admin_add)
@@ -64,7 +53,7 @@ async def admin_qoshish_2(message: Message, state: FSMContext):
     if not text.isdigit():
         await message.answer(
             "Admin ID xato kiritildi. ID faqat sonlardan iborat bo'lishi kerak.",
-            reply_markup=_back_btn,
+            reply_markup=markup,
         )
         return
 
@@ -78,14 +67,13 @@ async def admin_qoshish_2(message: Message, state: FSMContext):
     else:
         await PanelFunc.admin_add(admin_id)
         await message.answer("Admin qo'shildi 🎉", reply_markup=await AdminPanel.admin_add())
+
     await state.clear()
 
 
-# ─── ADMIN O'CHIRISH ───────────────────────────────────────────────────
-
 @add_router.message(F.text == "❌Admin o'chirish", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def admin_ochirish(message: Message, state: FSMContext):
-    await message.answer("O'chiriladigan adminning ID sini yuboring.", reply_markup=_back_btn)
+    await message.answer("O'chiriladigan adminning ID sini yuboring.", reply_markup=markup)
     await state.set_state(AdminAdd.admin_delete)
 
 
@@ -95,7 +83,7 @@ async def admin_ochirish_2(message: Message, state: FSMContext):
     if not text.isdigit():
         await message.answer(
             "Admin ID xato kiritildi. ID faqat sonlardan iborat bo'lishi kerak.",
-            reply_markup=_back_btn,
+            reply_markup=markup,
         )
         return
 
@@ -109,15 +97,14 @@ async def admin_ochirish_2(message: Message, state: FSMContext):
     else:
         await PanelFunc.admin_delete(admin_id)
         await message.answer("Admin muvaffaqiyatli o'chirildi", reply_markup=await AdminPanel.admin_add())
+
     await state.clear()
 
-
-# ─── ADMINLAR RO'YXATI ─────────────────────────────────────────────────
 
 @add_router.message(F.text == "📋 Adminlar ro'yxati", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def adminlar_royxati(message: Message):
     result = await PanelFunc.admin_list()
-    await message.answer(
-        result if len(result) > 3 else "Hozircha adminlar yo'q",
-        parse_mode="html"
-    )
+    if len(result) > 3:
+        await message.answer(result, parse_mode="html")
+    else:
+        await message.answer("Hozircha adminlar yo'q")
