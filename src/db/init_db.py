@@ -6,7 +6,8 @@ async def create_all_base():
     sql.execute("""CREATE TABLE IF NOT EXISTS public.accounts
     (
         id SERIAL NOT NULL,
-        user_id BIGINT NOT NULL,
+        user_id BIGINT NOT NULL UNIQUE,
+        username CHARACTER VARYING(100),
         lang_code CHARACTER VARYING(10),
         date TIMESTAMP DEFAULT now(),
         CONSTRAINT accounts_pkey PRIMARY KEY (id)
@@ -73,32 +74,16 @@ class Authenticator:
     async def auth_user(message: types.Message):
         try:
             user_id = message.from_user.id
-            username = message.from_user.username  if message.from_user.username else None
+            username = message.from_user.username if message.from_user.username else None
             lang_code = message.from_user.language_code if message.from_user.language_code else None
 
-            sql.execute(f"""SELECT user_id FROM accounts WHERE user_id = {user_id}""")
+            sql.execute("SELECT user_id FROM accounts WHERE user_id = %s", (user_id,))
             check = sql.fetchone()
             if check is None:
-                sql.execute(f"DELETE FROM public.accounts WHERE user_id ='{user_id}'")
+                sql.execute(
+                    "INSERT INTO accounts (user_id, username, lang_code) VALUES (%s, %s, %s)",
+                    (user_id, username, lang_code)
+                )
                 db.commit()
-                sql.execute(f"DELETE FROM public.user_langs WHERE user_id ='{user_id}'")
-                db.commit()
-                sql.execute(f"DELETE FROM public.users_status WHERE user_id ='{user_id}'")
-                db.commit()
-                sql.execute(f"DELETE FROM public.users_tts WHERE user_id ='{user_id}'")
-                db.commit()
-                # sana = datetime.datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%d-%m-%Y %H:%M')
-                sql.execute(f"INSERT INTO accounts (user_id, username, lang_code) "
-                            f"VALUES ('{user_id}', '{username}', '{lang_code}')")
-                db.commit()
-        except: pass
-
-    @staticmethod
-    async def auth_group(message: types.Message):
-        chat_id = message.chat.id
-        group_type = message.chat.type
-        sql.execute(f"""SELECT chat_id FROM groups WHERE chat_id = {chat_id}""")
-        check = sql.fetchone()
-        if check is None:
-            sql.execute(f"""INSERT INTO groups (chat_id, types) VALUES ('{chat_id}', '{group_type}')""")
-            db.commit()
+        except Exception as e:
+            print(f"auth_user xatolik: {e}")

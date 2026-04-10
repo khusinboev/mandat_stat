@@ -26,7 +26,6 @@ DB_CONFIG = {
 }
 db = psycopg2.connect(
     database=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT)
-db.autocommit = True
 sql = db.cursor()
 
 ADMIN_ID = ADMINS = [int(admin_id) for admin_id in os.getenv("ADMINS_ID").split(",")]
