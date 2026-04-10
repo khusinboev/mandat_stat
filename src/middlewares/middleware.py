@@ -1,36 +1,35 @@
+import logging
 from aiogram.types import Update
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
-import psycopg2
-from datetime import datetime
-import pytz
-from config import DB_CONFIG
+
+from src.db.init_db import register_user
+
+logger = logging.getLogger(__name__)
+
 
 class RegisterUserMiddleware(BaseMiddleware):
+    """
+    Har bir message kelganda foydalanuvchini bazaga ro'yxatdan o'tkazadi.
+    Connection pool ishlatadi — 50k+ user uchun xavfsiz.
+    """
+
     async def __call__(self, handler, event: Update, data: dict):
         if not event.message:
-            return await handler(event, data)  # Middleware davom etsin
+            return await handler(event, data)
 
         user = event.message.from_user
-        user_id = user.id
-        date = datetime.now(pytz.timezone("Asia/Tashkent")).date()
-        lang_code = user.language_code if user.language_code else "uz"
+        if not user:
+            return await handler(event, data)
 
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor()
-
-        # **1️⃣ SQL Injection xavfsizligi uchun f-string emas, parametr ishlatilmoqda**
-        cur.execute("SELECT user_id FROM public.accounts WHERE user_id = %s", (user_id,))
-        if not cur.fetchone():  # Foydalanuvchi bazada bo‘lmasa
-            cur.execute("DELETE FROM public.accounts WHERE user_id = %s", (user_id,))
-            conn.commit()
-
-            cur.execute(
-                "INSERT INTO accounts (user_id, lang_code, date) VALUES (%s, %s, %s)",
-                (user_id, lang_code, date)
+        try:
+            is_new = await register_user(
+                user_id=user.id,
+                lang_code=user.language_code or "uz",
             )
-            conn.commit()
+            if is_new:
+                logger.info(f"Yangi foydalanuvchi: {user.id} ({user.username})")
+        except Exception as e:
+            # Middleware xatosi butun botni to'xtatmasin
+            logger.error(f"RegisterUserMiddleware xato: {e}")
 
-        cur.close()
-        conn.close()
-
-        return await handler(event, data)  # **2️⃣ Xatolik tuzatildi, middleware davom etadi**
+        return await handler(event, data)

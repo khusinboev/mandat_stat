@@ -1,104 +1,171 @@
-from aiogram import types
-from config import db, sql
+import logging
+from config import db_connection
+
+logger = logging.getLogger(__name__)
 
 
 async def create_all_base():
-    sql.execute("""CREATE TABLE IF NOT EXISTS public.accounts
-    (
-        id SERIAL NOT NULL,
-        user_id BIGINT NOT NULL,
-        lang_code CHARACTER VARYING(10),
-        date TIMESTAMP DEFAULT now(),
-        CONSTRAINT accounts_pkey PRIMARY KEY (id)
-    )""")
-    db.commit()
+    """Barcha kerakli jadvallarni yaratadi (agar mavjud bo'lmasa)."""
+    with db_connection() as (conn, cur):
+        # ── Foydalanuvchilar ──────────────────────────────────────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.accounts (
+                id        SERIAL PRIMARY KEY,
+                user_id   BIGINT NOT NULL UNIQUE,
+                lang_code CHARACTER VARYING(10),
+                date      TIMESTAMP DEFAULT now()
+            )
+        """)
 
-    sql.execute("""CREATE TABLE IF NOT EXISTS public.mandatorys
-    (
-        id SERIAL NOT NULL,
-        chat_id bigint NOT NULL,
-        title character varying,
-        username character varying,
-        types character varying,
-        CONSTRAINT channels_pkey PRIMARY KEY (id)
-    )""")
-    db.commit()
+        # user_id ga index (tezkor SELECT/CHECK uchun)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_accounts_user_id
+            ON public.accounts (user_id)
+        """)
+
+        # ── Majburiy kanallar (1-guruh) ───────────────────────────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.mandatorys (
+                id       SERIAL PRIMARY KEY,
+                chat_id  BIGINT NOT NULL UNIQUE,
+                title    CHARACTER VARYING,
+                username CHARACTER VARYING,
+                types    CHARACTER VARYING
+            )
+        """)
+
+        # ── Kanallar 2-guruh ──────────────────────────────────────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.kanallar2 (
+                id       SERIAL PRIMARY KEY,
+                chat_id  BIGINT NOT NULL UNIQUE,
+                title    CHARACTER VARYING,
+                username CHARACTER VARYING,
+                types    CHARACTER VARYING
+            )
+        """)
+
+        # ── Adminlar ──────────────────────────────────────────────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.admins (
+                id      SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL UNIQUE,
+                date    TIMESTAMP DEFAULT now()
+            )
+        """)
+
+        # ── Mandat jadvallari (parse2025.py bilan mos) ────────────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.regions (
+                id          SERIAL PRIMARY KEY,
+                region_id   INTEGER UNIQUE,
+                region_name VARCHAR UNIQUE
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.universities (
+                id          SERIAL PRIMARY KEY,
+                region_id   INTEGER,
+                un_disabled VARCHAR,
+                un_group    VARCHAR,
+                un_selected VARCHAR,
+                un_text     VARCHAR,
+                un_id       VARCHAR UNIQUE
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.gettypes (
+                id          SERIAL PRIMARY KEY,
+                region_id   INTEGER,
+                un_id       VARCHAR,
+                ty_disabled VARCHAR,
+                ty_group    VARCHAR,
+                ty_selected VARCHAR,
+                ty_text     VARCHAR,
+                ty_id       VARCHAR,
+                UNIQUE (region_id, un_id, ty_text, ty_id)
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.getlangs (
+                id           SERIAL PRIMARY KEY,
+                region_id    INTEGER,
+                un_id        VARCHAR,
+                ty_id        VARCHAR,
+                lan_disabled VARCHAR,
+                lan_group    VARCHAR,
+                lan_selected VARCHAR,
+                lan_text     VARCHAR,
+                lan_id       VARCHAR,
+                UNIQUE (region_id, un_id, ty_id, lan_text, lan_id)
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.mandat (
+                id        SERIAL PRIMARY KEY,
+                region_id INTEGER,
+                un_id     VARCHAR,
+                ty_id     VARCHAR,
+                lan_id    VARCHAR,
+                mvdir     BIGINT,
+                nomi      VARCHAR,
+                gr_k      INTEGER,
+                con_k     INTEGER,
+                gr_b      REAL,
+                con_b     REAL,
+                olimp     INTEGER,
+                UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi)
+            )
+        """)
+
+        # mandat — tez-tez ishlatiladigan ustunlarga index
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_mandat_region_un
+            ON public.mandat (region_id, un_id)
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_mandat_gr_b
+            ON public.mandat (gr_b) WHERE gr_b > 0
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_mandat_con_b
+            ON public.mandat (con_b) WHERE con_b > 0
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS public.photos (
+                id      SERIAL PRIMARY KEY,
+                un_id   VARCHAR NOT NULL,
+                ty_id   VARCHAR NOT NULL,
+                lan_id  VARCHAR NOT NULL,
+                mvdir   VARCHAR NOT NULL,
+                file_id VARCHAR NOT NULL,
+                UNIQUE (un_id, ty_id, lan_id, mvdir)
+            )
+        """)
+
+    logger.info("Barcha jadvallar va indexlar tayyor.")
 
 
-    sql.execute("""CREATE TABLE IF NOT EXISTS public.kanallar2
-    (
-        id SERIAL NOT NULL,
-        chat_id bigint NOT NULL,
-        title character varying,
-        username character varying,
-        types character varying,
-        CONSTRAINT kanallar2_pkey PRIMARY KEY (id)
-    )""")
-    db.commit()
-
-    sql.execute("""CREATE TABLE IF NOT EXISTS public.admins
-    (
-        id SERIAL NOT NULL,
-        user_id BIGINT NOT NULL,
-        date TIMESTAMP DEFAULT now(),
-        CONSTRAINT admins_pkey PRIMARY KEY (id)
-    )""")
-    db.commit()
-
-    sql.execute("""
-    CREATE TABLE IF NOT EXISTS public.cinema(
-            cinema_id INTEGER NOT NULL,
-            cinema_name CHARACTER VARYING,
-            cinema_url CHARACTER VARYING,
-            date TIMESTAMP DEFAULT now(),
-            CONSTRAINT cinema_pkey PRIMARY KEY (cinema_id)
-        )""")
-    db.commit()
-
-    sql.execute("""
-        CREATE TABLE IF NOT EXISTS public.qualites (
-            id SERIAL PRIMARY KEY,
-            cinema_id INTEGER NOT NULL,
-            cinema_key VARCHAR NOT NULL,
-            cinema_quality VARCHAR NOT NULL CHECK (cinema_quality IN ('low', 'medium', 'high')),
-            CONSTRAINT fk_cinema FOREIGN KEY (cinema_id) REFERENCES public.cinema (cinema_id) ON DELETE CASCADE,
-            CONSTRAINT unique_cinema_id_quality UNIQUE (cinema_id, cinema_quality)
+async def register_user(user_id: int, lang_code: str) -> bool:
+    """
+    Foydalanuvchini bazaga qo'shadi.
+    Qaytaradi: True — yangi foydalanuvchi, False — allaqachon bor.
+    """
+    with db_connection() as (conn, cur):
+        cur.execute(
+            "SELECT 1 FROM public.accounts WHERE user_id = %s",
+            (user_id,)
         )
-    """)
-    db.commit()
+        if cur.fetchone():
+            return False  # Allaqachon ro'yxatdan o'tgan
 
-
-class Authenticator:
-    @staticmethod
-    async def auth_user(message: types.Message):
-        try:
-            user_id = message.from_user.id
-            username = message.from_user.username  if message.from_user.username else None
-            lang_code = message.from_user.language_code if message.from_user.language_code else None
-
-            sql.execute(f"""SELECT user_id FROM accounts WHERE user_id = {user_id}""")
-            check = sql.fetchone()
-            if check is None:
-                sql.execute(f"DELETE FROM public.accounts WHERE user_id ='{user_id}'")
-                db.commit()
-                sql.execute(f"DELETE FROM public.user_langs WHERE user_id ='{user_id}'")
-                db.commit()
-                sql.execute(f"DELETE FROM public.users_status WHERE user_id ='{user_id}'")
-                db.commit()
-                sql.execute(f"DELETE FROM public.users_tts WHERE user_id ='{user_id}'")
-                db.commit()
-                # sana = datetime.datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%d-%m-%Y %H:%M')
-                sql.execute(f"INSERT INTO accounts (user_id, username, lang_code) "
-                            f"VALUES ('{user_id}', '{username}', '{lang_code}')")
-                db.commit()
-        except: pass
-
-    @staticmethod
-    async def auth_group(message: types.Message):
-        chat_id = message.chat.id
-        group_type = message.chat.type
-        sql.execute(f"""SELECT chat_id FROM groups WHERE chat_id = {chat_id}""")
-        check = sql.fetchone()
-        if check is None:
-            sql.execute(f"""INSERT INTO groups (chat_id, types) VALUES ('{chat_id}', '{group_type}')""")
-            db.commit()
+        cur.execute(
+            "INSERT INTO public.accounts (user_id, lang_code) VALUES (%s, %s)",
+            (user_id, lang_code or "uz"),
+        )
+        return True
