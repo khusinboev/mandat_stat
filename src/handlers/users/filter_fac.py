@@ -244,16 +244,23 @@ async def chosen_lang(message: Message, state: FSMContext):
         await state.clear()
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html", reply_markup=await UserPanels.main_manu())
     else:
-        cursor.execute("SELECT lan_id FROM getlangs WHERE lower(lan_text)=%s", (lan_text,))
+        data = await state.get_data()
+        un_id = str(data["un_id"])
+        ty_id = str(data["ty_id"])
+        mvdir = str(data["mvdir"])
+        fac_name = str(data["fac_name"])
+        # lan_id ni un_id va ty_id ga qarab aniqlaymiz — har xil regionlarda
+        # bir xil til matni uchun har xil lan_id bo'lishi mumkin
+        cursor.execute("""
+            SELECT DISTINCT m.lan_id FROM mandat m
+            JOIN getlangs g ON m.lan_id = g.lan_id
+            WHERE lower(g.lan_text) = %s AND m.un_id = %s AND m.ty_id = %s
+            LIMIT 1
+        """, (lan_text, un_id, ty_id))
         lan_id = cursor.fetchone()
         if lan_id:
             lan_id = lan_id[0]
             await state.update_data(lan_id=lan_id)
-            data = await state.get_data()
-            un_id = str(data["un_id"])
-            ty_id = str(data["ty_id"])
-            mvdir = str(data["mvdir"])
-            fac_name = str(data["fac_name"])
 
             cursor.execute("SELECT un_text FROM universities WHERE un_id=%s", (un_id,))
             un_name = cursor.fetchone()
@@ -274,11 +281,14 @@ async def chosen_lang(message: Message, state: FSMContext):
                 mvdir, nomi, gr_b, con_b, olimp = kayp
 
                 message_text = (
-                    f"<b>🏛 OLIYGOH:</b> {un_name[0]}\n\n<b>📚 TAʼLIM YO‘NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text_row[0]}\n\n"
+                    f"<b>🏛 OLIYGOH:</b> {un_name[0]}\n\n<b>📚 TAʼLIM YO’NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text_row[0]}\n\n"
                     f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text_row[0]}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
-                    f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
-                    f"<b>© <a href='https://t.me/mandatjavobbot%sstart=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>"
+                    f"<b>🏆 OLIMPIADA G’OLIBLARI:</b> {olimp}\n\n"
+                    f"<b>© <a href=’https://t.me/mandatjavobbot?start=share’>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>"
                 )
+            else:
+                await message.answer("<b>🤷🏻‍♂️ Bu kombinatsiya bo’yicha ma’lumot topilmadi</b>", parse_mode="html")
+                return
 
                 user_id = message.from_user.id
                 cursor.execute(
