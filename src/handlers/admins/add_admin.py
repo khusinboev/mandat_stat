@@ -46,7 +46,7 @@ async def channel_add(message: Message, state: FSMContext):
 async def channel_add1(message: Message, state: FSMContext):
     if message.text.isdigit():
         admin_id = message.text
-        sql.execute(f"SELECT user_id FROM public.admins WHERE user_id = {admin_id}")
+        sql.execute("SELECT user_id FROM public.admins WHERE user_id = %s", (admin_id,))
         data = sql.fetchone()
         if data is None:
             await PanelFunc.admin_add(admin_id)
@@ -70,7 +70,7 @@ async def channel_delete(message: Message, state: FSMContext):
 async def channel_delete2(message: Message, state: FSMContext):
     if message.text.isdigit():
         channel_id = message.text.upper()
-        sql.execute(f"""SELECT user_id FROM public.admins WHERE user_id = '{channel_id}'""")
+        sql.execute("SELECT user_id FROM public.admins WHERE user_id = %s", (channel_id,))
         data = sql.fetchone()
         if data is None:
             await message.answer("Bunday admin yo'q", reply_markup=await AdminPanel.admin_add())
