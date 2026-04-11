@@ -139,10 +139,10 @@ async def inline_reg1(inline_query: InlineQuery):
         cursor.execute("SELECT id, region_id, region_name FROM regions ORDER BY region_name")
     results = [
         InlineQueryResultArticle(
-            id=str(rid),
+            id=str(i),
             title=rname,
             input_message_content=InputTextMessageContent(message_text=rname)
-        ) for rid, _region_id, rname in cursor.fetchall()
+        ) for i, (rid, _region_id, rname) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 
@@ -208,10 +208,10 @@ async def inline_reg2(inline_query: InlineQuery, state: FSMContext):
         """, (region_name,))
     results = [
         InlineQueryResultArticle(
-            id=str(uid),
+            id=str(i),
             title=un_text,
             input_message_content=InputTextMessageContent(message_text=un_text)
-        ) for uid, un_text in cursor.fetchall()
+        ) for i, (uid, un_text) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 
@@ -361,12 +361,12 @@ async def inline_reg4(inline_query: InlineQuery, state: FSMContext):
         cursor.execute(base.format(f=""), (region_id, un_id, ty_id))
     results = [
         InlineQueryResultArticle(
-            id=str(mid),
+            id=str(i),
             title=f"{mvdir} - {nomi} ({lan_text})",
             input_message_content=InputTextMessageContent(
                 message_text=f"{mvdir} - {nomi} ({lan_text})"
             )
-        ) for mid, mvdir, nomi, lan_text in cursor.fetchall()
+        ) for i, (mid, mvdir, nomi, lan_text) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 

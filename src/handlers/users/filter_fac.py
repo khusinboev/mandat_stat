@@ -150,10 +150,10 @@ async def inline_fac2(inline_query: InlineQuery, state: FSMContext):
         cursor.execute(base.format(f=""), (mvdir, fac_name))
     results = [
         InlineQueryResultArticle(
-            id=str(un_id),
+            id=str(i),
             title=un_text,
             input_message_content=InputTextMessageContent(message_text=un_text)
-        ) for un_id, un_text in cursor.fetchall()
+        ) for i, (un_id, un_text) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 
@@ -209,10 +209,10 @@ async def inline_fac3(inline_query: InlineQuery, state: FSMContext):
         )
     results = [
         InlineQueryResultArticle(
-            id=str(ty_id),
+            id=str(i),
             title=ty_text,
             input_message_content=InputTextMessageContent(message_text=ty_text)
-        ) for ty_id, ty_text in cursor.fetchall()
+        ) for i, (ty_id, ty_text) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 

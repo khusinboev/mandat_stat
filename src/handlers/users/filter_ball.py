@@ -231,10 +231,10 @@ async def inline_ball2(inline_query: InlineQuery, state: FSMContext):
         cursor.execute(base.format(f=""), (ball,))
     results = [
         InlineQueryResultArticle(
-            id=str(rid),
+            id=str(i),
             title=rname,
             input_message_content=InputTextMessageContent(message_text=rname)
-        ) for rid, rname in cursor.fetchall()
+        ) for i, (rid, rname) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 
@@ -323,10 +323,10 @@ async def inline_ball3(inline_query: InlineQuery, state: FSMContext):
         cursor.execute(base.format(f=""), (reg_id, ball))
     results = [
         InlineQueryResultArticle(
-            id=str(uid),
+            id=str(i),
             title=un_text,
             input_message_content=InputTextMessageContent(message_text=un_text)
-        ) for uid, un_text in cursor.fetchall()
+        ) for i, (uid, un_text) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 
@@ -533,12 +533,12 @@ async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
 
     results = [
         InlineQueryResultArticle(
-            id=str(mid),
+            id=str(i),
             title=f"{mvdir} - {nomi} ({lan_text})",
             input_message_content=InputTextMessageContent(
                 message_text=f"{mvdir} - {nomi} ({lan_text})"
             )
-        ) for mid, mvdir, nomi, lan_text in cursor.fetchall()
+        ) for i, (mid, mvdir, nomi, lan_text) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 
