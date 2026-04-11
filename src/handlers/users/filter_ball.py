@@ -478,17 +478,18 @@ async def chosen_ball4(message: Message, state: FSMContext):
         await message.answer("<b>🤷🏻‍♂️ Mos yo'nalish topilmadi</b>", parse_mode="html")
         return
 
-    keyboard = [
-        [KeyboardButton(text=f"{mvdir} - {nomi} ({lan_text})")]
-        for mvdir, nomi, lan_text in rows
-    ]
-    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-    btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-    await message.answer(
-        f"<b>{len(rows)} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:</b>",
-        parse_mode="html", reply_markup=btn
+    # Yo'nalishlar keyboard limitidan (100) oshib ketishi mumkin —
+    # faqat inline qidiruv ishlatiladi, navigatsiya tugmalari saqlanadi
+    nav_btn = ReplyKeyboardMarkup(
+        resize_keyboard=True,
+        keyboard=[[KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")]]
     )
-    await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>",
+    await message.answer(
+        f"<b>{len(rows)} ta yo'nalish mavjud.\n"
+        f"📚 Qidiruv orqali yo'nalishni tanlang 👇</b>",
+        parse_mode="html", reply_markup=nav_btn
+    )
+    await message.answer("<b>🔍 Yo'nalish nomini yozing:</b>",
                          parse_mode="html", reply_markup=SEARCH_KB)
     await state.set_state(FormBall.ball5)
 
