@@ -460,18 +460,18 @@ async def chosen_ball4(message: Message, state: FSMContext):
         cursor.execute("""
             SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
-            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = '1'
+            WHERE m.un_id = %s AND m.ty_id = '1'
               AND m.gr_b <= %s AND m.gr_b != 0
             ORDER BY m.nomi, g.lan_text
-        """, (reg_id, str(un_id), ball))
+        """, (str(un_id), ball))
     else:
         cursor.execute("""
             SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
-            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
+            WHERE m.un_id = %s AND m.ty_id = %s
               AND m.con_b <= %s AND m.con_b != 0
             ORDER BY m.nomi, g.lan_text
-        """, (reg_id, str(un_id), ty_id, ball))
+        """, (str(un_id), ty_id, ball))
     rows = cursor.fetchall()
 
     if not rows:
@@ -510,20 +510,20 @@ async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
         base = """
             SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
-            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = '1'
+            WHERE m.un_id = %s AND m.ty_id = '1'
               AND m.gr_b <= %s AND m.gr_b != 0 {f}
             ORDER BY m.nomi, g.lan_text LIMIT 50
         """
-        params_base = (reg_id, str(un_id), ball)
+        params_base = (str(un_id), ball)
     else:
         base = """
             SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
-            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
+            WHERE m.un_id = %s AND m.ty_id = %s
               AND m.con_b <= %s AND m.con_b != 0 {f}
             ORDER BY m.nomi, g.lan_text LIMIT 50
         """
-        params_base = (reg_id, str(un_id), ty_id, ball)
+        params_base = (str(un_id), ty_id, ball)
 
     if text:
         cursor.execute(base.format(f="AND lower(m.nomi) LIKE %s"),
@@ -559,10 +559,10 @@ async def chosen_ball5(message: Message, state: FSMContext):
         else:
             cursor.execute("""
                 SELECT DISTINCT g.ty_text
-                FROM gettypes g JOIN mandat m ON g.un_id = m.un_id AND g.region_id = m.region_id
-                WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0
+                FROM gettypes g JOIN mandat m ON g.un_id = m.un_id
+                WHERE m.un_id = %s AND m.con_b <= %s AND m.con_b != 0
                 ORDER BY g.ty_text
-            """, (reg_id, str(un_id), ball))
+            """, (str(un_id), ball))
             ress = cursor.fetchall()
         keyboard = [[KeyboardButton(text=r[0])] for r in ress]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
@@ -588,18 +588,18 @@ async def chosen_ball5(message: Message, state: FSMContext):
         cursor.execute("""
             SELECT m.lan_id, m.gr_b, m.con_b, m.olimp
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
-            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = '1'
+            WHERE m.un_id = %s AND m.ty_id = '1'
               AND m.mvdir = %s AND m.nomi = %s AND lower(g.lan_text) = %s
             LIMIT 1
-        """, (reg_id, str(un_id), mvdir, nomi, lan_text.lower()))
+        """, (str(un_id), mvdir, nomi, lan_text.lower()))
     else:
         cursor.execute("""
             SELECT m.lan_id, m.gr_b, m.con_b, m.olimp
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
-            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
+            WHERE m.un_id = %s AND m.ty_id = %s
               AND m.mvdir = %s AND m.nomi = %s AND lower(g.lan_text) = %s
             LIMIT 1
-        """, (reg_id, str(un_id), ty_id, mvdir, nomi, lan_text.lower()))
+        """, (str(un_id), ty_id, mvdir, nomi, lan_text.lower()))
 
     row = cursor.fetchone()
     if not row:

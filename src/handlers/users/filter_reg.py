@@ -313,9 +313,9 @@ async def chosen_reg3(message: Message, state: FSMContext):
         SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
         FROM mandat m
         JOIN getlangs g ON m.lan_id = g.lan_id
-        WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
+        WHERE m.un_id = %s AND m.ty_id = %s
         ORDER BY m.nomi, g.lan_text
-    """, (region_id, un_id, ty_id))
+    """, (un_id, ty_id))
     rows = cursor.fetchall()
 
     if not rows:
@@ -351,14 +351,14 @@ async def inline_reg4(inline_query: InlineQuery, state: FSMContext):
     base = """
         SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
         FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
-        WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s {f}
+        WHERE m.un_id = %s AND m.ty_id = %s {f}
         ORDER BY m.nomi, g.lan_text LIMIT 50
     """
     if text:
         cursor.execute(base.format(f="AND lower(m.nomi) LIKE %s"),
-                       (region_id, un_id, ty_id, f"%{text}%"))
+                       (un_id, ty_id, f"%{text}%"))
     else:
-        cursor.execute(base.format(f=""), (region_id, un_id, ty_id))
+        cursor.execute(base.format(f=""), (un_id, ty_id))
     results = [
         InlineQueryResultArticle(
             id=str(i),
@@ -408,10 +408,10 @@ async def chosen_reg4(message: Message, state: FSMContext):
     cursor.execute("""
         SELECT m.lan_id, m.gr_b, m.con_b, m.olimp
         FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
-        WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
+        WHERE m.un_id = %s AND m.ty_id = %s
           AND m.mvdir = %s AND m.nomi = %s AND lower(g.lan_text) = %s
         LIMIT 1
-    """, (region_id, un_id, ty_id, mvdir, nomi, lan_text.lower()))
+    """, (un_id, ty_id, mvdir, nomi, lan_text.lower()))
     row = cursor.fetchone()
     if not row:
         await message.answer("<b>🤷🏻‍♂️ Ma'lumot topilmadi</b>", parse_mode="html")
