@@ -409,7 +409,7 @@ async def chosen_ball3(message: Message, state: FSMContext):
         """, (str(un_id), str(un_id), ball))
         ress = cursor.fetchall()
 
-    keyboard = [[KeyboardButton(text=r[0])] for r in ress]
+    keyboard = [[KeyboardButton(text=r[1])] for r in ress]
     keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
     btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
     await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>",
@@ -598,7 +598,7 @@ async def chosen_ball5(message: Message, state: FSMContext):
                 ORDER BY g.ty_text
             """, (str(un_id), str(un_id), ball))
             ress = cursor.fetchall()
-        keyboard = [[KeyboardButton(text=r[0])] for r in ress]
+        keyboard = [[KeyboardButton(text=r[1])] for r in ress]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
         await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>",
@@ -654,3 +654,5 @@ async def chosen_ball5(message: Message, state: FSMContext):
         ty_text=ty_text_row[0] if ty_text_row else "—",
         gr_b=gr_b, con_b=con_b, olimp=olimp,
     )
+    await message.answer("<b>🔍 Yo'nalishni tanlang:</b>",
+                         parse_mode="html", reply_markup=SEARCH_KB)

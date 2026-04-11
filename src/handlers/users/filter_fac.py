@@ -354,11 +354,11 @@ async def chosen_fac3(message: Message, state: FSMContext):
         f"<b>🏛 OLIYGOH:</b> {un_name}\n\n"
         f"<b>📚 TAʼLIM YO'NALISHI:</b> {mvdir} - {fac_name}\n\n"
         f"<b>🔰 TAʼLIM SHAKLI:</b> {ty_text}\n\n"
-        f"<b>📊 OʻTISH BALLARI (tiller bo'yicha):</b>{langs_block}\n"
+        f"<b>📊 OʻTISH BALLARI:</b>{langs_block}\n"
         f"<b>© <a href='https://t.me/mandatjavobbot?start=share'>"
         f"@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>"
     )
-    await message.answer(message_text, parse_mode="html", reply_markup=BACK_KB)
+    await message.answer(message_text, parse_mode="html")
     await state.set_state(FormFac.fac4)
 
 
