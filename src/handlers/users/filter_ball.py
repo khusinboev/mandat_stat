@@ -1,598 +1,621 @@
-import os
-import psycopg2  # <-- faqat bu qo‘shildi
+"""
+filter_ball.py — "Ball yetadigan yo'nalishlar" bo'limi
 
+Oqim:
+  ball1   → Grand / Kontrakt tanlash
+  s_ball1 → Ball kiritish
+  ball2   → Viloyat tanlash
+  ball3   → Universitet tanlash
+  ball4   → Ta'lim shakli tanlash → yo'nalishlar (qavs ichida til) ko'rsatiladi
+  ball5   → Yo'nalish + til tanlash → natija (rasm + matn)
+"""
+
+import os
 from aiogram import Router, F
 from aiogram.enums import ChatType
-from aiogram.filters import CommandStart
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \
-    InlineQueryResultArticle, InputTextMessageContent, ChosenInlineResult, KeyboardButton, ReplyKeyboardMarkup, \
-    FSInputFile
+from aiogram.types import (
+    Message, InlineKeyboardMarkup, InlineKeyboardButton, InlineQuery,
+    InlineQueryResultArticle, InputTextMessageContent,
+    KeyboardButton, ReplyKeyboardMarkup, FSInputFile,
+)
 
-from config import sql, bot, ADMIN_ID, cursor, conn
+from config import cursor, conn, bot, ADMIN_ID
 from src.handlers.users.users import create_card
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 
 ball_router = Router()
 
-class FormBall(StatesGroup):
-    ball1 = State()
-    s_ball1 = State()
-    ball2 = State()
-    ball3 = State()
-    ball4 = State()
-    ball5 = State()
-    ball6 = State()
 
+class FormBall(StatesGroup):
+    ball1   = State()   # Grand / Kontrakt
+    s_ball1 = State()   # Ball kiritish
+    ball2   = State()   # Viloyat tanlash
+    ball3   = State()   # Universitet tanlash
+    ball4   = State()   # Shakl tanlash
+    ball5   = State()   # Yo'nalish + til → natija
+
+
+# ── Doimiy klaviaturalar ─────────────────────────────────────────────────────
+
+SEARCH_KB = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+])
+
+BACK2_KB = ReplyKeyboardMarkup(
+    resize_keyboard=True,
+    keyboard=[[KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")]]
+)
+
+
+def _parse_direction_btn(text: str):
+    """
+    "123 - Yo'nalish nomi (O'zbek tili)" → (mvdir, nomi, lan_text)
+    Qaytadi: (str, str, str) yoki None xato bo'lsa.
+    """
+    if not text.endswith(")"):
+        return None
+    last_open = text.rfind(" (")
+    if last_open == -1:
+        return None
+    lan_text = text[last_open + 2:-1]
+    rest = text[:last_open]
+    dash = rest.find(" - ")
+    if dash == -1:
+        return None
+    return rest[:dash], rest[dash + 3:], lan_text
+
+
+async def _send_result(message: Message, un_id, ty_id, lan_id,
+                       un_name, mvdir, nomi, lan_text, ty_text,
+                       gr_b, con_b, olimp):
+    """Yo'nalish natijasini rasm + matn sifatida yuboradi."""
+    msg_text = (
+        f"<b>🏛 OLIYGOH:</b> {un_name}\n\n"
+        f"<b>📚 TAʼLIM YO'NALISHI</b> — {mvdir} - {nomi}\n\n"
+        f"<b>🇺🇿 TAʼLIM TILI</b> — {lan_text}\n\n"
+        f"<b>🔰 TAʼLIM SHAKLI</b> — {ty_text}\n\n"
+        f"<b>📈 OʻTISH BALLARI:</b>\n"
+        f"<b>Grand</b> — {gr_b} ball  |  <b>Kontrakt</b> — {con_b} ball\n\n"
+        f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
+        f"<b>© <a href='https://t.me/mandatjavobbot?start=share'>"
+        f"@Mandatjavobbot</a> — oʻtish ballari va mandat natijalari</b>"
+    )
+    user_id = message.from_user.id
+    cursor.execute(
+        "SELECT file_id FROM photos WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s",
+        (str(un_id), str(ty_id), str(lan_id), str(mvdir))
+    )
+    old = cursor.fetchone()
+    if old:
+        await message.answer_photo(photo=old[0], caption=msg_text, parse_mode="html")
+        return
+
+    if create_card(univer=un_name, faculty=f"{mvdir} - {nomi}",
+                   lang=lan_text, edu=ty_text,
+                   grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
+        file_path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
+        sent = await message.answer_photo(
+            photo=FSInputFile(file_path), caption=msg_text, parse_mode="html"
+        )
+        file_id = sent.photo[-1].file_id
+        cursor.execute("""
+            INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (un_id, ty_id, lan_id, mvdir) DO NOTHING
+        """, (str(un_id), str(ty_id), str(lan_id), str(mvdir), file_id))
+        conn.commit()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+    else:
+        await message.answer(msg_text, parse_mode="html")
+
+
+# ── ball1 — Grand / Kontrakt ─────────────────────────────────────────────────
 
 @ball_router.message(F.text == "📊 Ball yetadigan yo'nalishlar", F.chat.type == ChatType.PRIVATE)
 async def enter_direction(message: Message, state: FSMContext):
     check_status, channels = await CheckData.check_member(bot, message.from_user.id)
-
-    if check_status:
-        await message.answer("<b>O'quv turini tanlang 👇</b>", parse_mode="html",
-                             reply_markup=await UserPanels.ball_btn())
-        await state.set_state(FormBall.ball1)
-    else:
-        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+    if not check_status:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a'zo bo'ling:",
                              reply_markup=await CheckData.channels_btn(channels))
+        return
+    await message.answer("<b>O'quv turini tanlang 👇</b>",
+                         parse_mode="html", reply_markup=await UserPanels.ball_btn())
+    await state.set_state(FormBall.ball1)
 
 
 @ball_router.message(F.text == "🔙 Ortga", FormBall.ball1)
-async def handle_hello(message: Message, state: FSMContext):
+async def back_ball1(message: Message, state: FSMContext):
     await message.delete()
     await state.clear()
-    await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                         reply_markup=await UserPanels.main_manu())
+    await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>",
+                         parse_mode="html", reply_markup=await UserPanels.main_manu())
 
 
-@ball_router.message(F.text == "🏆 Grand", FormBall.ball1)
-async def enter_direction(message: Message, state: FSMContext):
-    await message.answer("<b>Saralash uchun ballni kiriting:</b>", parse_mode="html",
-                         reply_markup=await UserPanels.to_back())
+@ball_router.message(F.text.in_({"🏆 Grand", "📄 Kontrakt"}), FormBall.ball1)
+async def chosen_shakl_type(message: Message, state: FSMContext):
+    shakl = "gr" if message.text == "🏆 Grand" else "kn"
+    await state.update_data(shakl=shakl)
     await state.set_state(FormBall.s_ball1)
-    await state.update_data(shakl="gr")
+    await message.answer("<b>Saralash uchun ballni kiriting:</b>",
+                         parse_mode="html", reply_markup=await UserPanels.to_back())
 
 
-@ball_router.message(F.text == "📄 Kontrakt", FormBall.ball1)
-async def enter_direction(message: Message, state: FSMContext):
-    await message.answer("<b>Saralash uchun ballni kiriting:</b>", parse_mode="html",
-                         reply_markup=await UserPanels.to_back())
-    await state.set_state(FormBall.s_ball1)
-    await state.update_data(shakl="kn")
-
+# ── s_ball1 — Ball kiritish ──────────────────────────────────────────────────
 
 @ball_router.message(FormBall.s_ball1)
-async def enter_direction(message: Message, state: FSMContext):
+async def enter_ball(message: Message, state: FSMContext):
     if message.text == "🔙 Ortga":
         await message.delete()
-        await message.answer("<b>O'quv turini tanlang 👇</b>", parse_mode="html",
-                             reply_markup=await UserPanels.ball_btn())
+        await message.answer("<b>O'quv turini tanlang 👇</b>",
+                             parse_mode="html", reply_markup=await UserPanels.ball_btn())
         await state.set_state(FormBall.ball1)
-    elif message.text == "🔙 Bosh menu":
+        return
+    if message.text == "🔙 Bosh menu":
         await message.delete()
         await state.clear()
-        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                             reply_markup=await UserPanels.main_manu())
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>",
+                             parse_mode="html", reply_markup=await UserPanels.main_manu())
+        return
+
+    if not message.text.isdigit() or int(message.text) > 200:
+        await message.answer("<b>Ball xato kiritildi!\nSaralash uchun ballni kiriting (0–200):</b>",
+                             parse_mode="html", reply_markup=await UserPanels.to_back())
+        return
+
+    ball = message.text
+    data = await state.get_data()
+    shakl = data["shakl"]
+
+    if shakl == "gr":
+        cursor.execute("""
+            SELECT DISTINCT r.region_name
+            FROM mandat m JOIN regions r ON m.region_id = r.region_id
+            WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+        """, (ball,))
     else:
-        if message.text.isdigit():
-            if int(message.text) > 200:
-                await message.answer("<b>Ball xato kiritildi!\nSaralash uchun ballni kiriting:</b>", parse_mode="html",
-                                     reply_markup=await UserPanels.to_back())
-            else:
-                data = await state.get_data()
-                shakl = data["shakl"]
-                if shakl == "gr":
-                    cursor.execute("""
-                        SELECT r.region_name 
-                        FROM mandat m 
-                        JOIN regions r ON m.region_id = r.region_id 
-                        WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
-                    """, (message.text,))
-                elif shakl == "kn":
-                    cursor.execute("""
-                        SELECT r.region_name 
-                        FROM mandat m 
-                        JOIN regions r ON m.region_id = r.region_id 
-                        WHERE m.con_b <= %s AND m.con_b != 0
-                    """, (message.text,))
-                regions = set(cursor.fetchall())
-                if regions:
-                    keyboard = []
-                    for row in regions:
-                        keyboard.append([KeyboardButton(text=row[0])])
-                    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+        cursor.execute("""
+            SELECT DISTINCT r.region_name
+            FROM mandat m JOIN regions r ON m.region_id = r.region_id
+            WHERE m.con_b <= %s AND m.con_b != 0
+        """, (ball,))
+    regions = cursor.fetchall()
 
-                    btn = ReplyKeyboardMarkup(
-                        keyboard=keyboard,
-                        resize_keyboard=True,
-                    )
-                    await message.answer(f"Bu ball bilan <b>{len(regions)}</b> ta hududdagi oliygohga kirish mumkin!\n\n<b>📍 Hududni tanlang:</b>", parse_mode="html",
-                                         reply_markup=btn)
+    if not regions:
+        await message.answer("<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>", parse_mode="html")
+        await message.answer("<b>Saralash uchun ballni kiriting:</b>",
+                             parse_mode="html", reply_markup=await UserPanels.to_back())
+        return
 
-                    kb = InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-                    ])
-                    await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-                    await state.set_state(FormBall.ball2)
-                    await state.update_data(ball=message.text)
-                else:
-                    await message.answer("<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>", parse_mode="html")
-                    await message.answer("<b>Saralash uchun ballni kiriting:</b>", parse_mode="html", reply_markup=await UserPanels.to_back())
+    await state.update_data(ball=ball)
+    keyboard = [[KeyboardButton(text=r[0])] for r in regions]
+    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+    btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    await message.answer(
+        f"Bu ball bilan <b>{len(regions)}</b> ta hududdagi oliygohga kirish mumkin!\n\n"
+        f"<b>📍 Hududni tanlang:</b>",
+        parse_mode="html", reply_markup=btn
+    )
+    await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>",
+                         parse_mode="html", reply_markup=SEARCH_KB)
+    await state.set_state(FormBall.ball2)
+
+
+# ── ball2 — Viloyat tanlash ──────────────────────────────────────────────────
 
 @ball_router.inline_query(FormBall.ball2)
-async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
+async def inline_ball2(inline_query: InlineQuery, state: FSMContext):
     text = inline_query.query.lower()
     data = await state.get_data()
-    shakl = data["shakl"]
-    ball = data["ball"]
+    shakl, ball = data["shakl"], data["ball"]
     if shakl == "gr":
-        if text:
-            cursor.execute("""
-                SELECT r.id, r.region_name 
-                FROM mandat m 
-                JOIN regions r ON m.region_id = r.region_id 
-                WHERE lower(r.region_name) LIKE %s 
-                AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
-            """, (f"%{text}%", ball))
-        else:
-            cursor.execute("""
-                SELECT r.id, r.region_name 
-                FROM mandat m 
-                JOIN regions r ON m.region_id = r.region_id 
-                WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
-            """, (ball,))
-        regions = list(dict.fromkeys(cursor.fetchall()))[:50]
-        results = [
-            InlineQueryResultArticle(
-                id=str(reg_id),
-                title=reg_text,
-                input_message_content=InputTextMessageContent(message_text=reg_text)
-            ) for reg_id, reg_text in regions
-        ]
-        await inline_query.answer(results, cache_time=1, is_personal=True)
-
-    elif shakl == "kn":
-        if text:
-            cursor.execute("""
-                SELECT r.id, r.region_name 
-                FROM mandat m 
-                JOIN regions r ON m.region_id = r.region_id 
-                WHERE lower(r.region_name) LIKE %s 
-                AND m.con_b <= %s AND m.con_b != 0
-            """, (f"%{text}%", ball))
-        else:
-            cursor.execute("""
-                SELECT r.id, r.region_name 
-                FROM mandat m 
-                JOIN regions r ON m.region_id = r.region_id 
-                WHERE m.con_b <= %s AND m.con_b != 0
-            """, (ball,))
-        regions = list(dict.fromkeys(cursor.fetchall()))[:50]
-        results = [
-            InlineQueryResultArticle(
-                id=str(reg_id),
-                title=reg_text,
-                input_message_content=InputTextMessageContent(message_text=reg_text)
-            ) for reg_id, reg_text in regions
-        ]
-        await inline_query.answer(results, cache_time=1, is_personal=True)
-
-
-@ball_router.message(FormBall.ball2)
-async def chosen_university(message: Message, state: FSMContext):
-    if message.text == "🔙 Ortga":
-        await message.delete()
-        await message.answer("<b>Saralash uchun ballni kiriting:</b>", parse_mode="html",
-                             reply_markup=await UserPanels.to_back())
-        await state.set_state(FormBall.s_ball1)
-    elif message.text == "🔙 Bosh menu":
-        await message.delete()
-        await state.clear()
-        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                             reply_markup=await UserPanels.main_manu())
+        base = """
+            SELECT DISTINCT r.id, r.region_name
+            FROM mandat m JOIN regions r ON m.region_id = r.region_id
+            WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1' {f}
+            ORDER BY r.region_name LIMIT 50
+        """
     else:
-        reg_name = message.text.lower()
-        cursor.execute("SELECT region_id FROM regions WHERE lower(region_name)=%s", (reg_name,))
-        reg_id_data = cursor.fetchall()
-        if reg_id_data:
-            reg_id = reg_id_data[0][0]
-            await state.update_data(reg_id=reg_id)
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-            ])
-            data = await state.get_data()
-            shakl = data["shakl"]
-            ball = data["ball"]
-            if shakl == "gr":
-                cursor.execute("""
-                    SELECT u.id 
-                    FROM universities u 
-                    JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id 
-                    WHERE m.region_id = %s 
-                    AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
-                """, (reg_id, ball))
-                rows = cursor.fetchall()
-                await message.answer(f"<b>Siz tanlagan hududda {len(set(rows))} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
-                                     parse_mode="html", reply_markup=await UserPanels.to_back())
-                await message.answer("<b>Tezkor qidiruvdan foydalaning... 👇</b>", parse_mode="html", reply_markup=kb)
-                await state.set_state(FormBall.ball3)
-            elif shakl == "kn":
-                cursor.execute("""
-                    SELECT u.id, u.un_text 
-                    FROM universities u 
-                    JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id 
-                    WHERE m.region_id = %s 
-                    AND m.con_b <= %s AND m.con_b != 0
-                """, (reg_id, ball))
-                rows = cursor.fetchall()
-                await message.answer(f"<b>Siz tanlagan hududda {len(set(rows))} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
-                                     parse_mode="html", reply_markup=await UserPanels.to_back())
-                await message.answer("<b>Tezkor qidiruvdan foydalaning... 👇</b>", parse_mode="html", reply_markup=kb)
-                await state.set_state(FormBall.ball3)
-# Universitet izlash
-@ball_router.inline_query(FormBall.ball3)
-async def inline_search_university(inline_query: InlineQuery, state: FSMContext):
-    text = inline_query.query.lower()
-    data = await state.get_data()
-    reg_id = data.get("reg_id")
-    shakl = data["shakl"]
-    ball = data["ball"]
-    if shakl == "gr":
-        if text:
-            cursor.execute(
-                "SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE lower(un_text) LIKE %s AND m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
-                (f"%{text}%", reg_id, ball))
-        else:
-            cursor.execute(
-                "SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
-                (reg_id, ball))
-    elif shakl == "kn":
-        if text:
-            cursor.execute(
-                "SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE lower(un_text) LIKE %s AND m.region_id = %s AND m.con_b <= %s AND m.con_b != 0",
-                (f"%{text}%", reg_id, ball))
-        else:
-            cursor.execute(
-                "SELECT u.id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.con_b <= %s AND m.con_b != 0",
-                (reg_id, ball))
-    res_data = cursor.fetchall()
-    if res_data:
-        universities = list(dict.fromkeys(res_data))[:50]
-        results = [InlineQueryResultArticle(
-                id=str(un_id),
-                title=un_text,
-                input_message_content=InputTextMessageContent(message_text=un_text)
-            ) for un_id, un_text in universities]
-        await inline_query.answer(results, cache_time=1, is_personal=True)
-
-
-@ball_router.message(FormBall.ball3)
-async def chosen_university(message: Message, state: FSMContext):
-    if message.text == "🔙 Ortga":
-        data = await state.get_data()
-        shakl = data["shakl"]
-        ball = data["ball"]
-        if shakl == "gr":
-            cursor.execute(
-                "SELECT DISTINCT r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id "
-                "WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
-                (ball,))
-        elif shakl == "kn":
-            cursor.execute(
-                "SELECT DISTINCT r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id "
-                "WHERE m.con_b <= %s AND m.con_b != 0",
-                (ball,))
-        regions = cursor.fetchall()
-        if regions:
-            keyboard = [[KeyboardButton(text=row[0])] for row in regions]
-            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-            btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-            await message.answer(
-                f"Bu ball bilan <b>{len(regions)}</b> ta hududdagi oliygohga kirish mumkin!\n\n<b>📍 Hududni tanlang:</b>",
-                parse_mode="html", reply_markup=btn)
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-            ])
-            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-            await state.set_state(FormBall.ball2)
-            await state.update_data(ball=ball)
-        else:
-            await message.answer("<b>🤷🏻‍♂️ Bunday ma'lumot yo'q</b>", parse_mode="html")
-            await message.answer("<b>Saralash uchun ballni kiriting:</b>", parse_mode="html",
-                                 reply_markup=await UserPanels.to_back())
-    elif message.text == "🔙 Bosh menu":
-        await message.delete()
-        await state.clear()
-        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                             reply_markup=await UserPanels.main_manu())
+        base = """
+            SELECT DISTINCT r.id, r.region_name
+            FROM mandat m JOIN regions r ON m.region_id = r.region_id
+            WHERE m.con_b <= %s AND m.con_b != 0 {f}
+            ORDER BY r.region_name LIMIT 50
+        """
+    if text:
+        cursor.execute(base.format(f="AND lower(r.region_name) LIKE %s"), (ball, f"%{text}%"))
     else:
-        un_name = message.text
-        cursor.execute("SELECT un_id FROM universities WHERE lower(un_text) = %s", (un_name.lower(),))
-        result = cursor.fetchone()
-        if result:
-            un_id = result[0]
-            await state.update_data(un_id=un_id)
-            await state.set_state(FormBall.ball4)
-            data = await state.get_data()
-            reg_id = data["reg_id"]
-            shakl = data["shakl"]
-            ball = data["ball"]
-            if shakl == "gr":
-                ress = [["Kunduzgi"]]
-            elif shakl == "kn":
-                cursor.execute(
-                    "SELECT DISTINCT g.ty_text FROM gettypes g JOIN mandat m ON g.un_id = m.un_id AND g.region_id = m.region_id "
-                    "WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0",
-                    (reg_id, str(un_id), ball))
-                ress = cursor.fetchall()
-            keyboard = [[KeyboardButton(text=row[0])] for row in ress]
-            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-            btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-            await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
-
-
-@ball_router.message(FormBall.ball4)
-async def chosen_type(message: Message, state: FSMContext):
-    if message.text == "🔙 Ortga":
-        try:
-            await message.delete()
-        except:
-            pass
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-        ])
-        data = await state.get_data()
-        shakl = data["shakl"]
-        reg_id = data["reg_id"]
-        ball = data["ball"]
-        if shakl == "gr":
-            cursor.execute(
-                "SELECT DISTINCT u.id FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
-                (reg_id, ball))
-        elif shakl == "kn":
-            cursor.execute(
-                "SELECT DISTINCT u.id FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.con_b <= %s AND m.con_b != 0",
-                (reg_id, ball))
-        rows = cursor.fetchall()
-        await message.answer(f"<b>Siz tanlagan hududda {len(rows)} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
-                             parse_mode="html", reply_markup=await UserPanels.to_back())
-        await message.answer("<b>Tezkor qidiruvdan foydalaning... 👇</b>", parse_mode="html", reply_markup=kb)
-        await state.set_state(FormBall.ball3)
-    elif message.text == "🔙 Bosh menu":
-        try:
-            await message.delete()
-            await state.clear()
-        except: pass
-        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                             reply_markup=await UserPanels.main_manu())
-    else:
-        name = message.text.lower()
-        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text) = %s", (name,))
-        ty = cursor.fetchone()
-        if ty:
-            ty_id = ty[0]
-            await state.update_data(ty_id=ty_id)
-            await state.set_state(FormBall.ball5)
-            data = await state.get_data()
-            un_id = data["un_id"]
-            reg_id = data["reg_id"]
-            shakl = data["shakl"]
-            ball = data["ball"]
-            if shakl == "gr":
-                cursor.execute("""
-                    SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m
-                    JOIN getlangs g ON m.lan_id = g.lan_id
-                    WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s 
-                    AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
-                """, (un_id, ty_id, reg_id, ball))
-            elif shakl == "kn":
-                cursor.execute("""
-                    SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m
-                    JOIN getlangs g ON m.lan_id = g.lan_id
-                    WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s 
-                    AND m.con_b <= %s AND m.con_b != 0
-                """, (un_id, ty_id, reg_id, ball))
-            rows = cursor.fetchall()
-            keyboard = [[KeyboardButton(text=row[1][:60])] for row in rows]
-            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-            btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-            await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
-
-@ball_router.message(FormBall.ball5)
-async def chosen_lang(message: Message, state: FSMContext):
-    lan_text = message.text.lower()
-    if message.text == "🔙 Ortga":
-        await message.delete()
-        data = await state.get_data()
-        reg_id = data.get("reg_id")
-        un_id = data.get("un_id")
-        shakl = data["shakl"]
-        ball = data["ball"]
-        if shakl == "gr":
-            ress = [["Kunduzgi"]]
-        elif shakl == "kn":
-            cursor.execute(
-                "SELECT DISTINCT g.ty_text FROM gettypes g JOIN mandat m ON g.un_id = m.un_id AND g.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0 ", (reg_id, str(un_id), ball))
-            ress = cursor.fetchall()
-        keyboard = [[KeyboardButton(text=row[0])] for row in ress]
-        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-        await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
-        await state.set_state(FormBall.ball4)
-    elif message.text == "🔙 Bosh menu":
-        await message.delete()
-        await state.clear()
-        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                             reply_markup=await UserPanels.main_manu())
-    else:
-        cursor.execute("SELECT lan_id FROM getlangs WHERE lower(lan_text) = %s", (lan_text,))
-        lan = cursor.fetchone()
-        if lan:
-            lan_id = lan[0]
-            await state.update_data(lan_id=lan_id)
-            data = await state.get_data()
-            un_id = data["un_id"]
-            ty_id = data["ty_id"]
-            lan_id = data["lan_id"]
-            reg_id = data.get("reg_id")
-            shakl = data["shakl"]
-            ball = data["ball"]
-            if shakl == "gr":
-                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
-                               (reg_id, un_id, ty_id, lan_id, ball))
-            elif shakl == "kn":
-                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
-                               (reg_id, un_id, ty_id, lan_id, ball))
-            rows = cursor.fetchall()
-            keyboard = [[KeyboardButton(text=f"{mvdir} - {nomi}")] for mvdir, nomi in rows]
-            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-            btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-            ])
-            await message.answer(f"{len(rows)} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:", parse_mode="html", reply_markup=btn)
-            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-            await state.set_state(FormBall.ball6)
-
-
-@ball_router.inline_query(FormBall.ball6)
-async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
-    text = inline_query.query.lower()
-    data = await state.get_data()
-    un_id = data["un_id"]
-    ty_id = data["ty_id"]
-    lan_id = data["lan_id"]
-    reg_id = data.get("reg_id")
-    shakl = data["shakl"]
-    ball = data["ball"]
-    if shakl == "gr":
-        if text:
-            cursor.execute("""SELECT id, mvdir, nomi FROM mandat 
-                              WHERE lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
-                           (f"%{text}%", reg_id, un_id, ty_id, lan_id, ball))
-        else:
-            cursor.execute("""SELECT id, mvdir, nomi FROM mandat 
-                              WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
-                           (reg_id, un_id, ty_id, lan_id, ball))
-    elif shakl == "kn":
-        if text:
-            cursor.execute("""SELECT id, mvdir, nomi FROM mandat 
-                              WHERE lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
-                           (f"%{text}%", reg_id, un_id, ty_id, lan_id, ball))
-        else:
-            cursor.execute("""SELECT id, mvdir, nomi FROM mandat 
-                              WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
-                           (reg_id, un_id, ty_id, lan_id, ball))
-    facs = cursor.fetchall()
+        cursor.execute(base.format(f=""), (ball,))
     results = [
         InlineQueryResultArticle(
-            id=str(id),
-            title=f"{mvdir} - {nomi}",
-            input_message_content=InputTextMessageContent(message_text=f'{mvdir} - {nomi}', parse_mode="HTML"),
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-            ])
-        ) for id, mvdir, nomi in facs
+            id=str(rid),
+            title=rname,
+            input_message_content=InputTextMessageContent(message_text=rname)
+        ) for rid, rname in cursor.fetchall()
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 
 
-@ball_router.message(FormBall.ball6)
-async def chosen_lang(message: Message, state: FSMContext):
+@ball_router.message(FormBall.ball2)
+async def chosen_ball2(message: Message, state: FSMContext):
+    data = await state.get_data()
+    shakl, ball = data["shakl"], data["ball"]
+
     if message.text == "🔙 Ortga":
-        await state.set_state(FormBall.ball5)
-        try:
-            await message.delete()
-        except:
-            pass
-        data = await state.get_data()
-        un_id = data.get("un_id")
-        reg_id = data.get("reg_id")
-        shakl = data["shakl"]
-        ball = data["ball"]
-        ty_id = data["ty_id"]
-        if shakl == "gr":
-            cursor.execute('''SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m 
-                              JOIN getlangs g ON m.lan_id = g.lan_id 
-                              WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1' ''',
-                           (un_id, ty_id, reg_id, ball))
-        elif shakl == "kn":
-            cursor.execute('''SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m 
-                              JOIN getlangs g ON m.lan_id = g.lan_id 
-                              WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s AND m.con_b <= %s AND m.con_b != 0''',
-                           (un_id, ty_id, reg_id, ball))
-        rows = cursor.fetchall()
-        keyboard = [[KeyboardButton(text=row[1][:60])] for row in rows]
-        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-        await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
-    elif message.text == "🔙 Bosh menu":
+        await message.delete()
+        await message.answer("<b>Saralash uchun ballni kiriting:</b>",
+                             parse_mode="html", reply_markup=await UserPanels.to_back())
+        await state.set_state(FormBall.s_ball1)
+        return
+    if message.text == "🔙 Bosh menu":
         await message.delete()
         await state.clear()
-        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
-                             reply_markup=await UserPanels.main_manu())
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>",
+                             parse_mode="html", reply_markup=await UserPanels.main_manu())
+        return
+
+    cursor.execute("SELECT region_id FROM regions WHERE region_name = %s", (message.text,))
+    row = cursor.fetchone()
+    if not row:
+        return
+    reg_id = row[0]
+    await state.update_data(reg_id=reg_id)
+
+    if shakl == "gr":
+        cursor.execute("""
+            SELECT DISTINCT u.un_text
+            FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id
+            WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+            ORDER BY u.un_text
+        """, (reg_id, ball))
     else:
-        mvdir = message.text.split(" - ")[0]
-        nomi = ' '.join(message.text.split(" - ")[1:])
-        data = await state.get_data()
-        un_id = data["un_id"]
-        ty_id = data["ty_id"]
-        lan_id = data["lan_id"]
-        reg_id = data.get("reg_id")
-        shakl = data["shakl"]
-        ball = data["ball"]
+        cursor.execute("""
+            SELECT DISTINCT u.un_text
+            FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id
+            WHERE m.region_id = %s AND m.con_b <= %s AND m.con_b != 0
+            ORDER BY u.un_text
+        """, (reg_id, ball))
+    unis = cursor.fetchall()
+
+    if not unis:
+        await message.answer("<b>🤷🏻‍♂️ Bu hududda mos universitet topilmadi</b>", parse_mode="html")
+        return
+
+    keyboard = [[KeyboardButton(text=u[0])] for u in unis]
+    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+    btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    await message.answer(
+        f"<b>Siz tanlagan hududda {len(unis)} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
+        parse_mode="html", reply_markup=btn
+    )
+    await message.answer("<b>Tezkor qidiruvdan foydalaning... 👇</b>",
+                         parse_mode="html", reply_markup=SEARCH_KB)
+    await state.set_state(FormBall.ball3)
+
+
+# ── ball3 — Universitet tanlash ──────────────────────────────────────────────
+
+@ball_router.inline_query(FormBall.ball3)
+async def inline_ball3(inline_query: InlineQuery, state: FSMContext):
+    text = inline_query.query.lower()
+    data = await state.get_data()
+    reg_id, shakl, ball = data["reg_id"], data["shakl"], data["ball"]
+    if shakl == "gr":
+        base = """
+            SELECT DISTINCT u.id, u.un_text
+            FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id
+            WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1' {f}
+            ORDER BY u.un_text LIMIT 50
+        """
+    else:
+        base = """
+            SELECT DISTINCT u.id, u.un_text
+            FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id
+            WHERE m.region_id = %s AND m.con_b <= %s AND m.con_b != 0 {f}
+            ORDER BY u.un_text LIMIT 50
+        """
+    if text:
+        cursor.execute(base.format(f="AND lower(u.un_text) LIKE %s"), (reg_id, ball, f"%{text}%"))
+    else:
+        cursor.execute(base.format(f=""), (reg_id, ball))
+    results = [
+        InlineQueryResultArticle(
+            id=str(uid),
+            title=un_text,
+            input_message_content=InputTextMessageContent(message_text=un_text)
+        ) for uid, un_text in cursor.fetchall()
+    ]
+    await inline_query.answer(results, cache_time=1, is_personal=True)
+
+
+@ball_router.message(FormBall.ball3)
+async def chosen_ball3(message: Message, state: FSMContext):
+    data = await state.get_data()
+    shakl, ball, reg_id = data["shakl"], data["ball"], data["reg_id"]
+
+    if message.text == "🔙 Ortga":
+        # Viloyatlar ro'yxatiga qaytamiz
         if shakl == "gr":
-            cursor.execute("""SELECT gr_b, con_b, olimp FROM mandat 
-                              WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s AND region_id=%s AND gr_b<=%s""",
-                           (un_id, ty_id, lan_id, mvdir, nomi, reg_id, ball))
-        elif shakl == "kn":
-            cursor.execute("""SELECT gr_b, con_b, olimp FROM mandat 
-                              WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s AND region_id=%s AND con_b<=%s""",
-                           (un_id, ty_id, lan_id, mvdir, nomi, reg_id, ball))
-        kaup = cursor.fetchone()
-        if kaup:
-            gr_b, con_b, olimp = kaup
-            cursor.execute("SELECT un_text FROM universities WHERE un_id=%s", (un_id,))
-            un_name = cursor.fetchone()[0]
-            cursor.execute("SELECT lan_text FROM getlangs WHERE lan_id=%s", (lan_id,))
-            lan_text = cursor.fetchone()[0]
-            cursor.execute("SELECT ty_text FROM gettypes WHERE ty_id=%s", (ty_id,))
-            ty_text = cursor.fetchone()[0]
-            message_text = (
-                f"<b>🏛 OLIYGOH:</b> {un_name}\n\n<b>📚 TAʼLIM YO‘NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text}\n\n"
-                f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
-                f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
-                f"<b>© <a href='https://t.me/mandatjavobbot?start=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>")
-            user_id = message.from_user.id
-            cursor.execute("""SELECT file_id FROM photos 
-                              WHERE un_id = %s AND ty_id = %s AND lan_id = %s AND mvdir = %s""",
-                           (un_id, ty_id, lan_id, mvdir))
-            old = cursor.fetchone()
-            if old:
-                await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
-            else:
-                if create_card(univer=un_name, faculty=f"{mvdir} - {nomi}", lang=lan_text, edu=ty_text,
-                               grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
-                    path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
-                    sent_message = await message.answer_photo(photo=FSInputFile(path), caption=message_text, parse_mode="html")
-                    file_id = sent_message.photo[-1].file_id
-                    cursor.execute("""
-                        INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT DO NOTHING
-                    """, (un_id, ty_id, lan_id, mvdir, file_id))
-                    conn.commit()
-                    if os.path.exists(path):
-                        os.remove(path)
-                else:
-                    await message.answer(message_text, parse_mode="html")
+            cursor.execute("""
+                SELECT DISTINCT r.region_name
+                FROM mandat m JOIN regions r ON m.region_id = r.region_id
+                WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+            """, (ball,))
+        else:
+            cursor.execute("""
+                SELECT DISTINCT r.region_name
+                FROM mandat m JOIN regions r ON m.region_id = r.region_id
+                WHERE m.con_b <= %s AND m.con_b != 0
+            """, (ball,))
+        regions = cursor.fetchall()
+        keyboard = [[KeyboardButton(text=r[0])] for r in regions]
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        await message.answer(
+            f"Bu ball bilan <b>{len(regions)}</b> ta hududdagi oliygohga kirish mumkin!\n\n"
+            f"<b>📍 Hududni tanlang:</b>",
+            parse_mode="html", reply_markup=btn
+        )
+        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>",
+                             parse_mode="html", reply_markup=SEARCH_KB)
+        await state.set_state(FormBall.ball2)
+        return
+    if message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>",
+                             parse_mode="html", reply_markup=await UserPanels.main_manu())
+        return
+
+    cursor.execute("SELECT un_id FROM universities WHERE lower(un_text) = %s",
+                   (message.text.lower(),))
+    row = cursor.fetchone()
+    if not row:
+        return
+    un_id = row[0]
+    await state.update_data(un_id=un_id)
+    await state.set_state(FormBall.ball4)
+
+    # Shakl ro'yxatini ko'rsatamiz
+    if shakl == "gr":
+        ress = [("Kunduzgi",)]
+    else:
+        cursor.execute("""
+            SELECT DISTINCT g.ty_text
+            FROM gettypes g JOIN mandat m ON g.un_id = m.un_id AND g.region_id = m.region_id
+            WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0
+            ORDER BY g.ty_text
+        """, (reg_id, str(un_id), ball))
+        ress = cursor.fetchall()
+
+    keyboard = [[KeyboardButton(text=r[0])] for r in ress]
+    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+    btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>",
+                         parse_mode="html", reply_markup=btn)
+
+
+# ── ball4 — Shakl tanlash → yo'nalishlar (til qavs ichida) ──────────────────
+
+@ball_router.message(FormBall.ball4)
+async def chosen_ball4(message: Message, state: FSMContext):
+    data = await state.get_data()
+    shakl  = data["shakl"]
+    ball   = data["ball"]
+    reg_id = data["reg_id"]
+    un_id  = data["un_id"]
+
+    if message.text == "🔙 Ortga":
+        # Universitetlar ro'yxatiga qaytamiz
+        if shakl == "gr":
+            cursor.execute("""
+                SELECT DISTINCT u.un_text
+                FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id
+                WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+                ORDER BY u.un_text
+            """, (reg_id, ball))
+        else:
+            cursor.execute("""
+                SELECT DISTINCT u.un_text
+                FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id
+                WHERE m.region_id = %s AND m.con_b <= %s AND m.con_b != 0
+                ORDER BY u.un_text
+            """, (reg_id, ball))
+        unis = cursor.fetchall()
+        keyboard = [[KeyboardButton(text=u[0])] for u in unis]
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        await message.answer(
+            f"<b>Siz tanlagan hududda {len(unis)} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
+            parse_mode="html", reply_markup=btn
+        )
+        await message.answer("<b>Tezkor qidiruvdan foydalaning... 👇</b>",
+                             parse_mode="html", reply_markup=SEARCH_KB)
+        await state.set_state(FormBall.ball3)
+        return
+    if message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>",
+                             parse_mode="html", reply_markup=await UserPanels.main_manu())
+        return
+
+    # Shakl tanlanganini state ga saqlaymiz
+    if shakl == "gr":
+        ty_id = "1"   # Grand doim Kunduzgi
+    else:
+        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text) = %s",
+                       (message.text.lower(),))
+        row = cursor.fetchone()
+        if not row:
+            return
+        ty_id = row[0]
+    await state.update_data(ty_id=ty_id)
+
+    # Yo'nalishlarni barcha tillar bilan birga ko'rsatamiz
+    if shakl == "gr":
+        cursor.execute("""
+            SELECT m.mvdir, m.nomi, g.lan_text
+            FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
+            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = '1'
+              AND m.gr_b <= %s AND m.gr_b != 0
+            ORDER BY m.nomi, g.lan_text
+        """, (reg_id, str(un_id), ball))
+    else:
+        cursor.execute("""
+            SELECT m.mvdir, m.nomi, g.lan_text
+            FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
+            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
+              AND m.con_b <= %s AND m.con_b != 0
+            ORDER BY m.nomi, g.lan_text
+        """, (reg_id, str(un_id), ty_id, ball))
+    rows = cursor.fetchall()
+
+    if not rows:
+        await message.answer("<b>🤷🏻‍♂️ Mos yo'nalish topilmadi</b>", parse_mode="html")
+        return
+
+    keyboard = [
+        [KeyboardButton(text=f"{mvdir} - {nomi} ({lan_text})")]
+        for mvdir, nomi, lan_text in rows
+    ]
+    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+    btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    await message.answer(
+        f"<b>{len(rows)} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:</b>",
+        parse_mode="html", reply_markup=btn
+    )
+    await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>",
+                         parse_mode="html", reply_markup=SEARCH_KB)
+    await state.set_state(FormBall.ball5)
+
+
+# ── ball5 — Yo'nalish tanlash → natija ──────────────────────────────────────
+
+@ball_router.inline_query(FormBall.ball5)
+async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
+    text = inline_query.query.lower()
+    data = await state.get_data()
+    shakl  = data["shakl"]
+    ball   = data["ball"]
+    reg_id = data["reg_id"]
+    un_id  = data["un_id"]
+    ty_id  = data["ty_id"]
+
+    if shakl == "gr":
+        base = """
+            SELECT m.id, m.mvdir, m.nomi, g.lan_text
+            FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
+            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = '1'
+              AND m.gr_b <= %s AND m.gr_b != 0 {f}
+            ORDER BY m.nomi, g.lan_text LIMIT 50
+        """
+        params_base = (reg_id, str(un_id), ball)
+    else:
+        base = """
+            SELECT m.id, m.mvdir, m.nomi, g.lan_text
+            FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
+            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
+              AND m.con_b <= %s AND m.con_b != 0 {f}
+            ORDER BY m.nomi, g.lan_text LIMIT 50
+        """
+        params_base = (reg_id, str(un_id), ty_id, ball)
+
+    if text:
+        cursor.execute(base.format(f="AND lower(m.nomi) LIKE %s"),
+                       (*params_base, f"%{text}%"))
+    else:
+        cursor.execute(base.format(f=""), params_base)
+
+    results = [
+        InlineQueryResultArticle(
+            id=str(mid),
+            title=f"{mvdir} - {nomi} ({lan_text})",
+            input_message_content=InputTextMessageContent(
+                message_text=f"{mvdir} - {nomi} ({lan_text})"
+            )
+        ) for mid, mvdir, nomi, lan_text in cursor.fetchall()
+    ]
+    await inline_query.answer(results, cache_time=1, is_personal=True)
+
+
+@ball_router.message(FormBall.ball5)
+async def chosen_ball5(message: Message, state: FSMContext):
+    data = await state.get_data()
+    shakl  = data["shakl"]
+    ball   = data["ball"]
+    reg_id = data["reg_id"]
+    un_id  = data["un_id"]
+    ty_id  = data["ty_id"]
+
+    if message.text == "🔙 Ortga":
+        # Shakl tanlash ekraniga qaytamiz
+        if shakl == "gr":
+            ress = [("Kunduzgi",)]
+        else:
+            cursor.execute("""
+                SELECT DISTINCT g.ty_text
+                FROM gettypes g JOIN mandat m ON g.un_id = m.un_id AND g.region_id = m.region_id
+                WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0
+                ORDER BY g.ty_text
+            """, (reg_id, str(un_id), ball))
+            ress = cursor.fetchall()
+        keyboard = [[KeyboardButton(text=r[0])] for r in ress]
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>",
+                             parse_mode="html", reply_markup=btn)
+        await state.set_state(FormBall.ball4)
+        return
+    if message.text == "🔙 Bosh menu":
+        await message.delete()
+        await state.clear()
+        await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>",
+                             parse_mode="html", reply_markup=await UserPanels.main_manu())
+        return
+
+    parsed = _parse_direction_btn(message.text)
+    if not parsed:
+        return
+    mvdir, nomi, lan_text = parsed
+
+    # Mandat ma'lumotlarini olamiz
+    if shakl == "gr":
+        cursor.execute("""
+            SELECT m.lan_id, m.gr_b, m.con_b, m.olimp
+            FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
+            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = '1'
+              AND m.mvdir = %s AND m.nomi = %s AND lower(g.lan_text) = %s
+            LIMIT 1
+        """, (reg_id, str(un_id), mvdir, nomi, lan_text.lower()))
+    else:
+        cursor.execute("""
+            SELECT m.lan_id, m.gr_b, m.con_b, m.olimp
+            FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
+            WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
+              AND m.mvdir = %s AND m.nomi = %s AND lower(g.lan_text) = %s
+            LIMIT 1
+        """, (reg_id, str(un_id), ty_id, mvdir, nomi, lan_text.lower()))
+
+    row = cursor.fetchone()
+    if not row:
+        await message.answer("<b>🤷🏻‍♂️ Ma'lumot topilmadi</b>", parse_mode="html")
+        return
+    lan_id, gr_b, con_b, olimp = row
+
+    cursor.execute("SELECT un_text FROM universities WHERE un_id = %s", (un_id,))
+    un_name_row = cursor.fetchone()
+    cursor.execute("SELECT ty_text FROM gettypes WHERE ty_id = %s", (ty_id,))
+    ty_text_row = cursor.fetchone()
+
+    await _send_result(
+        message=message,
+        un_id=un_id, ty_id=ty_id, lan_id=lan_id,
+        un_name=un_name_row[0] if un_name_row else "—",
+        mvdir=mvdir, nomi=nomi, lan_text=lan_text,
+        ty_text=ty_text_row[0] if ty_text_row else "—",
+        gr_b=gr_b, con_b=con_b, olimp=olimp,
+    )
