@@ -458,7 +458,7 @@ async def chosen_ball4(message: Message, state: FSMContext):
     # Yo'nalishlarni barcha tillar bilan birga ko'rsatamiz
     if shakl == "gr":
         cursor.execute("""
-            SELECT m.mvdir, m.nomi, g.lan_text
+            SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
             WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = '1'
               AND m.gr_b <= %s AND m.gr_b != 0
@@ -466,7 +466,7 @@ async def chosen_ball4(message: Message, state: FSMContext):
         """, (reg_id, str(un_id), ball))
     else:
         cursor.execute("""
-            SELECT m.mvdir, m.nomi, g.lan_text
+            SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
             WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
               AND m.con_b <= %s AND m.con_b != 0
@@ -508,7 +508,7 @@ async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
 
     if shakl == "gr":
         base = """
-            SELECT m.id, m.mvdir, m.nomi, g.lan_text
+            SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
             WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = '1'
               AND m.gr_b <= %s AND m.gr_b != 0 {f}
@@ -517,7 +517,7 @@ async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
         params_base = (reg_id, str(un_id), ball)
     else:
         base = """
-            SELECT m.id, m.mvdir, m.nomi, g.lan_text
+            SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
             WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
               AND m.con_b <= %s AND m.con_b != 0 {f}
@@ -538,7 +538,7 @@ async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
             input_message_content=InputTextMessageContent(
                 message_text=f"{mvdir} - {nomi} ({lan_text})"
             )
-        ) for i, (mid, mvdir, nomi, lan_text) in enumerate(cursor.fetchall())
+        ) for i, (mvdir, nomi, lan_text) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 

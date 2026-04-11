@@ -310,7 +310,7 @@ async def chosen_reg3(message: Message, state: FSMContext):
 
     # Yo'nalishlarni barcha tillar bilan birga ko'rsatamiz
     cursor.execute("""
-        SELECT m.mvdir, m.nomi, g.lan_text
+        SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
         FROM mandat m
         JOIN getlangs g ON m.lan_id = g.lan_id
         WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s
@@ -349,7 +349,7 @@ async def inline_reg4(inline_query: InlineQuery, state: FSMContext):
     un_id     = data["un_id"]
     ty_id     = data["ty_id"]
     base = """
-        SELECT m.id, m.mvdir, m.nomi, g.lan_text
+        SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
         FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
         WHERE m.region_id = %s AND m.un_id = %s AND m.ty_id = %s {f}
         ORDER BY m.nomi, g.lan_text LIMIT 50
@@ -366,7 +366,7 @@ async def inline_reg4(inline_query: InlineQuery, state: FSMContext):
             input_message_content=InputTextMessageContent(
                 message_text=f"{mvdir} - {nomi} ({lan_text})"
             )
-        ) for i, (mid, mvdir, nomi, lan_text) in enumerate(cursor.fetchall())
+        ) for i, (mvdir, nomi, lan_text) in enumerate(cursor.fetchall())
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
 
