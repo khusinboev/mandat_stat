@@ -247,11 +247,14 @@ async def chosen_reg2(message: Message, state: FSMContext):
     await state.set_state(FormReg.reg3)
 
     data = await state.get_data()
-    region_id = data.get("region_id")
-    cursor.execute(
-        "SELECT DISTINCT ty_id, ty_text FROM gettypes WHERE region_id = %s AND un_id = %s ORDER BY ty_text",
-        (region_id, un_id)
-    )
+    # Faqat bazada haqiqiy mandat ma'lumoti mavjud ta'lim shakllarini ko'rsatamiz
+    cursor.execute("""
+        SELECT DISTINCT g.ty_id, g.ty_text
+        FROM gettypes g
+        WHERE g.un_id = %s
+          AND EXISTS (SELECT 1 FROM mandat m WHERE m.un_id = %s AND m.ty_id = g.ty_id)
+        ORDER BY g.ty_text
+    """, (un_id, un_id))
     rows = cursor.fetchall()
     if not rows:
         await message.answer("<b>🤷🏻‍♂️ Ta'lim shakli topilmadi</b>", parse_mode="html")
@@ -298,10 +301,13 @@ async def chosen_reg3(message: Message, state: FSMContext):
                              parse_mode="html", reply_markup=await UserPanels.main_manu())
         return
 
-    cursor.execute(
-        "SELECT ty_id FROM gettypes WHERE lower(ty_text) = %s AND region_id = %s AND un_id = %s",
-        (message.text.lower(), region_id, un_id)
-    )
+    # ty_id ni mandat dan olamiz — faqat bu university uchun haqiqiy kombinatsiyalar
+    cursor.execute("""
+        SELECT DISTINCT m.ty_id FROM mandat m
+        JOIN gettypes g ON m.ty_id = g.ty_id
+        WHERE m.un_id = %s AND lower(g.ty_text) = %s
+        LIMIT 1
+    """, (un_id, message.text.lower()))
     row = cursor.fetchone()
     if not row:
         return
@@ -341,34 +347,39 @@ async def chosen_reg3(message: Message, state: FSMContext):
 
 # ── reg4 — Yo'nalish tanlash → natija ───────────────────────────────────────
 
+PAGE_SIZE = 50
+
+
 @reg_router.inline_query(FormReg.reg4)
 async def inline_reg4(inline_query: InlineQuery, state: FSMContext):
-    text = inline_query.query.lower()
-    data = await state.get_data()
-    region_id = data["region_id"]
-    un_id     = data["un_id"]
-    ty_id     = data["ty_id"]
+    text   = inline_query.query.lower()
+    offset = int(inline_query.offset or 0)
+    data   = await state.get_data()
+    un_id  = data["un_id"]
+    ty_id  = data["ty_id"]
     base = """
         SELECT DISTINCT m.mvdir, m.nomi, g.lan_text
         FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
         WHERE m.un_id = %s AND m.ty_id = %s {f}
-        ORDER BY m.nomi, g.lan_text LIMIT 50
+        ORDER BY m.nomi, g.lan_text LIMIT %s OFFSET %s
     """
     if text:
         cursor.execute(base.format(f="AND lower(m.nomi) LIKE %s"),
-                       (un_id, ty_id, f"%{text}%"))
+                       (un_id, ty_id, f"%{text}%", PAGE_SIZE, offset))
     else:
-        cursor.execute(base.format(f=""), (un_id, ty_id))
+        cursor.execute(base.format(f=""), (un_id, ty_id, PAGE_SIZE, offset))
+    rows = cursor.fetchall()
     results = [
         InlineQueryResultArticle(
-            id=str(i),
+            id=str(offset + i),
             title=f"{mvdir} - {nomi} ({lan_text})",
             input_message_content=InputTextMessageContent(
                 message_text=f"{mvdir} - {nomi} ({lan_text})"
             )
-        ) for i, (mvdir, nomi, lan_text) in enumerate(cursor.fetchall())
+        ) for i, (mvdir, nomi, lan_text) in enumerate(rows)
     ]
-    await inline_query.answer(results, cache_time=1, is_personal=True)
+    next_offset = str(offset + PAGE_SIZE) if len(rows) == PAGE_SIZE else ""
+    await inline_query.answer(results, cache_time=1, is_personal=True, next_offset=next_offset)
 
 
 @reg_router.message(FormReg.reg4)
@@ -379,11 +390,14 @@ async def chosen_reg4(message: Message, state: FSMContext):
     ty_id     = data["ty_id"]
 
     if message.text == "🔙 Ortga":
-        # Shakl tanlash ekraniga qaytamiz
-        cursor.execute(
-            "SELECT DISTINCT ty_id, ty_text FROM gettypes WHERE region_id = %s AND un_id = %s ORDER BY ty_text",
-            (region_id, un_id)
-        )
+        # Shakl tanlash ekraniga qaytamiz — faqat mandat da mavjud shakllar
+        cursor.execute("""
+            SELECT DISTINCT g.ty_id, g.ty_text
+            FROM gettypes g
+            WHERE g.un_id = %s
+              AND EXISTS (SELECT 1 FROM mandat m WHERE m.un_id = %s AND m.ty_id = g.ty_id)
+            ORDER BY g.ty_text
+        """, (un_id, un_id))
         rows = cursor.fetchall()
         keyboard = [[KeyboardButton(text=ty_text)] for _, ty_text in rows]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])

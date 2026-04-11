@@ -379,16 +379,34 @@ async def chosen_ball3(message: Message, state: FSMContext):
     await state.update_data(un_id=un_id)
     await state.set_state(FormBall.ball4)
 
-    # Shakl ro'yxatini ko'rsatamiz
+    # Faqat bazada haqiqiy ma'lumot mavjud ta'lim shakllarini ko'rsatamiz
     if shakl == "gr":
-        ress = [("Kunduzgi",)]
+        cursor.execute("""
+            SELECT DISTINCT g.ty_id, g.ty_text
+            FROM gettypes g
+            WHERE g.un_id = %s AND g.ty_id = '1'
+              AND EXISTS (
+                  SELECT 1 FROM mandat m
+                  WHERE m.un_id = %s AND m.ty_id = '1'
+                    AND m.gr_b <= %s AND m.gr_b != 0
+              )
+            ORDER BY g.ty_text
+        """, (str(un_id), str(un_id), ball))
+        ress = cursor.fetchall()
+        if not ress:
+            ress = [("Kunduzgi",)]   # fallback: grand doim kunduzgi
     else:
         cursor.execute("""
-            SELECT DISTINCT g.ty_text
-            FROM gettypes g JOIN mandat m ON g.un_id = m.un_id AND g.region_id = m.region_id
-            WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0
+            SELECT DISTINCT g.ty_id, g.ty_text
+            FROM gettypes g
+            WHERE g.un_id = %s
+              AND EXISTS (
+                  SELECT 1 FROM mandat m
+                  WHERE m.un_id = %s AND m.ty_id = g.ty_id
+                    AND m.con_b <= %s AND m.con_b != 0
+              )
             ORDER BY g.ty_text
-        """, (reg_id, str(un_id), ball))
+        """, (str(un_id), str(un_id), ball))
         ress = cursor.fetchall()
 
     keyboard = [[KeyboardButton(text=r[0])] for r in ress]
@@ -447,8 +465,14 @@ async def chosen_ball4(message: Message, state: FSMContext):
     if shakl == "gr":
         ty_id = "1"   # Grand doim Kunduzgi
     else:
-        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text) = %s",
-                       (message.text.lower(),))
+        # ty_id ni mandat orqali olamiz — faqat bu university uchun haqiqiy kombinatsiya
+        cursor.execute("""
+            SELECT DISTINCT m.ty_id FROM mandat m
+            JOIN gettypes g ON m.ty_id = g.ty_id
+            WHERE m.un_id = %s AND lower(g.ty_text) = %s
+              AND m.con_b <= %s AND m.con_b != 0
+            LIMIT 1
+        """, (str(un_id), message.text.lower(), ball))
         row = cursor.fetchone()
         if not row:
             return
@@ -496,13 +520,16 @@ async def chosen_ball4(message: Message, state: FSMContext):
 
 # ── ball5 — Yo'nalish tanlash → natija ──────────────────────────────────────
 
+PAGE_SIZE = 50
+
+
 @ball_router.inline_query(FormBall.ball5)
 async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
-    text = inline_query.query.lower()
-    data = await state.get_data()
+    text   = inline_query.query.lower()
+    offset = int(inline_query.offset or 0)
+    data   = await state.get_data()
     shakl  = data["shakl"]
     ball   = data["ball"]
-    reg_id = data["reg_id"]
     un_id  = data["un_id"]
     ty_id  = data["ty_id"]
 
@@ -512,7 +539,7 @@ async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
             WHERE m.un_id = %s AND m.ty_id = '1'
               AND m.gr_b <= %s AND m.gr_b != 0 {f}
-            ORDER BY m.nomi, g.lan_text LIMIT 50
+            ORDER BY m.nomi, g.lan_text LIMIT %s OFFSET %s
         """
         params_base = (str(un_id), ball)
     else:
@@ -521,26 +548,28 @@ async def inline_ball5(inline_query: InlineQuery, state: FSMContext):
             FROM mandat m JOIN getlangs g ON m.lan_id = g.lan_id
             WHERE m.un_id = %s AND m.ty_id = %s
               AND m.con_b <= %s AND m.con_b != 0 {f}
-            ORDER BY m.nomi, g.lan_text LIMIT 50
+            ORDER BY m.nomi, g.lan_text LIMIT %s OFFSET %s
         """
         params_base = (str(un_id), ty_id, ball)
 
     if text:
         cursor.execute(base.format(f="AND lower(m.nomi) LIKE %s"),
-                       (*params_base, f"%{text}%"))
+                       (*params_base, f"%{text}%", PAGE_SIZE, offset))
     else:
-        cursor.execute(base.format(f=""), params_base)
+        cursor.execute(base.format(f=""), (*params_base, PAGE_SIZE, offset))
 
+    rows = cursor.fetchall()
     results = [
         InlineQueryResultArticle(
-            id=str(i),
+            id=str(offset + i),
             title=f"{mvdir} - {nomi} ({lan_text})",
             input_message_content=InputTextMessageContent(
                 message_text=f"{mvdir} - {nomi} ({lan_text})"
             )
-        ) for i, (mvdir, nomi, lan_text) in enumerate(cursor.fetchall())
+        ) for i, (mvdir, nomi, lan_text) in enumerate(rows)
     ]
-    await inline_query.answer(results, cache_time=1, is_personal=True)
+    next_offset = str(offset + PAGE_SIZE) if len(rows) == PAGE_SIZE else ""
+    await inline_query.answer(results, cache_time=1, is_personal=True, next_offset=next_offset)
 
 
 @ball_router.message(FormBall.ball5)
@@ -558,11 +587,16 @@ async def chosen_ball5(message: Message, state: FSMContext):
             ress = [("Kunduzgi",)]
         else:
             cursor.execute("""
-                SELECT DISTINCT g.ty_text
-                FROM gettypes g JOIN mandat m ON g.un_id = m.un_id
-                WHERE m.un_id = %s AND m.con_b <= %s AND m.con_b != 0
+                SELECT DISTINCT g.ty_id, g.ty_text
+                FROM gettypes g
+                WHERE g.un_id = %s
+                  AND EXISTS (
+                      SELECT 1 FROM mandat m
+                      WHERE m.un_id = %s AND m.ty_id = g.ty_id
+                        AND m.con_b <= %s AND m.con_b != 0
+                  )
                 ORDER BY g.ty_text
-            """, (str(un_id), ball))
+            """, (str(un_id), str(un_id), ball))
             ress = cursor.fetchall()
         keyboard = [[KeyboardButton(text=r[0])] for r in ress]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
