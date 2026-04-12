@@ -59,9 +59,12 @@ async def inline_search_region(inline_query: InlineQuery):
     text = inline_query.query.lower()
 
     if text:
-        cursor.execute("SELECT id, region_id, region_name FROM regions WHERE lower(region_name) LIKE %s", (f"%{text}%",))
+        cursor.execute(
+            "SELECT id, region_id, region_name FROM regions WHERE lower(region_name) LIKE %s ORDER BY region_name LIMIT 50",
+            (f"%{text}%",),
+        )
     else:
-        cursor.execute("SELECT id, region_id, region_name FROM regions")
+        cursor.execute("SELECT id, region_id, region_name FROM regions ORDER BY region_name LIMIT 50")
     facs = cursor.fetchall()
     if facs:
         results = [
@@ -121,13 +124,15 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
 
     if text:
         cursor.execute(
-            "SELECT u.id, u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = %s AND lower(u.un_text) LIKE %s ORDER BY u.un_text",
+            "SELECT DISTINCT u.un_id, u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = %s AND lower(u.un_text) LIKE %s ORDER BY u.un_text LIMIT 50",
             (region_name, f"%{text}%"))
     else:
-        cursor.execute("SELECT u.id, u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = %s ORDER BY u.un_text", (region_name,))
+        cursor.execute(
+            "SELECT DISTINCT u.un_id, u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = %s ORDER BY u.un_text LIMIT 50",
+            (region_name,),
+        )
     universities = cursor.fetchall()
     if universities:
-        universities = list(dict.fromkeys(universities))[:50]
         results = [
             InlineQueryResultArticle(
                 id=str(un_id),
@@ -153,7 +158,7 @@ async def chosen_university(message: Message, state: FSMContext):
             await message.answer(f"<b>📍 Hududni tanlang:</b>", parse_mode="html", reply_markup=btn)
             await message.answer("<b>Tezkor qidiruvdan foydalaning...👇</b>", parse_mode="html", reply_markup=kb)
             await state.set_state(FormReg.reg1)
-        except:
+        except Exception:
             await message.delete()
             await state.clear()
             await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html", reply_markup=await UserPanels.main_manu())
@@ -207,7 +212,10 @@ async def chosen_type(message: Message, state: FSMContext):
                              reply_markup=await UserPanels.main_manu())
     else:
         name = message.text.lower()
-        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text)=%s", (name,))
+        data = await state.get_data()
+        un_id = data.get("un_id")
+        region_id = data.get("region_id")
+        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text)=%s AND un_id=%s AND region_id=%s", (name, un_id, region_id))
         ty_id = cursor.fetchone()
         if ty_id:
             ty_id = ty_id[0]
@@ -218,7 +226,7 @@ async def chosen_type(message: Message, state: FSMContext):
             cursor.execute('''
                 SELECT DISTINCT g.lan_id, g.lan_text
                 FROM mandat m
-                JOIN getlangs g ON m.lan_id = g.lan_id
+                JOIN getlangs g ON m.lan_id = g.lan_id AND m.un_id = g.un_id AND m.ty_id = g.ty_id AND m.region_id = g.region_id
                 WHERE m.un_id = %s AND m.ty_id = %s
             ''', (un_id, ty_id))
             rows = cursor.fetchall()
@@ -247,7 +255,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         cursor.execute('''
             SELECT DISTINCT g.lan_id, g.lan_text
             FROM mandat m
-            JOIN getlangs g ON m.lan_id = g.lan_id
+            JOIN getlangs g ON m.lan_id = g.lan_id AND m.un_id = g.un_id AND m.ty_id = g.ty_id AND m.region_id = g.region_id
             WHERE m.un_id = %s AND m.ty_id = %s
         ''', (un_id, ty_id))
         rows = cursor.fetchall()
@@ -268,7 +276,14 @@ async def chosen_lang(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                              reply_markup=await UserPanels.main_manu())
     else:
-        cursor.execute("SELECT lan_id FROM getlangs WHERE lower(lan_text)=%s", (lan_text,))
+        data = await state.get_data()
+        un_id = data["un_id"]
+        ty_id = data["ty_id"]
+        region_id = data["region_id"]
+        cursor.execute(
+            "SELECT lan_id FROM getlangs WHERE lower(lan_text)=%s AND un_id=%s AND ty_id=%s AND region_id=%s",
+            (lan_text, un_id, ty_id, region_id),
+        )
         lan_id = cursor.fetchone()
         if lan_id:
             lan_id = lan_id[0]
@@ -308,14 +323,13 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
     lan_id = data["lan_id"]
     if text:
         cursor.execute(
-            "SELECT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s",
+            "SELECT DISTINCT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s ORDER BY nomi LIMIT 50",
             (f"%{text}%", region_id, un_id, ty_id, lan_id))
     else:
         cursor.execute(
-            "SELECT id, mvdir, nomi FROM mandat WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s",
+            "SELECT DISTINCT id, mvdir, nomi FROM mandat WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s ORDER BY nomi LIMIT 50",
             (region_id, un_id, ty_id, lan_id))
     facs = cursor.fetchall()
-    facs = list(dict.fromkeys(facs))[:50]
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
     ])
@@ -344,7 +358,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         cursor.execute("""
             SELECT DISTINCT g.lan_id, g.lan_text
             FROM mandat m
-            JOIN getlangs g ON m.lan_id = g.lan_id
+            JOIN getlangs g ON m.lan_id = g.lan_id AND m.un_id = g.un_id AND m.ty_id = g.ty_id AND m.region_id = g.region_id
             WHERE m.un_id = %s AND m.ty_id = %s
         """, (un_id, ty_id))
         rows = cursor.fetchall()
@@ -358,9 +372,10 @@ async def chosen_lang(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                              reply_markup=await UserPanels.main_manu())
     else:
-        galyan = message.text.split(" - ")
-        mvdir = galyan[0]
-        nomi = ' '.join(galyan[1:])
+        if " - " not in message.text:
+            await message.answer("Yo'nalishni ro'yxatdan tanlang yoki inline qidiruvdan foydalaning.")
+            return
+        mvdir, nomi = message.text.split(" - ", 1)
         data = await state.get_data()
         un_id = data["un_id"]
         ty_id = data["ty_id"]
@@ -375,7 +390,11 @@ async def chosen_lang(message: Message, state: FSMContext):
             SELECT gr_b, con_b, olimp FROM mandat
             WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s
         """, (un_id, ty_id, lan_id, mvdir, nomi))
-        gr_b, con_b, olimp = cursor.fetchone()
+        ball_row = cursor.fetchone()
+        if not un_name or not lan_text or not ty_text or not ball_row:
+            await message.answer("Ma'lumot topilmadi yoki to'liq emas. Iltimos, qaytadan tanlang.")
+            return
+        gr_b, con_b, olimp = ball_row
 
         message_text = (
             f"<b>🏛 OLIYGOH:</b> {un_name[0]}\n\n<b>📚 TAʼLIM YO‘NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text[0]}\n\n"

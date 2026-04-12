@@ -12,6 +12,8 @@ async def create_all_base():
         CONSTRAINT accounts_pkey PRIMARY KEY (id)
     )""")
     db.commit()
+    sql.execute("CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON public.accounts (user_id)")
+    db.commit()
 
     sql.execute("""CREATE TABLE IF NOT EXISTS public.mandatorys
     (
@@ -45,25 +47,40 @@ async def create_all_base():
     )""")
     db.commit()
 
-    sql.execute("""
-    CREATE TABLE IF NOT EXISTS public.cinema(
-            cinema_id INTEGER NOT NULL,
-            cinema_name CHARACTER VARYING,
-            cinema_url CHARACTER VARYING,
-            date TIMESTAMP DEFAULT now(),
-            CONSTRAINT cinema_pkey PRIMARY KEY (cinema_id)
-        )""")
+    # Legacy tables cleanup: no longer used by current bot flows.
+    sql.execute("DROP TABLE IF EXISTS public.qualites")
+    sql.execute("DROP TABLE IF EXISTS public.cinema")
     db.commit()
 
+    # Optional performance indexes for parser-created tables.
+    # These blocks are safe when tables are absent.
     sql.execute("""
-        CREATE TABLE IF NOT EXISTS public.qualites (
-            id SERIAL PRIMARY KEY,
-            cinema_id INTEGER NOT NULL,
-            cinema_key VARCHAR NOT NULL,
-            cinema_quality VARCHAR NOT NULL CHECK (cinema_quality IN ('low', 'medium', 'high')),
-            CONSTRAINT fk_cinema FOREIGN KEY (cinema_id) REFERENCES public.cinema (cinema_id) ON DELETE CASCADE,
-            CONSTRAINT unique_cinema_id_quality UNIQUE (cinema_id, cinema_quality)
-        )
+    DO $$
+    BEGIN
+        IF to_regclass('public.mandat') IS NOT NULL THEN
+            CREATE INDEX IF NOT EXISTS idx_mandat_region_un_ty_lan ON public.mandat (region_id, un_id, ty_id, lan_id);
+            CREATE INDEX IF NOT EXISTS idx_mandat_ty_grb ON public.mandat (ty_id, gr_b);
+            CREATE INDEX IF NOT EXISTS idx_mandat_ty_conb ON public.mandat (ty_id, con_b);
+            CREATE INDEX IF NOT EXISTS idx_mandat_nomi_lower ON public.mandat (lower(nomi));
+        END IF;
+
+        IF to_regclass('public.regions') IS NOT NULL THEN
+            CREATE INDEX IF NOT EXISTS idx_regions_name_lower ON public.regions (lower(region_name));
+        END IF;
+
+        IF to_regclass('public.universities') IS NOT NULL THEN
+            CREATE INDEX IF NOT EXISTS idx_universities_text_lower ON public.universities (lower(un_text));
+            CREATE INDEX IF NOT EXISTS idx_universities_region_unid ON public.universities (region_id, un_id);
+        END IF;
+
+        IF to_regclass('public.gettypes') IS NOT NULL THEN
+            CREATE INDEX IF NOT EXISTS idx_gettypes_unid_lower_text ON public.gettypes (un_id, lower(ty_text));
+        END IF;
+
+        IF to_regclass('public.getlangs') IS NOT NULL THEN
+            CREATE INDEX IF NOT EXISTS idx_getlangs_lanid_lower_text ON public.getlangs (lan_id, lower(lan_text));
+        END IF;
+    END $$;
     """)
     db.commit()
 
@@ -76,20 +93,22 @@ class Authenticator:
             username = message.from_user.username  if message.from_user.username else None
             lang_code = message.from_user.language_code if message.from_user.language_code else None
 
-            sql.execute(f"""SELECT user_id FROM accounts WHERE user_id = {user_id}""")
+            sql.execute("SELECT user_id FROM accounts WHERE user_id = %s", (user_id,))
             check = sql.fetchone()
             if check is None:
-                sql.execute(f"DELETE FROM public.accounts WHERE user_id ='{user_id}'")
+                sql.execute("DELETE FROM public.accounts WHERE user_id = %s", (user_id,))
                 db.commit()
-                sql.execute(f"DELETE FROM public.user_langs WHERE user_id ='{user_id}'")
+                sql.execute("DELETE FROM public.user_langs WHERE user_id = %s", (user_id,))
                 db.commit()
-                sql.execute(f"DELETE FROM public.users_status WHERE user_id ='{user_id}'")
+                sql.execute("DELETE FROM public.users_status WHERE user_id = %s", (user_id,))
                 db.commit()
-                sql.execute(f"DELETE FROM public.users_tts WHERE user_id ='{user_id}'")
+                sql.execute("DELETE FROM public.users_tts WHERE user_id = %s", (user_id,))
                 db.commit()
                 # sana = datetime.datetime.now(pytz.timezone('Asia/Tashkent')).strftime('%d-%m-%Y %H:%M')
-                sql.execute(f"INSERT INTO accounts (user_id, username, lang_code) "
-                            f"VALUES ('{user_id}', '{username}', '{lang_code}')")
+                sql.execute(
+                    "INSERT INTO accounts (user_id, username, lang_code) VALUES (%s, %s, %s)",
+                    (user_id, username, lang_code),
+                )
                 db.commit()
         except: pass
 
@@ -97,8 +116,8 @@ class Authenticator:
     async def auth_group(message: types.Message):
         chat_id = message.chat.id
         group_type = message.chat.type
-        sql.execute(f"""SELECT chat_id FROM groups WHERE chat_id = {chat_id}""")
+        sql.execute("SELECT chat_id FROM groups WHERE chat_id = %s", (chat_id,))
         check = sql.fetchone()
         if check is None:
-            sql.execute(f"""INSERT INTO groups (chat_id, types) VALUES ('{chat_id}', '{group_type}')""")
+            sql.execute("INSERT INTO groups (chat_id, types) VALUES (%s, %s)", (chat_id, group_type))
             db.commit()

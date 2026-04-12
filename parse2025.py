@@ -2,9 +2,9 @@
 parse2025.py — mandat.uzbmb.uz saytidan 2025 yil ma'lumotlarini tortib PostgreSQL ga yozuvchi parser.
 
 YANGILANISH STRATEGIYASI:
-  - Standart rejim (--update):  mandat jadvalidagi barcha yozuvlar o'chirilib, 2025 yilgi
-                                 ma'lumotlar bilan to'liq almashtiriladi.
-                                 regions/universities/gettypes/getlangs — UPSERT (saqlanib qoladi).
+    - Standart rejim:             parserga tegishli barcha jadvallar to'liq tozalanadi
+                                                                 (regions/universities/gettypes/getlangs/mandat/photos),
+                                                                 so'ng 2025 yil ma'lumotlari 0 dan qayta yuklanadi.
   - --no-clean rejimi:          Hech narsa o'chirilmaydi, faqat UPSERT qilinadi.
                                  2025 da yo'q bo'lgan 2024 yozuvlari bazada qoladi.
 
@@ -16,7 +16,7 @@ Xavfsizlik choralari:
   - Barcha xatolar parse2025_errors.log ga yoziladi
 
 ISHLATISH:
-  python parse2025.py                  # mandat ni tozalab 2025 yil bilan yozadi
+    python parse2025.py                  # parser jadvallarini to'liq tozalab 0 dan yozadi
   python parse2025.py --no-clean       # tozalamasdan faqat upsert
   python parse2025.py --no-resume      # progressni e'tiborsiz qoldirib boshidan
   python parse2025.py --dry-run        # bazaga yozmaydi, faqat API ni tekshiradi
@@ -220,23 +220,15 @@ def create_tables(conn):
     log.info("Jadvallar tayyor.")
 
 
-def clean_mandat(conn):
+def clean_all_parser_tables(conn):
     """
-    mandat jadvalidagi barcha yozuvlarni o'chiradi.
-    photos ham o'chiriladi — chunki eski karta rasmlari 2025 ball bilan mos kelmaydi.
-
-    Faqat mandat va photos o'chiriladi. regions/universities/gettypes/getlangs
-    saqlanib qoladi (ular tarkiban o'zgarishi kam).
+    Parser bilan bog'liq barcha jadvallarni to'liq tozalaydi.
+    Har yangi run 0 dan boshlanishi uchun eski ma'lumotlar butunlay o'chiriladi.
     """
     with conn.cursor() as cur:
-        cur.execute("SELECT COUNT(*) FROM mandat")
-        count = cur.fetchone()[0]
-        log.info(f"mandat jadvalidagi mavjud yozuvlar soni: {count}")
-
-        cur.execute("DELETE FROM photos")
-        cur.execute("DELETE FROM mandat")
+        cur.execute("TRUNCATE TABLE photos, mandat, getlangs, gettypes, universities, regions RESTART IDENTITY")
     conn.commit()
-    log.info("✓ mandat va photos jadvallari tozalandi. 2025 yil ma'lumotlari yoziladi...")
+    log.info("✓ Parser jadvallari to'liq tozalandi. Yangi ma'lumotlar 0 dan yuklanadi...")
 
 # ──────────────────────────── PROGRESS ────────────────────────────
 
@@ -325,9 +317,15 @@ def parse(resume: bool = True, dry_run: bool = False, clean: bool = True):
     :param dry_run: True bo'lsa — bazaga yozmaydi (test rejimi)
     :param clean:   True bo'lsa — mandat va photos jadvallarini tozalaydi (tavsiya etiladi)
     """
-    last_region = load_progress() if resume else 0
-    if not resume:
+    if clean:
+        # Full refresh mode: always start from scratch.
+        last_region = 0
         reset_progress()
+        resume = False
+    else:
+        last_region = load_progress() if resume else 0
+        if not resume:
+            reset_progress()
 
     session = make_session()
     conn    = None if dry_run else get_conn()
@@ -335,15 +333,8 @@ def parse(resume: bool = True, dry_run: bool = False, clean: bool = True):
     if conn:
         create_tables(conn)
 
-        # --no-clean berilmasa mandat ni tozalaymiz
-        if clean and last_region == 0:
-            # Progressdan davom etilayotgan bo'lsa tozalamaymiz (qisman yangilangan bo'lishi mumkin)
-            clean_mandat(conn)
-        elif clean and last_region > 0:
-            log.info(
-                f"Progress mavjud (oxirgi region: {last_region}). "
-                "Mandat tozalanmaydi — davom etish rejimi."
-            )
+        if clean:
+            clean_all_parser_tables(conn)
 
     # 1. Regionlar
     log.info(f"Regionlar yuklanmoqda: {REGIONS_URL}")
@@ -521,7 +512,7 @@ if __name__ == "__main__":
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="""
 Misollar:
-  python parse2025.py                 # Standart: mandat tozalanib 2025 yil yoziladi
+    python parse2025.py                 # Standart: parser jadvallari tozalanib 0 dan yoziladi
   python parse2025.py --no-clean      # Tozalamasdan upsert (2024 yozuvlari qoladi)
   python parse2025.py --no-resume     # Progressni e'tiborsiz qoldirib boshidan
   python parse2025.py --dry-run       # Bazaga yozmaydi, faqat API ni tekshiradi

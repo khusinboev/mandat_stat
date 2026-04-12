@@ -82,12 +82,12 @@ class CheckData:
 class PanelFunc:
     @staticmethod
     async def channel_add(chat_id, link):
-        sql.execute(f"INSERT INTO public.mandatorys( chat_id, username ) VALUES({chat_id}, '{link}');")
+        sql.execute("INSERT INTO public.mandatorys (chat_id, username) VALUES (%s, %s)", (chat_id, link))
         db.commit()
 
     @staticmethod
     async def channel_delete(id):
-        sql.execute(f'''DELETE FROM public.mandatorys WHERE chat_id = '{id}' ''')
+        sql.execute("DELETE FROM public.mandatorys WHERE chat_id = %s", (id,))
         db.commit()
 
     @staticmethod
@@ -109,12 +109,12 @@ class PanelFunc:
 
     @staticmethod
     async def channel_add2(chat_id, link):
-        sql.execute(f"INSERT INTO public.kanallar2( chat_id, username ) VALUES({chat_id}, '{link}');")
+        sql.execute("INSERT INTO public.kanallar2 (chat_id, username) VALUES (%s, %s)", (chat_id, link))
         db.commit()
 
     @staticmethod
     async def channel_delete2(id):
-        sql.execute(f'''DELETE FROM public.kanallar2 WHERE chat_id = '{id}' ''')
+        sql.execute("DELETE FROM public.kanallar2 WHERE chat_id = %s", (id,))
         db.commit()
 
     @staticmethod
@@ -136,12 +136,12 @@ class PanelFunc:
 
     @staticmethod
     async def admin_add(chat_id):
-        sql.execute(f"INSERT INTO public.admins( user_id ) VALUES({chat_id});")
+        sql.execute("INSERT INTO public.admins (user_id) VALUES (%s)", (chat_id,))
         db.commit()
 
     @staticmethod
     async def admin_delete(id):
-        sql.execute(f'''DELETE FROM public.admins WHERE user_id = '{id}' ''')
+        sql.execute("DELETE FROM public.admins WHERE user_id = %s", (id,))
         db.commit()
 
     @staticmethod

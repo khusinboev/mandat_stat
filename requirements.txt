@@ -5,3 +5,4 @@ beautifulsoup4==4.13.4
 requests==2.32.4
 pillow==11.2.1
 pytz
+redis==5.0.4

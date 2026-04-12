@@ -13,7 +13,7 @@ from src.handlers.users.filter_ball import ball_router
 from src.handlers.users.filter_fac import fac_router
 from src.handlers.users.filter_reg import reg_router
 from src.handlers.users.users import user_router
-from src.middlewares.middleware import RegisterUserMiddleware
+from src.middlewares.middleware import RegisterUserMiddleware, PerformanceMiddleware
 
 
 async def on_startup():
@@ -25,6 +25,7 @@ async def main():
     logging.basicConfig(level=logging.INFO)
 
     dp.update.middleware(RegisterUserMiddleware())
+    dp.update.middleware(PerformanceMiddleware())
 
     dp.include_router(admin_router)
     dp.include_router(add_router)
