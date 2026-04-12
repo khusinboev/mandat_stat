@@ -16,6 +16,14 @@ from src.keyboards.keyboard_func import CheckData
 
 reg_router = Router()
 
+# Main-menu section buttons — pressing these from any FSM state should clear
+# state and return the user to the main menu.
+_SECTION_BTNS = frozenset({
+    "📊 Ball yetadigan yo'nalishlar",
+    "\U0001f4da Yo\u02bbnalishlar bo\u02bbyicha",
+    "📈 Viloyatlar kesimida",
+})
+
 class FormReg(StatesGroup):
     reg1 = State()
     reg2 = State()
@@ -93,6 +101,11 @@ async def chosen_university(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                              reply_markup=await UserPanels.main_manu())
     else:
+        if message.text in _SECTION_BTNS:
+            await state.clear()
+            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                 reply_markup=await UserPanels.main_manu())
+            return
         region_name = message.text
         cursor.execute("SELECT region_id FROM regions WHERE region_name = %s", (region_name,))
         region_id = cursor.fetchone()
@@ -167,8 +180,11 @@ async def chosen_university(message: Message, state: FSMContext):
         await state.clear()
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html", reply_markup=await UserPanels.main_manu())
     else:
+        if message.text in _SECTION_BTNS:
+            await state.clear()
+            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html", reply_markup=await UserPanels.main_manu())
+            return
         un_name = message.text
-        cursor.execute("SELECT un_id FROM universities WHERE lower(un_text)=%s", (un_name.lower(),))
         un_id = cursor.fetchone()
         if un_id:
             un_id = un_id[0]
@@ -211,6 +227,11 @@ async def chosen_type(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                              reply_markup=await UserPanels.main_manu())
     else:
+        if message.text in _SECTION_BTNS:
+            await state.clear()
+            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                 reply_markup=await UserPanels.main_manu())
+            return
         name = message.text.lower()
         data = await state.get_data()
         un_id = data.get("un_id")
@@ -226,7 +247,7 @@ async def chosen_type(message: Message, state: FSMContext):
             cursor.execute('''
                 SELECT DISTINCT g.lan_id, g.lan_text
                 FROM mandat m
-                JOIN getlangs g ON m.lan_id = g.lan_id AND m.un_id = g.un_id AND m.ty_id = g.ty_id AND m.region_id = g.region_id
+                JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
                 WHERE m.un_id = %s AND m.ty_id = %s
             ''', (un_id, ty_id))
             rows = cursor.fetchall()
@@ -255,7 +276,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         cursor.execute('''
             SELECT DISTINCT g.lan_id, g.lan_text
             FROM mandat m
-            JOIN getlangs g ON m.lan_id = g.lan_id AND m.un_id = g.un_id AND m.ty_id = g.ty_id AND m.region_id = g.region_id
+            JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
             WHERE m.un_id = %s AND m.ty_id = %s
         ''', (un_id, ty_id))
         rows = cursor.fetchall()
@@ -276,6 +297,11 @@ async def chosen_lang(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                              reply_markup=await UserPanels.main_manu())
     else:
+        if message.text in _SECTION_BTNS:
+            await state.clear()
+            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                 reply_markup=await UserPanels.main_manu())
+            return
         data = await state.get_data()
         un_id = data["un_id"]
         ty_id = data["ty_id"]
@@ -358,7 +384,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         cursor.execute("""
             SELECT DISTINCT g.lan_id, g.lan_text
             FROM mandat m
-            JOIN getlangs g ON m.lan_id = g.lan_id AND m.un_id = g.un_id AND m.ty_id = g.ty_id AND m.region_id = g.region_id
+            JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
             WHERE m.un_id = %s AND m.ty_id = %s
         """, (un_id, ty_id))
         rows = cursor.fetchall()
@@ -372,6 +398,11 @@ async def chosen_lang(message: Message, state: FSMContext):
         await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                              reply_markup=await UserPanels.main_manu())
     else:
+        if message.text in _SECTION_BTNS:
+            await state.clear()
+            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+                                 reply_markup=await UserPanels.main_manu())
+            return
         if " - " not in message.text:
             await message.answer("Yo'nalishni ro'yxatdan tanlang yoki inline qidiruvdan foydalaning.")
             return

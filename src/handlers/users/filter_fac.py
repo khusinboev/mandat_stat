@@ -42,6 +42,14 @@ fac_router = Router()
 _PAGE = 50    # inline results per page
 _TTL  = 120   # Redis cache TTL (seconds)
 
+# Main-menu section buttons — pressing these from any FSM state should clear
+# state and return the user to the main menu.
+_SECTION_BTNS = frozenset({
+    "📊 Ball yetadigan yo'nalishlar",
+    "\U0001f4da Yo\u02bbnalishlar bo\u02bbyicha",
+    "📈 Viloyatlar kesimida",
+})
+
 # -- Redis helpers -------------------------------------------------------------
 _redis: "aioredis.Redis | None" = None
 
@@ -197,6 +205,15 @@ async def on_direction_chosen(message: Message, state: FSMContext) -> None:
         except Exception:
             pass
         await message.answer("Hech narsa topilmadi. Boshqacha so'z bilan qidiring.")
+        return
+
+    if txt in _SECTION_BTNS:
+        await state.clear()
+        await message.answer(
+            "<b>Quyidagi menulardan birini tanlang \U0001f447</b>",
+            parse_mode="html",
+            reply_markup=await UserPanels.main_manu(),
+        )
         return
 
     if not txt.startswith("\U0001f4ccDIR|"):
@@ -357,6 +374,15 @@ async def on_university_chosen(message: Message, state: FSMContext) -> None:
         await message.answer("OTM topilmadi. Boshqacha so'z bilan qidiring.")
         return
 
+    if txt in _SECTION_BTNS:
+        await state.clear()
+        await message.answer(
+            "<b>Quyidagi menulardan birini tanlang \U0001f447</b>",
+            parse_mode="html",
+            reply_markup=await UserPanels.main_manu(),
+        )
+        return
+
     if not txt.startswith("\U0001f4ccUNI|"):
         await message.answer("OTMni qidiruvdan tanlang. \U0001f446")
         return
@@ -382,7 +408,7 @@ async def on_university_chosen(message: Message, state: FSMContext) -> None:
             """
             SELECT DISTINCT g.ty_id, g.ty_text
             FROM mandat m
-            JOIN gettypes g ON m.ty_id = g.ty_id AND m.un_id = g.un_id
+            JOIN gettypes g ON m.ty_id::text = g.ty_id::text AND m.un_id::text = g.un_id::text
             WHERE m.un_id = %s AND m.mvdir = %s
             ORDER BY g.ty_text
             """,
@@ -455,6 +481,15 @@ async def on_type_chosen(message: Message, state: FSMContext) -> None:
     un_id    = data["un_id"]
     mvdir    = data["mvdir"]
     fac_name = data["fac_name"]
+
+    if txt in _SECTION_BTNS:
+        await state.clear()
+        await message.answer(
+            "<b>Quyidagi menulardan birini tanlang \U0001f447</b>",
+            parse_mode="html",
+            reply_markup=await UserPanels.main_manu(),
+        )
+        return
 
     cursor.execute(
         "SELECT ty_id, ty_text FROM gettypes WHERE lower(ty_text) = %s AND un_id = %s",
@@ -577,7 +612,7 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
                 """
                 SELECT DISTINCT g.ty_id, g.ty_text
                 FROM mandat m
-                JOIN gettypes g ON m.ty_id = g.ty_id AND m.un_id = g.un_id
+                JOIN gettypes g ON m.ty_id::text = g.ty_id::text AND m.un_id::text = g.un_id::text
                 WHERE m.un_id = %s AND m.mvdir = %s
                 ORDER BY g.ty_text
                 """,
@@ -611,6 +646,15 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
         await message.answer("Natija topilmadi.")
         return
 
+    if txt in _SECTION_BTNS:
+        await state.clear()
+        await message.answer(
+            "<b>Quyidagi menulardan birini tanlang \U0001f447</b>",
+            parse_mode="html",
+            reply_markup=await UserPanels.main_manu(),
+        )
+        return
+
     if not txt.startswith("\U0001f4ccREC|"):
         await message.answer("Natijani qidiruvdan tanlang. \U0001f446")
         return
@@ -637,11 +681,11 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
                u.un_text, g.lan_text, t.ty_text
         FROM mandat m
         JOIN universities u ON m.un_id = u.un_id
-        JOIN getlangs g ON m.lan_id    = g.lan_id
-                       AND m.un_id     = g.un_id
-                       AND m.ty_id     = g.ty_id
-                       AND m.region_id = g.region_id
-        JOIN gettypes  t ON m.ty_id = t.ty_id AND m.un_id = t.un_id
+        JOIN getlangs g ON m.lan_id::text    = g.lan_id::text
+                       AND m.un_id::text     = g.un_id::text
+                       AND m.ty_id::text     = g.ty_id::text
+                       AND m.region_id::text = g.region_id::text
+        JOIN gettypes  t ON m.ty_id::text = t.ty_id::text AND m.un_id::text = t.un_id::text
         WHERE m.un_id = %s AND m.ty_id = %s AND m.mvdir = %s
           AND m.nomi  = %s AND m.lan_id = %s
         LIMIT 1
