@@ -356,7 +356,7 @@ async def chosen_university(message: Message, state: FSMContext):
                 ress = [["Kunduzgi"]]
             elif shakl == "kn":
                 cursor.execute(
-                    "SELECT DISTINCT g.ty_text FROM gettypes g JOIN mandat m ON g.un_id = m.un_id AND g.region_id = m.region_id "
+                    "SELECT DISTINCT g.ty_text FROM gettypes g JOIN mandat m ON g.un_id::text = m.un_id::text AND g.region_id::text = m.region_id::text "
                     "WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0",
                     (reg_id, str(un_id), ball))
                 ress = cursor.fetchall()
@@ -453,7 +453,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             ress = [["Kunduzgi"]]
         elif shakl == "kn":
             cursor.execute(
-                "SELECT DISTINCT g.ty_text FROM gettypes g JOIN mandat m ON g.un_id = m.un_id AND g.region_id = m.region_id "
+                "SELECT DISTINCT g.ty_text FROM gettypes g JOIN mandat m ON g.un_id::text = m.un_id::text AND g.region_id::text = m.region_id::text "
                 "WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0 ", (reg_id, un_id, ball))
             ress = cursor.fetchall()
         keyboard = [[KeyboardButton(text=row[0])] for row in ress]

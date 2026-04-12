@@ -554,10 +554,10 @@ async def iq_records(iq: InlineQuery, state: FSMContext) -> None:
             f"""
             SELECT m.mvdir, m.nomi, g.lan_text, m.lan_id
             FROM mandat m
-            JOIN getlangs g ON m.lan_id    = g.lan_id
-                           AND m.un_id     = g.un_id
-                           AND m.ty_id     = g.ty_id
-                           AND m.region_id = g.region_id
+            JOIN getlangs g ON m.lan_id::text    = g.lan_id::text
+                           AND m.un_id::text     = g.un_id::text
+                           AND m.ty_id::text     = g.ty_id::text
+                           AND m.region_id::text = g.region_id::text
             WHERE m.un_id = %s AND m.ty_id = %s AND m.mvdir = %s AND m.nomi = %s
             {extra}
             ORDER BY g.lan_text
