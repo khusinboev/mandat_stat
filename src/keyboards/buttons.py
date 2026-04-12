@@ -138,7 +138,7 @@ class UserPanels:
         btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
-                    KeyboardButton(text="📕BAKALAVRIAT 2025"),
+                    KeyboardButton(text="📕BAKALAVRIAT 2024"),
                     KeyboardButton(text="📘O'qishni ko'chirish")
                 ],
                 [
