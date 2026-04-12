@@ -409,6 +409,9 @@ async def chosen_type(message: Message, state: FSMContext):
                                  reply_markup=await UserPanels.main_manu())
             return
         name = message.text.lower()
+        data = await state.get_data()
+        un_id = data.get("un_id")
+        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text) = %s AND un_id = %s", (name, un_id))
         ty = cursor.fetchone()
         if ty:
             ty_id = ty[0]
