@@ -1,83 +1,85 @@
-from aiogram.types import (
-    ReplyKeyboardMarkup, InlineKeyboardButton,
-    KeyboardButton, InlineKeyboardMarkup
-)
+from aiogram import types
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton, InlineKeyboardMarkup
 
-from config import db_connection, bot
+from config import sql, dp, bot, cursor, conn
 
 
 class AdminPanel:
+    @staticmethod
+    async def admin_menu():
+        btn=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [
+                            KeyboardButton(text="📊Statistika"),
+                            KeyboardButton(text="🔧Kanallar"),
+                        ],
+                        [
+                            KeyboardButton(text="🔧Adminlar👨‍💻"),
+                            KeyboardButton(text="✍Xabarlar")
+                        ],
+                        [
+
+                            KeyboardButton(text="🔧Kanallar2")
+                        ]
+                    ],
+                    resize_keyboard=True,
+                )
+        return btn
 
     @staticmethod
-    async def admin_menu() -> ReplyKeyboardMarkup:
-        return ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="📊Statistika"),
-                    KeyboardButton(text="🔧Kanallar"),
-                ],
-                [
-                    KeyboardButton(text="🔧Adminlar👨‍💻"),
-                    KeyboardButton(text="✍Xabarlar"),
-                ],
-                [
-                    KeyboardButton(text="🔧Kanallar2"),
-                ],
-            ],
-            resize_keyboard=True,
-        )
+    async def admin_channel():
+        admin_channel=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [
+                            KeyboardButton(text="➕Kanal qo'shish"),
+                            KeyboardButton(text="❌Kanalni olib tashlash"),
+                        ],
+                        [
+                            KeyboardButton(text="📋 Kanallar ro'yxati"),
+                            KeyboardButton(text="🔙Orqaga qaytish"),
+                        ]
+                    ],
+                    resize_keyboard=True,
+                )
+        return admin_channel
 
     @staticmethod
-    async def admin_channel() -> ReplyKeyboardMarkup:
-        return ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="➕Kanal qo'shish"),
-                    KeyboardButton(text="❌Kanalni olib tashlash"),
-                ],
-                [
-                    KeyboardButton(text="📋 Kanallar ro'yxati"),
-                    KeyboardButton(text="🔙Orqaga qaytish"),
-                ],
-            ],
-            resize_keyboard=True,
-        )
+    async def admin_channel2():
+        admin_channel=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [
+                            KeyboardButton(text="➕Kanal qo'shish2"),
+                            KeyboardButton(text="❌Kanalni olib tashlash2"),
+                        ],
+                        [
+                            KeyboardButton(text="📋 Kanallar ro'yxati2"),
+                            KeyboardButton(text="🔙Orqaga qaytish2"),
+                        ]
+                    ],
+                    resize_keyboard=True,
+                )
+        return admin_channel
 
     @staticmethod
-    async def admin_channel2() -> ReplyKeyboardMarkup:
-        return ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="➕Kanal qo'shish2"),
-                    KeyboardButton(text="❌Kanalni olib tashlash2"),
-                ],
-                [
-                    KeyboardButton(text="📋 Kanallar ro'yxati2"),
-                    KeyboardButton(text="🔙Orqaga qaytish2"),
-                ],
-            ],
-            resize_keyboard=True,
-        )
+    async def admin_add():
+        admin_channel=ReplyKeyboardMarkup(
+                    keyboard=[
+                        [
+                            KeyboardButton(text="➕Admin qo'shish"),
+                            KeyboardButton(text="❌Admin o'chirish"),
+                        ],
+                        [
+                            KeyboardButton(text="📋 Adminlar ro'yxati"),
+                            KeyboardButton(text="🔙Orqaga qaytish"),
+                        ]
+                    ],
+                    resize_keyboard=True,
+                )
+        return admin_channel
 
     @staticmethod
-    async def admin_add() -> ReplyKeyboardMarkup:
-        return ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="➕Admin qo'shish"),
-                    KeyboardButton(text="❌Admin o'chirish"),
-                ],
-                [
-                    KeyboardButton(text="📋 Adminlar ro'yxati"),
-                    KeyboardButton(text="🔙Orqaga qaytish"),
-                ],
-            ],
-            resize_keyboard=True,
-        )
-
-    @staticmethod
-    async def admin_msg() -> ReplyKeyboardMarkup:
-        return ReplyKeyboardMarkup(
+    async def admin_msg():
+        admin_channel = ReplyKeyboardMarkup(
             keyboard=[
                 [
                     KeyboardButton(text="📨Forward xabar yuborish"),
@@ -85,84 +87,75 @@ class AdminPanel:
                 ],
                 [
                     KeyboardButton(text="🧪Sinov: Copy yuborish"),
-                    KeyboardButton(text="🧪Sinov: Forward yuborish"),
+                    KeyboardButton(text="🧪Sinov: Forward yuborish")
                 ],
                 [
                     KeyboardButton(text="🔙Orqaga qaytish"),
-                ],
+                ]
             ],
             resize_keyboard=True,
         )
+        return admin_channel
 
 
 class UserPanels:
-
     @staticmethod
-    async def join_btn(user_id: int) -> InlineKeyboardMarkup:
-        with db_connection() as (conn, cur):
-            cur.execute("SELECT chat_id FROM public.mandatorys")
-            rows = cur.fetchall()
-
+    async def join_btn(user_id):
+        sql.execute("SELECT chat_id FROM public.mandatorys")
+        rows = sql.fetchall()
         join_inline = []
-        for index, (chat_id,) in enumerate(rows, 1):
-            try:
-                chat = await bot.get_chat(chat_id=chat_id)
-                url = chat.invite_link or await bot.export_chat_invite_link(chat_id)
-                join_inline.append([
-                    InlineKeyboardButton(text=f"{index} - kanal", url=url)
-                ])
-            except Exception:
-                pass
-
-        join_inline.append([
-            InlineKeyboardButton(text="✅Obuna bo'ldim", callback_data="check")
-        ])
-        return InlineKeyboardMarkup(inline_keyboard=join_inline)
+        title = 1
+        for row in rows:
+            all_details = await bot.get_chat(chat_id=row[0])
+            url = all_details.invite_link
+            if not url:
+                url = await bot.export_chat_invite_link(row[0])
+            join_inline.append([InlineKeyboardButton(text=f"{title} - kanal", url=url)])
+            title += 1
+        join_inline.append([InlineKeyboardButton(text="✅Obuna bo'ldim", callback_data="check")])
+        button = InlineKeyboardMarkup(inline_keyboard=join_inline)
+        return button
 
     @staticmethod
-    async def main_manu() -> ReplyKeyboardMarkup:
-        """Bakalavriat 2025 ichki menyusi."""
-        return ReplyKeyboardMarkup(
+    async def main_manu():
+        btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
                     KeyboardButton(text="📊 Ball yetadigan yo'nalishlar"),
                     KeyboardButton(text="📚 Yoʻnalishlar boʻyicha"),
                 ],
                 [
-                    KeyboardButton(text="📈 Viloyatlar kesimida"),
+                    KeyboardButton(text="📈 Viloyatlar kesimida")
                 ],
-                [
-                    KeyboardButton(text="◀️ Ortga"),
-                ],
+                [KeyboardButton(text="◀️ Ortga")]
             ],
             resize_keyboard=True,
         )
+        return btn
 
     @staticmethod
-    async def asos_manu() -> ReplyKeyboardMarkup:
-        """Bosh menyu."""
-        return ReplyKeyboardMarkup(
+    async def asos_manu():
+        btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
-                    # ✅ 2024 → 2025 tuzatildi
                     KeyboardButton(text="📕BAKALAVRIAT 2025"),
-                    KeyboardButton(text="📘O'qishni ko'chirish"),
+                    KeyboardButton(text="📘O'qishni ko'chirish")
                 ],
                 [
-                    KeyboardButton(text="📚 Namunaviy test topshiriqlari"),
-                ],
+                    KeyboardButton(text="📚 Namunaviy test topshiriqlari")
+                ]
             ],
             resize_keyboard=True,
         )
+        return btn
 
     @staticmethod
-    async def move_manu() -> ReplyKeyboardMarkup:
-        """O'qishni ko'chirish menyusi."""
-        return ReplyKeyboardMarkup(
+    async def move_manu():
+        btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
                     KeyboardButton(text="📝 Baholash mezonlari️"),
-                    KeyboardButton(text="📚 Fanlar majmuasi️"),
+                    KeyboardButton(text="📚 Fanlar majmuasi️")
                 ],
                 [
                     KeyboardButton(text="📊 O'tish ballari️"),
@@ -170,38 +163,35 @@ class UserPanels:
                 ],
                 [
                     KeyboardButton(text="🧮 Tabaqalashtirilgan kontrakt miqdori"),
-                    KeyboardButton(text="📄 Transkript yuklash"),
+                    KeyboardButton(text="📄 Transkript yuklash")
                 ],
                 [
-                    KeyboardButton(text="◀️ Ortga"),
-                ],
+                    KeyboardButton(text="◀️ Ortga")
+                ]
             ],
             resize_keyboard=True,
         )
+        return btn
 
     @staticmethod
-    async def ball_btn() -> ReplyKeyboardMarkup:
-        return ReplyKeyboardMarkup(
+    async def ball_btn():
+        btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
                     KeyboardButton(text="🏆 Grand"),
                     KeyboardButton(text="📄 Kontrakt"),
                 ],
                 [
-                    KeyboardButton(text="🔙 Ortga"),
-                ],
-            ],
-            resize_keyboard=True,
-        )
-
-    @staticmethod
-    async def to_back() -> ReplyKeyboardMarkup:
-        return ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="🔙 Ortga"),
-                    KeyboardButton(text="🔙 Bosh menu"),
+                    KeyboardButton(text="🔙 Ortga")
                 ]
             ],
             resize_keyboard=True,
         )
+        return btn
+
+    @staticmethod
+    async def to_back():
+        btn = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")]], resize_keyboard=True,
+        )
+        return btn
