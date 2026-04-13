@@ -38,13 +38,22 @@ load_dotenv()
 BASE_URL = "https://my.uzbmb.uz"
 
 # Rate limiting
-DELAY_MIN = 0.5
-DELAY_MAX = 1.5
-CONCURRENT_REQUESTS = 3
+DELAY_MIN = 2.0
+DELAY_MAX = 4.0
+CONCURRENT_REQUESTS = 1
 
 # Retry sozlamalari
-MAX_RETRIES = 3
-BACKOFF_FACTOR = 2
+MAX_RETRIES = 5
+BACKOFF_FACTOR = 3
+
+# User-Agents
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
+]
 
 # Logging
 logging.basicConfig(
@@ -330,51 +339,112 @@ class UzbmbParser:
                 clean_all_parser_tables(self.conn, drop_tables=True)
             create_tables(self.conn)
 
-        self.headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "uz-UZ,uz;q=0.9,ru;q=0.8",
+    def get_random_headers(self):
+        """Random headers yaratish."""
+        return {
+            "User-Agent": random.choice(USER_AGENTS),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "uz-UZ,uz;q=0.9,ru;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Cache-Control": "no-cache",
             "Referer": f"{BASE_URL}/university/1",
         }
 
     async def __aenter__(self):
-        timeout = aiohttp.ClientTimeout(total=30)
+        timeout = aiohttp.ClientTimeout(total=60, connect=30, sock_read=30)
+        connector = aiohttp.TCPConnector(
+            limit_per_host=1,
+            limit=1,
+            ttl_dns_cache=300,
+            ssl=True
+        )
         self.session = aiohttp.ClientSession(
             timeout=timeout,
-            headers=self.headers
+            connector=connector,
+            headers=self.get_random_headers()
         )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.session:
             await self.session.close()
+            await asyncio.sleep(1)
         if self.conn:
             self.conn.close()
 
     async def fetch(self, url: str, retries: int = 0) -> Optional[str]:
-        """URL dan HTML olish (retry bilan)."""
+        """URL dan HTML olish (retry bilan va 400 xatosiga maxsus muomala)."""
         async with self.semaphore:
             try:
-                async with self.session.get(url) as resp:
+                delay = random.uniform(DELAY_MIN, DELAY_MAX)
+                await asyncio.sleep(delay)
+                
+                headers = self.get_random_headers()
+                async with self.session.get(
+                    url,
+                    headers=headers,
+                    allow_redirects=True,
+                    ssl=True
+                ) as resp:
                     if resp.status == 200:
-                        await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
                         return await resp.text()
-                    elif resp.status == 429 and retries < MAX_RETRIES:
-                        wait = BACKOFF_FACTOR ** (retries + 1)
-                        log.warning(f"429 xato, {wait}s kutish... ({url})")
-                        await asyncio.sleep(wait)
-                        return await self.fetch(url, retries + 1)
+                    
+                    elif resp.status == 400:
+                        # 400 xatosi - rate limiting yoki request noto'g'ri
+                        wait = BACKOFF_FACTOR ** (retries + 2) + random.uniform(1, 5)
+                        if retries < MAX_RETRIES:
+                            log.warning(f"HTTP 400: {url} — {wait:.1f}s kutish (urinish {retries + 1}/{MAX_RETRIES})")
+                            await asyncio.sleep(wait)
+                            return await self.fetch(url, retries + 1)
+                        else:
+                            log.error(f"HTTP 400 (barcha urinishlar muvaffaqiyatsiz): {url}")
+                            return None
+                    
+                    elif resp.status == 429:
+                        # 429 Too Many Requests
+                        wait = BACKOFF_FACTOR ** (retries + 2) + random.uniform(2, 8)
+                        if retries < MAX_RETRIES:
+                            log.warning(f"HTTP 429 (rate limit): {url} — {wait:.1f}s kutish")
+                            await asyncio.sleep(wait)
+                            return await self.fetch(url, retries + 1)
+                        else:
+                            log.error(f"HTTP 429: {url} (batafsil kutish kutildi)")
+                            return None
+                    
+                    elif resp.status in (500, 502, 503, 504):
+                        # Server xatosi - retry
+                        wait = BACKOFF_FACTOR ** (retries + 1) + random.uniform(1, 3)
+                        if retries < MAX_RETRIES:
+                            log.warning(f"HTTP {resp.status}: {url} — {wait:.1f}s kutish (urinish {retries + 1}/{MAX_RETRIES})")
+                            await asyncio.sleep(wait)
+                            return await self.fetch(url, retries + 1)
+                        else:
+                            log.error(f"HTTP {resp.status}: {url} (barcha urinishlar muvaffaqiyatsiz)")
+                            return None
+                    
                     else:
                         log.error(f"HTTP {resp.status}: {url}")
                         return None
-            except Exception as e:
+                        
+            except asyncio.TimeoutError:
+                wait = BACKOFF_FACTOR ** (retries + 1) + random.uniform(2, 5)
                 if retries < MAX_RETRIES:
-                    wait = BACKOFF_FACTOR ** (retries + 1)
-                    log.warning(f"Xato: {e}, {wait}s kutish... ({url})")
+                    log.warning(f"Timeout: {url} — {wait:.1f}s kutish (urinish {retries + 1}/{MAX_RETRIES})")
+                    await asyncio.sleep(wait)
+                    return await self.fetch(url, retries + 1)
+                log.error(f"Timeout (barcha urinishlar muvaffaqiyatsiz): {url}")
+                return None
+            
+            except Exception as e:
+                wait = BACKOFF_FACTOR ** (retries + 1) + random.uniform(1, 3)
+                if retries < MAX_RETRIES:
+                    log.warning(f"Xato: {type(e).__name__}: {e} — {wait:.1f}s kutish (urinish {retries + 1}/{MAX_RETRIES})")
                     await asyncio.sleep(wait)
                     return await self.fetch(url, retries + 1)
                 log.error(f"Barcha urinishlar muvaffaqiyatsiz: {url}")
@@ -629,11 +699,13 @@ class UzbmbParser:
 
         # Qolgan sahifalar
         for page in range(2, total_pages + 1):
+            await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
             page_url = f"{BASE_URL}/university-about-direction/{uni_id}?page={page}"
             page_html = await self.fetch(page_url)
             if page_html:
                 page_items = self.parse_directions_to_mandat(page_html, uni_id, region_id)
                 mandat_items.extend(page_items)
+            await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
         # Saqlash
         saved_count = 0
@@ -710,13 +782,17 @@ class UzbmbParser:
             log.error(f"✗ Viloyat sahifasi yuklanmadi")
             return
 
+        await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
+
         # Universitetlarni ajratish
         universities = self.parse_universities(html, region_id)
         log.info(f"  Topilgan universitetlar: {len(universities)}")
 
         # Har bir universitetni parse qilish
-        for uni in universities:
+        for i, uni in enumerate(universities):
             await self.parse_university_directions(uni, region_id)
+            if i < len(universities) - 1:  # Oxirgi undan keyin sleep qilmaslik
+                await asyncio.sleep(random.uniform(DELAY_MIN, DELAY_MAX))
 
         save_progress(region_id)
         log.info(f"  ✓ Viloyat #{region_id} tugadi")
@@ -746,8 +822,10 @@ class UzbmbParser:
         total_mandat = 0
 
         # Har bir viloyat
-        for region in regions:
+        for i, region in enumerate(regions):
             await self.parse_region(region, last_region)
+            if i < len(regions) - 1:  # Oxirgi viloyatdan keyin sleep qilmaslik
+                await asyncio.sleep(random.uniform(2, 4))
 
         # Yakunlash
         log.info("\n" + "="*60)
