@@ -4,38 +4,32 @@ from PIL import Image, ImageDraw, ImageFont
 from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.filters import CommandStart
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \
-    InlineQueryResultArticle, InputTextMessageContent, ChosenInlineResult, WebAppInfo
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
 
-from config import sql, bot, ADMIN_ID, cursor, conn
+from config import bot, ADMIN_ID
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 
 user_router = Router()
 
-class FormFac(StatesGroup):
-    fac1 = State()
-    fac2 = State()
-    fac3 = State()
-    fac4 = State()
-    fac5 = State()
 
 @user_router.message(CommandStart())
-async def start_cmd1(message: Message):
+async def start_cmd1(message: Message, state: FSMContext):
+    await state.clear()
     await message.answer("Botimizga xush kelibsiz, kerakli bo'limni tanlab va davom eting!", parse_mode="html", reply_markup=await UserPanels.asos_manu())
 
-@user_router.callback_query(F.data == "check", F.message.chat.type == ChatType.PRIVATE)
-async def check(call: CallbackQuery):
+@user_router.callback_query(F.data.in_({"check", "check2"}), F.message.chat.type == ChatType.PRIVATE)
+async def check_membership(call: CallbackQuery):
     user_id = call.from_user.id
+    check_fn = CheckData.check_member2 if call.data == "check2" else CheckData.check_member
     try:
-        check_status, channels = await CheckData.check_member(bot, user_id)
+        check_status, channels = await check_fn(bot, user_id)
         if check_status:
             try:
                 await call.message.delete()
                 await call.answer()
-            except:
+            except Exception:
                 pass
             await bot.send_message(chat_id=user_id,
                                    text="Quyidagi menulardan birini tanlang!",
@@ -43,54 +37,30 @@ async def check(call: CallbackQuery):
         else:
             try:
                 await call.answer(show_alert=True, text="Botimizdan foydalanish uchun barcha kanallarga a'zo bo'ling")
-            except:
+            except Exception:
                 try:
                     await call.answer()
-                except:
+                except Exception:
                     pass
     except Exception as e:
         await bot.forward_message(chat_id=ADMIN_ID[0], from_chat_id=call.message.chat.id, message_id=call.message.message_id)
         await bot.send_message(chat_id=ADMIN_ID[0], text=f"Error in check:\n{e}")
 
 
-@user_router.callback_query(F.data == "check2", F.message.chat.type == ChatType.PRIVATE)
-async def check2(call: CallbackQuery):
-    user_id = call.from_user.id
-    try:
-        check_status, channels = await CheckData.check_member2(bot, user_id)
-        if check_status:
-            try:
-                await call.message.delete()
-                await call.answer()
-            except:
-                pass
-            await bot.send_message(chat_id=user_id,
-                                   text="Quyidagi menulardan birini tanlang!",
-                                   parse_mode="html", reply_markup=await UserPanels.asos_manu())
-        else:
-            try:
-                await call.answer(show_alert=True, text="Botimizdan foydalanish uchun barcha kanallarga a'zo bo'ling")
-            except:
-                try:
-                    await call.answer()
-                except:
-                    pass
-    except Exception as e:
-        await bot.forward_message(chat_id=ADMIN_ID[0], from_chat_id=call.message.chat.id, message_id=call.message.message_id)
-        await bot.send_message(chat_id=ADMIN_ID[0], text=f"Error in check:\n{e}")
-
-
-@user_router.message(F.text == "📕BAKALAVRIAT 2024")
-async def start_cmd2(message: Message):
+@user_router.message(F.text == "📕BAKALAVRIAT 2025")
+async def start_cmd2(message: Message, state: FSMContext):
+    await state.clear()
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.main_manu())
 
 @user_router.message(F.text == "◀️ Ortga")
-async def start_cmd3(message: Message):
+async def start_cmd3(message: Message, state: FSMContext):
+    await state.clear()
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.asos_manu())
 
 
 @user_router.message(F.text == "📘O'qishni ko'chirish")
-async def start_cmd4(message: Message):
+async def start_cmd4(message: Message, state: FSMContext):
+    await state.clear()
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.move_manu())
 
 @user_router.message(F.text == "📝 Baholash mezonlari️")
@@ -149,7 +119,7 @@ async def start_cmd6(message: Message):
         caption="<b>📕 FANLAR MAJMUASI! \n\n"
 "📝 O'qishni ko'chirish imtihonlarida test topshiriladigan fanlar majmuasi.\n\n"
 "✔️ Yo'nalishlar bo'yicha qaysi fandan imtihon bo'lishi ko'rsatilgan.\n\n"
-"⚠️ Oʻqishni koʻchirishda aynan mana shu 2024/2025-o'quv yilidagi fanlar majmuasidan foydalaniladi. \n\n"
+"⚠️ Oʻqishni koʻchirishda aynan mana shu 2025/2026-o'quv yilidagi fanlar majmuasidan foydalaniladi. \n\n"
 "© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>"
     , parse_mode="html")
     else:
@@ -204,7 +174,7 @@ async def start_cmd9(message: Message):
                              reply_markup=await CheckData.channels_btn2(channels))
 
 @user_router.message(F.text == "📄 Transkript yuklash")
-async def start_cmd(message: Message):
+async def transkript_handler(message: Message):
     check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
     if check_status:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -218,7 +188,7 @@ async def start_cmd(message: Message):
 
 
 @user_router.message(F.text == "📚 Namunaviy test topshiriqlari")
-async def start_cmd(message: Message):
+async def sample_tests_handler(message: Message):
     check_status, channels = await CheckData.check_member(bot, message.from_user.id)
 
     if check_status:
@@ -299,13 +269,18 @@ def create_card(univer, faculty, lang, edu, grand, kont, olmp, name):
 
         # Shriftlarni yuklash (o'zingizga mos fayllarni ko'rsating)
         try:
-            title_font = ImageFont.truetype(CURRENT_DIR+"/Quicksand-Bold.otf", 100)
-            main_font = ImageFont.truetype(CURRENT_DIR+"/Quicksand-Bold.otf", 90)
-        except:
-            # Agar shriftlar topilmasa, standart shriftlardan foydalanish
-            title_font = ImageFont.load_default()
-            main_font = ImageFont.load_default()
-            small_font = ImageFont.load_default()
+            # DejaVu Sans Bold — kirill va lotin harflarini qo'llab-quvvatlaydi
+            font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+            title_font = ImageFont.truetype(font_path, 100)
+            main_font = ImageFont.truetype(font_path, 90)
+        except Exception:
+            try:
+                # Fallback: loyiha ichidagi Quicksand (faqat lotin)
+                title_font = ImageFont.truetype(CURRENT_DIR+"/Quicksand-Bold.otf", 100)
+                main_font = ImageFont.truetype(CURRENT_DIR+"/Quicksand-Bold.otf", 90)
+            except Exception:
+                title_font = ImageFont.load_default()
+                main_font = ImageFont.load_default()
 
         # 1. Universitet nomi (binoning ustidagi ochiq maydonga)
         draw.text((500, 200), str(univer), font=title_font, fill="black")
@@ -321,7 +296,7 @@ def create_card(univer, faculty, lang, edu, grand, kont, olmp, name):
         draw.text((1500, 1600), str(edu), font=main_font, fill="white")
 
         # 5. Mandat yili
-        draw.text((2450, 1600), "2024", font=main_font, fill="white")
+        draw.text((2450, 1600), "2025", font=main_font, fill="white")
 
         # 6. Grantlar
         draw.text((650, 2120), str(grand), font=main_font, fill="black")

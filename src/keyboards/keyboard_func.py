@@ -1,16 +1,14 @@
-import os
-
 from aiogram import Bot
 from aiogram.filters import BaseFilter
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, User, FSInputFile, Message
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, User, Message
 
 from config import sql, db, bot, ADMIN_ID
 
 
 class CheckData:
     @staticmethod
-    async def check_member(bot: Bot, user_id: int):
-        sql.execute("SELECT chat_id FROM public.mandatorys")
+    async def check_member(bot: Bot, user_id: int, table: str = "mandatorys"):
+        sql.execute(f"SELECT chat_id FROM public.{table}")
         mandatory = sql.fetchall()
         if not mandatory:
             return True, []
@@ -21,52 +19,19 @@ class CheckData:
                 r = await bot.get_chat_member(chat_id=chat_id[0], user_id=user_id)
                 if r.status == "left" and user_id not in ADMIN_ID:
                     channels.append(chat_id[0])
-                print(channels)
             except Exception as e:
                 print(f"Xatolik: {e}")
         return (len(channels) == 0), channels
-
-    @staticmethod
-    async def channels_btn(channels: list):
-        keyboard = []
-        for index, channel_id in enumerate(channels, 1):
-            sql.execute("SELECT username FROM public.mandatorys WHERE chat_id=%s", (channel_id,))
-            link = sql.fetchone()
-            if link:
-                keyboard.append([
-                    InlineKeyboardButton(
-                        text=f"📢 Kanal-{index}",
-                        url=link[0]
-                    )
-                ])
-        keyboard.append([InlineKeyboardButton(text="✅Qo'shildim", callback_data="check")])
-        return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-
 
     @staticmethod
     async def check_member2(bot: Bot, user_id: int):
-        sql.execute("SELECT chat_id FROM public.kanallar2")
-        mandatory = sql.fetchall()
-        if not mandatory:
-            return True, []
-
-        channels = []
-        for chat_id in mandatory:
-            try:
-                r = await bot.get_chat_member(chat_id=chat_id[0], user_id=user_id)
-                if r.status == "left" and user_id not in ADMIN_ID:
-                    channels.append(chat_id[0])
-                print(channels)
-            except Exception as e:
-                print(f"Xatolik: {e}")
-        return (len(channels) == 0), channels
+        return await CheckData.check_member(bot, user_id, table="kanallar2")
 
     @staticmethod
-    async def channels_btn2(channels: list):
+    async def channels_btn(channels: list, table: str = "mandatorys", callback: str = "check"):
         keyboard = []
         for index, channel_id in enumerate(channels, 1):
-            sql.execute("SELECT username FROM public.kanallar2 WHERE chat_id=%s", (channel_id,))
+            sql.execute(f"SELECT username FROM public.{table} WHERE chat_id=%s", (channel_id,))
             link = sql.fetchone()
             if link:
                 keyboard.append([
@@ -75,64 +40,58 @@ class CheckData:
                         url=link[0]
                     )
                 ])
-        keyboard.append([InlineKeyboardButton(text="✅Qo'shildim", callback_data="check2")])
+        keyboard.append([InlineKeyboardButton(text="✅Qo'shildim", callback_data=callback)])
         return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+    @staticmethod
+    async def channels_btn2(channels: list):
+        return await CheckData.channels_btn(channels, table="kanallar2", callback="check2")
 
 
 class PanelFunc:
     @staticmethod
-    async def channel_add(chat_id, link):
-        sql.execute("INSERT INTO public.mandatorys (chat_id, username) VALUES (%s, %s)", (chat_id, link))
+    async def channel_add(chat_id, link, table: str = "mandatorys"):
+        sql.execute(f"INSERT INTO public.{table} (chat_id, username) VALUES (%s, %s)", (chat_id, link))
         db.commit()
-
-    @staticmethod
-    async def channel_delete(id):
-        sql.execute("DELETE FROM public.mandatorys WHERE chat_id = %s", (id,))
-        db.commit()
-
-    @staticmethod
-    async def channel_list():
-        sql.execute("SELECT chat_id, username from public.mandatorys")
-        str = ''
-        for row in sql.fetchall():
-            chat_id = row[0]
-            try:
-                all_details = await bot.get_chat(chat_id=chat_id)
-                title = all_details.title
-                channel_id = all_details.id
-                channel_id = row[1]
-                info = all_details.description
-                str += f"------------------------------------------------\nKanal useri: > @{all_details.username}\nKamal nomi: > {title}\nKanal id si: > {channel_id}\nKanal haqida: > {info}\n"
-            except Exception as e:
-                str += f"Kanalni admin qiling\n\nError: {e}"
-        return str
 
     @staticmethod
     async def channel_add2(chat_id, link):
-        sql.execute("INSERT INTO public.kanallar2 (chat_id, username) VALUES (%s, %s)", (chat_id, link))
+        await PanelFunc.channel_add(chat_id, link, table="kanallar2")
+
+    @staticmethod
+    async def channel_delete(id, table: str = "mandatorys"):
+        sql.execute(f"DELETE FROM public.{table} WHERE chat_id = %s", (id,))
         db.commit()
 
     @staticmethod
     async def channel_delete2(id):
-        sql.execute("DELETE FROM public.kanallar2 WHERE chat_id = %s", (id,))
-        db.commit()
+        await PanelFunc.channel_delete(id, table="kanallar2")
 
     @staticmethod
-    async def channel_list2():
-        sql.execute("SELECT chat_id, username from public.kanallar2")
-        str = ''
+    async def channel_list(table: str = "mandatorys"):
+        sql.execute(f"SELECT chat_id, username from public.{table}")
+        result = ''
         for row in sql.fetchall():
             chat_id = row[0]
             try:
                 all_details = await bot.get_chat(chat_id=chat_id)
                 title = all_details.title
-                channel_id = all_details.id
-                channel_id = row[1]
+                link = row[1]
                 info = all_details.description
-                str += f"------------------------------------------------\nKanal useri: > @{all_details.username}\nKamal nomi: > {title}\nKanal id si: > {channel_id}\nKanal haqida: > {info}\n"
+                result += (
+                    f"------------------------------------------------\n"
+                    f"Kanal useri: > @{all_details.username}\n"
+                    f"Kamal nomi: > {title}\n"
+                    f"Kanal id si: > {link}\n"
+                    f"Kanal haqida: > {info}\n"
+                )
             except Exception as e:
-                str += f"Kanalni admin qiling\n\nError: {e}"
-        return str
+                result += f"Kanalni admin qiling\n\nError: {e}"
+        return result
+
+    @staticmethod
+    async def channel_list2():
+        return await PanelFunc.channel_list(table="kanallar2")
 
     @staticmethod
     async def admin_add(chat_id):
@@ -147,25 +106,14 @@ class PanelFunc:
     @staticmethod
     async def admin_list():
         sql.execute("SELECT user_id from public.admins")
-        str = ""
+        result = ""
         for row in sql.fetchall():
             chat_id = row[0]
             try:
                 user: User = await bot.get_chat(chat_id)
                 username = f"@{user.username}" if user.username else "❌ Topilmadi"
                 full_name = user.full_name
-                str += f"👤 Foydalanuvchi:\n🔹 Ism: {full_name}\n🔹 Username: {username}\n🔹 ID: <code>{user.id}</code>\n\n"
+                result += f"👤 Foydalanuvchi:\n🔹 Ism: {full_name}\n🔹 Username: {username}\n🔹 ID: <code>{user.id}</code>\n\n"
             except Exception as e:
-                str += f"xatolik:\n" + f"🔹 ID: <code>{chat_id}</code>\n\n"
-        return str
-
-
-class AdminFilter(BaseFilter):
-    def __init__(self, static_admins: list[int]):
-        self.static_admins = static_admins
-
-    async def __call__(self, message: Message) -> bool:
-        sql.execute("SELECT user_id FROM public.admins")
-        db_admins = [int(row[0]) for row in sql.fetchall()]
-        all_admins = set(db_admins + self.static_admins)
-        return message.from_user.id in all_admins
+                result += f"xatolik:\n🔹 ID: <code>{chat_id}</code>\n\n"
+        return result

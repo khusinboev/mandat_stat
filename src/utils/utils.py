@@ -1,4 +1,3 @@
-import aiohttp
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
@@ -6,19 +5,11 @@ def extract_unique_code(text: str):
     return words[1] if len((words := text.split())) > 1 else None
 
 
-def build_inline_keyboard(text: str) -> InlineKeyboardMarkup:
+def build_inline_keyboard(markup_text: str) -> InlineKeyboardMarkup:
     keyboard = []
-
-    for column in text.strip().split("\n"):
-        print(column)
-        keyboard.append(
-            [
-                InlineKeyboardButton(text=text.strip(), url=url.strip())
-
-                for text, url in [
-                    _.split("|")
-                    for _ in column.split("&")]
-            ]
-        )
-
+    for column in markup_text.strip().split("\n"):
+        keyboard.append([
+            InlineKeyboardButton(text=btn_text.strip(), url=btn_url.strip())
+            for btn_text, btn_url in [part.split("|") for part in column.split("&")]
+        ])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

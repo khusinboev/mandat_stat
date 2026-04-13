@@ -9,10 +9,9 @@ Flow:
 Inline xabarlar patak prefiksi bilan kodlanadi va darhol o'chiriladi.
 Redis orqali qidiruv natijalari 120 soniya davomida keshlangan bo'ladi.
 """
-
 import json
 import os
-from hashlib import md5
+from _md5 import md5
 
 import redis.asyncio as aioredis
 from aiogram import Router, F

@@ -2,7 +2,6 @@ import os
 
 from aiogram import Router, F
 from aiogram.enums import ChatType
-from aiogram.filters import CommandStart
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \
@@ -207,21 +206,20 @@ async def chosen_type(message: Message, state: FSMContext):
         await message.delete()
         await state.set_state(FormReg.reg2)
         data = await state.get_data()
-        un_id = data.get("un_id")
-        cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE un_id=%s", (un_id,))
-        rows = cursor.fetchall()
-        keyboard = []
-        for row in rows:
-            region_name = row[1]
-            keyboard.append([KeyboardButton(text=region_name)])
-
-        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-
-        btn = ReplyKeyboardMarkup(
-            keyboard=keyboard,
-            resize_keyboard=True,
+        region_name = data.get("region_name")
+        cursor.execute(
+            "SELECT u.un_text FROM regions r JOIN universities u ON r.region_id = u.region_id WHERE r.region_name = %s ORDER BY u.un_text",
+            (region_name,),
         )
-        await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+        rows = cursor.fetchall()
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+        ])
+        keyboard = [[KeyboardButton(text=row[0])] for row in rows]
+        keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        await message.answer(f"<b>Siz tanlagan hududda {len(rows)} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=btn)
+        await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
     elif message.text == "🔙 Bosh menu":
         await message.delete()
         await state.clear()
@@ -272,26 +270,14 @@ async def chosen_lang(message: Message, state: FSMContext):
         await message.delete()
         await state.set_state(FormReg.reg3)
         data = await state.get_data()
-        ty_id = data.get("ty_id")
         un_id = data.get("un_id")
-        cursor.execute('''
-            SELECT DISTINCT g.lan_id, g.lan_text
-            FROM mandat m
-            JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
-            WHERE m.un_id = %s AND m.ty_id = %s
-        ''', (un_id, ty_id))
+        region_id = data.get("region_id")
+        cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=%s AND un_id=%s", (region_id, un_id))
         rows = cursor.fetchall()
-        keyboard = []
-        for row1, row2 in rows:
-            keyboard.append([KeyboardButton(text=row2[:60])])
-
+        keyboard = [[KeyboardButton(text=row[1])] for row in rows]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-
-        btn = ReplyKeyboardMarkup(
-            keyboard=keyboard,
-            resize_keyboard=True,
-        )
-        await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
+        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+        await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
     elif message.text == "🔙 Bosh menu":
         await message.delete()
         await state.clear()
@@ -378,7 +364,7 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
 async def chosen_lang(message: Message, state: FSMContext):
     if message.text == "🔙 Ortga":
         await message.delete()
-        await state.set_state(FormReg.reg3)
+        await state.set_state(FormReg.reg4)
         data = await state.get_data()
         ty_id = data.get("ty_id")
         un_id = data.get("un_id")

@@ -1,9 +1,9 @@
 import os
-import psycopg2  # <-- faqat bu qo‘shildi
 
 from aiogram import Router, F
+# removed  # <-- faqat bu qo‘shildi
+
 from aiogram.enums import ChatType
-from aiogram.filters import CommandStart
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \

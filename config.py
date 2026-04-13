@@ -7,11 +7,9 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.storage.redis import RedisStorage
 from dotenv import load_dotenv
-import sqlite3
 
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
@@ -31,6 +29,10 @@ db = psycopg2.connect(
 db.autocommit = True
 sql = db.cursor()
 
+# Backward-compatible aliases used by filter handlers
+conn = db
+cursor = sql
+
 DB_POOL_MIN_CONN = int(os.getenv("DB_POOL_MIN_CONN", "1"))
 DB_POOL_MAX_CONN = int(os.getenv("DB_POOL_MAX_CONN", "20"))
 db_pool = SimpleConnectionPool(DB_POOL_MIN_CONN, DB_POOL_MAX_CONN, **DB_CONFIG)
@@ -44,8 +46,3 @@ if REDIS_URL:
 else:
     storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
-
-conn = db
-cursor = sql
-# conn = sqlite3.connect("src/db/savollar.db")
-# cursor = conn.cursor()
