@@ -698,7 +698,7 @@ class UzbmbParser:
             self.conn.commit()
 
         # Asosiy sahifani olish
-        html = await self.fetch(f"{BASE_URL}/university/1")
+        html = await self.fetch(f"{BASE_URL}/university/{region_id}")
         if not html:
             log.error(f"✗ Viloyat sahifasi yuklanmadi")
             return
