@@ -32,7 +32,7 @@ load_dotenv()
 BASE_URL = "https://my.uzbmb.uz"
 
 # Faqat shu uchta viloyat ID lari (logdagi ID lar)
-TARGET_REGION_IDS = {1730, 1733, 1735}
+TARGET_REGION_IDS = {1727, 1730, 1733, 1735}
 
 # Rate limiting
 DELAY_MIN = 0.5
