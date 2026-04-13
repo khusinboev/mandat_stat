@@ -678,7 +678,7 @@ class UzbmbParser:
 
         log.info(f"    ✓ {saved_count} ta yo'nalish saqlandi")
 
-    async def parse_region(self, region: Dict[str, Any], last_region: int):
+    async def parse_region(self, region: Dict[str, Any], last_region: int, main_html: str):
         """Bitta viloyatning barcha universitetlarini parse qilish."""
         region_id = region['region_id']
         region_name = region['region_name']
@@ -697,14 +697,8 @@ class UzbmbParser:
                 upsert_region(cur, region_id, region_name)
             self.conn.commit()
 
-        # Asosiy sahifani olish
-        html = await self.fetch(f"{BASE_URL}/university/1")
-        if not html:
-            log.error(f"✗ Viloyat sahifasi yuklanmadi")
-            return
-
         # Universitetlarni ajratish
-        universities = self.parse_universities(html, region_id)
+        universities = self.parse_universities(main_html, region_id)
         log.info(f"  Topilgan universitetlar: {len(universities)}")
 
         # Har bir universitetni parse qilish
@@ -740,7 +734,7 @@ class UzbmbParser:
 
         # Har bir viloyat
         for region in regions:
-            await self.parse_region(region, last_region)
+            await self.parse_region(region, last_region, html)
 
         # Yakunlash
         log.info("\n" + "="*60)

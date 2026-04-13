@@ -128,6 +128,10 @@ async def chosen_university(message: Message, state: FSMContext):
                 btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
                 await message.answer(f"<b>Siz tanlagan hududda {len(un_id)} ta oliygohda mavjud\n\n🏢 OTMni tanlang:</b>", parse_mode="html", reply_markup=btn)
                 await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+            else:
+                await message.answer(f"<b>❌ '{region_name}' hududi uchun universitetlar ma'lumotlari topilmadi.</b>", parse_mode="html")
+        else:
+            await message.answer("<b>❌ Hududni topa olmadim. Iltimos, ro'yxatdan tanlang.</b>", parse_mode="html")
 
 
 @reg_router.inline_query(FormReg.reg2)
