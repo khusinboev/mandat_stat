@@ -412,6 +412,13 @@ class UzbmbParser:
         )
 
         if not tab:
+            # Debug: Qaysi data-id lar mavjud ekanligini ko'rish
+            all_tabs = soup.find_all(
+                lambda tag: tag.name == "div"
+                and "bd-university-tab-content" in tag.get("class", [])
+            )
+            found_ids = [t.get("data-id") for t in all_tabs if t.get("data-id")]
+            log.warning(f"[DEBUG] Region {region_id} uchun tab topilmadi. Mavjud data-id lar: {found_ids}")
             return unis
 
         for a in tab.select("a[href]"):
@@ -698,7 +705,7 @@ class UzbmbParser:
             self.conn.commit()
 
         # Asosiy sahifani olish
-        html = await self.fetch(f"{BASE_URL}/university/{region_id}")
+        html = await self.fetch(f"{BASE_URL}/university/1")
         if not html:
             log.error(f"✗ Viloyat sahifasi yuklanmadi")
             return
