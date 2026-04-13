@@ -38,7 +38,7 @@ load_dotenv()
 BASE_URL = "https://my.uzbmb.uz"
 
 # Rate limiting
-ELAY_MIN = 0.5
+DELAY_MIN = 0.5
 DELAY_MAX = 1.5
 CONCURRENT_REQUESTS = 3
 
