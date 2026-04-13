@@ -14,6 +14,8 @@ from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 
 reg_router = Router()
+_SCORE_YEAR = 2025
+_CAPTION_YEARS = (2025, 2024, 2023)
 
 # Main-menu section buttons — pressing these from any FSM state should clear
 # state and return the user to the main menu.
@@ -247,7 +249,7 @@ async def chosen_type(message: Message, state: FSMContext):
                 SELECT DISTINCT g.lan_id, g.lan_text
                 FROM mandat m
                 JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
-                WHERE m.un_id = %s AND m.ty_id = %s
+                WHERE m.un_id = %s AND m.ty_id = %s AND m.year = 2025
             ''', (un_id, ty_id))
             rows = cursor.fetchall()
             keyboard = []
@@ -306,7 +308,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             un_id = data["un_id"]
             ty_id = data["ty_id"]
             lan_id = data["lan_id"]
-            cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s""",
+            cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE year=2025 AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s""",
                            (region_id, un_id, ty_id, lan_id))
             rows = cursor.fetchall()
             keyboard = []
@@ -336,11 +338,11 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
     lan_id = data["lan_id"]
     if text:
         cursor.execute(
-            "SELECT DISTINCT id, mvdir, nomi FROM mandat WHERE lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s ORDER BY nomi LIMIT 50",
+            "SELECT DISTINCT id, mvdir, nomi FROM mandat WHERE year=2025 AND lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s ORDER BY nomi LIMIT 50",
             (f"%{text}%", region_id, un_id, ty_id, lan_id))
     else:
         cursor.execute(
-            "SELECT DISTINCT id, mvdir, nomi FROM mandat WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s ORDER BY nomi LIMIT 50",
+            "SELECT DISTINCT id, mvdir, nomi FROM mandat WHERE year=2025 AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s ORDER BY nomi LIMIT 50",
             (region_id, un_id, ty_id, lan_id))
     facs = cursor.fetchall()
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -372,7 +374,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             SELECT DISTINCT g.lan_id, g.lan_text
             FROM mandat m
             JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
-            WHERE m.un_id = %s AND m.ty_id = %s
+            WHERE m.un_id = %s AND m.ty_id = %s AND m.year = 2025
         """, (un_id, ty_id))
         rows = cursor.fetchall()
         keyboard = [[KeyboardButton(text=row2[:60])] for row1, row2 in rows]
@@ -406,7 +408,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         ty_text = cursor.fetchone()
         cursor.execute("""
             SELECT gr_b, con_b, olimp FROM mandat
-            WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s
+            WHERE year=2025 AND un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s
         """, (un_id, ty_id, lan_id, mvdir, nomi))
         ball_row = cursor.fetchone()
         if not un_name or not lan_text or not ty_text or not ball_row:
@@ -414,9 +416,28 @@ async def chosen_lang(message: Message, state: FSMContext):
             return
         gr_b, con_b, olimp = ball_row
 
+        cursor.execute(
+            """
+            SELECT year, gr_b, con_b
+            FROM mandat
+            WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s
+              AND year IN (2025, 2024, 2023)
+            ORDER BY year DESC
+            """,
+            (un_id, ty_id, lan_id, mvdir, nomi),
+        )
+        year_rows = cursor.fetchall()
+        year_scores = {int(y): (float(gb or 0), float(cb or 0)) for y, gb, cb in year_rows}
+        score_lines = []
+        for y in _CAPTION_YEARS:
+            if y in year_scores:
+                y_gr, y_con = year_scores[y]
+                score_lines.append(f"<b>{y}</b>: Grand {y_gr} | Kontrakt {y_con}")
+        score_block = "\n".join(score_lines) if score_lines else f"<b>{_SCORE_YEAR}</b>: Grand {gr_b} | Kontrakt {con_b}"
+
         message_text = (
             f"<b>🏛 OLIYGOH:</b> {un_name[0]}\n\n<b>📚 TAʼLIM YO‘NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text[0]}\n\n"
-            f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text[0]}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
+            f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text[0]}\n\n<b>📈 OʻTISH BALLARI (yillar kesimida):</b>\n{score_block}\n\n"
             f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
             f"<b>© <a href='https://t.me/mandatjavobbot%sstart=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>")
 

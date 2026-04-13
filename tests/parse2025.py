@@ -202,8 +202,43 @@ def create_tables(conn):
                 gr_b      REAL,
                 con_b     REAL,
                 olimp     INTEGER,
-                UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi)
+                year      INTEGER NOT NULL DEFAULT 2025,
+                UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi, year)
             )
+        """)
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'mandat' AND column_name = 'year'
+                ) THEN
+                    ALTER TABLE public.mandat ADD COLUMN year INTEGER;
+                END IF;
+
+                UPDATE public.mandat SET year = 2025 WHERE year IS NULL;
+                ALTER TABLE public.mandat ALTER COLUMN year SET DEFAULT 2025;
+                ALTER TABLE public.mandat ALTER COLUMN year SET NOT NULL;
+
+                IF EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conrelid = 'public.mandat'::regclass
+                      AND conname = 'mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_key'
+                ) THEN
+                    ALTER TABLE public.mandat DROP CONSTRAINT mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_key;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conrelid = 'public.mandat'::regclass
+                      AND conname = 'mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_year_key'
+                ) THEN
+                    ALTER TABLE public.mandat
+                    ADD CONSTRAINT mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_year_key
+                    UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi, year);
+                END IF;
+            END
+            $$;
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS photos (
@@ -290,22 +325,22 @@ def upsert_lang(cur, region_id, un_id, ty_id, lan_disabled, lan_group, lan_selec
 
 
 def upsert_mandat(cur, region_id, un_id, ty_id, lan_id,
-                  mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp):
+                  mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp, year=2025):
     """
     Agar yozuv mavjud bo'lsa — balllarni yangilaydi.
     Yangi yo'nalish bo'lsa — qo'shadi.
     """
     cur.execute("""
-        INSERT INTO mandat (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (region_id, un_id, ty_id, lan_id, mvdir, nomi)
+        INSERT INTO mandat (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp, year)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (region_id, un_id, ty_id, lan_id, mvdir, nomi, year)
         DO UPDATE SET
             gr_k  = EXCLUDED.gr_k,
             con_k = EXCLUDED.con_k,
             gr_b  = EXCLUDED.gr_b,
             con_b = EXCLUDED.con_b,
             olimp = EXCLUDED.olimp
-    """, (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp))
+    """, (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp, year))
 
 # ──────────────────────────── ASOSIY PARSER ────────────────────────────
 
@@ -461,6 +496,7 @@ def parse(resume: bool = True, dry_run: bool = False, clean: bool = True):
                                     item.get("gr_b", 0.0),
                                     item.get("con_b", 0.0),
                                     item.get("olimp", 0),
+                                    2025,
                                 )
                         conn.commit()
                         total_mandat += len(get_datas)

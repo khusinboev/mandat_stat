@@ -25,6 +25,9 @@ _SECTION_BTNS = frozenset({
     "📈 Viloyatlar kesimida",
 })
 
+_SCORE_YEAR = 2025
+_CAPTION_YEARS = (2025, 2024, 2023)
+
 class FormBall(StatesGroup):
     ball1 = State()
     s_ball1 = State()
@@ -97,7 +100,7 @@ async def enter_direction(message: Message, state: FSMContext):
                         SELECT DISTINCT r.region_name 
                         FROM mandat m 
                         JOIN regions r ON m.region_id = r.region_id 
-                        WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+                        WHERE m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
                         ORDER BY r.region_name
                     """, (message.text,))
                 elif shakl == "kn":
@@ -105,7 +108,7 @@ async def enter_direction(message: Message, state: FSMContext):
                         SELECT DISTINCT r.region_name 
                         FROM mandat m 
                         JOIN regions r ON m.region_id = r.region_id 
-                        WHERE m.con_b <= %s AND m.con_b != 0
+                        WHERE m.year = 2025 AND m.con_b <= %s AND m.con_b != 0
                         ORDER BY r.region_name
                     """, (message.text,))
                 regions = cursor.fetchall()
@@ -145,7 +148,7 @@ async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
                 FROM mandat m 
                 JOIN regions r ON m.region_id = r.region_id 
                 WHERE lower(r.region_name) LIKE %s 
-                AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+                AND m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
                 ORDER BY r.region_name
                 LIMIT 50
             """, (f"%{text}%", ball))
@@ -154,7 +157,7 @@ async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
                 SELECT DISTINCT r.region_id, r.region_name 
                 FROM mandat m 
                 JOIN regions r ON m.region_id = r.region_id 
-                WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+                WHERE m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
                 ORDER BY r.region_name
                 LIMIT 50
             """, (ball,))
@@ -175,7 +178,7 @@ async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
                 FROM mandat m 
                 JOIN regions r ON m.region_id = r.region_id 
                 WHERE lower(r.region_name) LIKE %s 
-                AND m.con_b <= %s AND m.con_b != 0
+                AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0
                 ORDER BY r.region_name
                 LIMIT 50
             """, (f"%{text}%", ball))
@@ -184,7 +187,7 @@ async def inline_search_ball(inline_query: InlineQuery, state: FSMContext):
                 SELECT DISTINCT r.region_id, r.region_name 
                 FROM mandat m 
                 JOIN regions r ON m.region_id = r.region_id 
-                WHERE m.con_b <= %s AND m.con_b != 0
+                WHERE m.year = 2025 AND m.con_b <= %s AND m.con_b != 0
                 ORDER BY r.region_name
                 LIMIT 50
             """, (ball,))
@@ -235,7 +238,7 @@ async def chosen_university(message: Message, state: FSMContext):
                     FROM universities u 
                     JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id 
                     WHERE m.region_id = %s 
-                    AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+                    AND m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
                 """, (reg_id, ball))
                 rows = cursor.fetchall()
                 await message.answer(f"<b>Siz tanlagan hududda {len(set(rows))} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
@@ -248,7 +251,7 @@ async def chosen_university(message: Message, state: FSMContext):
                     FROM universities u 
                     JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id 
                     WHERE m.region_id = %s 
-                    AND m.con_b <= %s AND m.con_b != 0
+                    AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0
                 """, (reg_id, ball))
                 rows = cursor.fetchall()
                 await message.answer(f"<b>Siz tanlagan hududda {len(set(rows))} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
@@ -267,23 +270,23 @@ async def inline_search_university(inline_query: InlineQuery, state: FSMContext)
         if text:
             cursor.execute(
                 "SELECT DISTINCT u.un_id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE lower(un_text) LIKE %s AND m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
+                "WHERE lower(un_text) LIKE %s AND m.region_id = %s AND m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
                 (f"%{text}%", reg_id, ball))
         else:
             cursor.execute(
                 "SELECT DISTINCT u.un_id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
+                "WHERE m.region_id = %s AND m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
                 (reg_id, ball))
     elif shakl == "kn":
         if text:
             cursor.execute(
                 "SELECT DISTINCT u.un_id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE lower(un_text) LIKE %s AND m.region_id = %s AND m.con_b <= %s AND m.con_b != 0",
+                "WHERE lower(un_text) LIKE %s AND m.region_id = %s AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0",
                 (f"%{text}%", reg_id, ball))
         else:
             cursor.execute(
                 "SELECT DISTINCT u.un_id, u.un_text FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.con_b <= %s AND m.con_b != 0",
+                "WHERE m.region_id = %s AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0",
                 (reg_id, ball))
     res_data = cursor.fetchall()
     if res_data:
@@ -305,12 +308,12 @@ async def chosen_university(message: Message, state: FSMContext):
         if shakl == "gr":
             cursor.execute(
                 "SELECT DISTINCT r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id "
-                "WHERE m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
+                "WHERE m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
                 (ball,))
         elif shakl == "kn":
             cursor.execute(
                 "SELECT DISTINCT r.region_name FROM mandat m JOIN regions r ON m.region_id = r.region_id "
-                "WHERE m.con_b <= %s AND m.con_b != 0",
+                "WHERE m.year = 2025 AND m.con_b <= %s AND m.con_b != 0",
                 (ball,))
         regions = cursor.fetchall()
         if regions:
@@ -357,7 +360,7 @@ async def chosen_university(message: Message, state: FSMContext):
             elif shakl == "kn":
                 cursor.execute(
                     "SELECT DISTINCT g.ty_text FROM gettypes g JOIN mandat m ON g.un_id::text = m.un_id::text AND g.region_id::text = m.region_id::text "
-                    "WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0",
+                    "WHERE m.region_id = %s AND m.un_id = %s AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0",
                     (reg_id, str(un_id), ball))
                 ress = cursor.fetchall()
             keyboard = [[KeyboardButton(text=row[0])] for row in ress]
@@ -383,12 +386,12 @@ async def chosen_type(message: Message, state: FSMContext):
         if shakl == "gr":
             cursor.execute(
                 "SELECT DISTINCT u.id FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
+                "WHERE m.region_id = %s AND m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'",
                 (reg_id, ball))
         elif shakl == "kn":
             cursor.execute(
                 "SELECT DISTINCT u.id FROM universities u JOIN mandat m ON u.un_id = m.un_id AND u.region_id = m.region_id "
-                "WHERE m.region_id = %s AND m.con_b <= %s AND m.con_b != 0",
+                "WHERE m.region_id = %s AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0",
                 (reg_id, ball))
         rows = cursor.fetchall()
         await message.answer(f"<b>Siz tanlagan hududda {len(rows)} ta oliygoh mavjud:\n🏢 OTMni tanlang:</b>",
@@ -427,14 +430,14 @@ async def chosen_type(message: Message, state: FSMContext):
                     SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m
                     JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
                     WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s 
-                    AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
+                    AND m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1'
                 """, (un_id, ty_id, reg_id, ball))
             elif shakl == "kn":
                 cursor.execute("""
                     SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m
                     JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
                     WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s 
-                    AND m.con_b <= %s AND m.con_b != 0
+                    AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0
                 """, (un_id, ty_id, reg_id, ball))
             rows = cursor.fetchall()
             keyboard = [[KeyboardButton(text=row[1][:60])] for row in rows]
@@ -457,7 +460,7 @@ async def chosen_lang(message: Message, state: FSMContext):
         elif shakl == "kn":
             cursor.execute(
                 "SELECT DISTINCT g.ty_text FROM gettypes g JOIN mandat m ON g.un_id::text = m.un_id::text AND g.region_id::text = m.region_id::text "
-                "WHERE m.region_id = %s AND m.un_id = %s AND m.con_b <= %s AND m.con_b != 0 ", (reg_id, un_id, ball))
+                "WHERE m.region_id = %s AND m.un_id = %s AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0 ", (reg_id, un_id, ball))
             ress = cursor.fetchall()
         keyboard = [[KeyboardButton(text=row[0])] for row in ress]
         keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
@@ -495,10 +498,10 @@ async def chosen_lang(message: Message, state: FSMContext):
             shakl = data["shakl"]
             ball = data["ball"]
             if shakl == "gr":
-                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
+                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE year=2025 AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
                                (reg_id, un_id, ty_id, lan_id, ball))
             elif shakl == "kn":
-                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
+                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE year=2025 AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
                                (reg_id, un_id, ty_id, lan_id, ball))
             rows = cursor.fetchall()
             keyboard = [[KeyboardButton(text=f"{mvdir} - {nomi}")] for mvdir, nomi in rows]
@@ -524,21 +527,21 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
     ball = data["ball"]
     if shakl == "gr":
         if text:
-            cursor.execute("""SELECT DISTINCT id, mvdir, nomi FROM mandat 
-                              WHERE lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
+                cursor.execute("""SELECT DISTINCT id, mvdir, nomi FROM mandat 
+                                        WHERE year=2025 AND lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
                            (f"%{text}%", reg_id, un_id, ty_id, lan_id, ball))
         else:
             cursor.execute("""SELECT DISTINCT id, mvdir, nomi FROM mandat 
-                              WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
+                                        WHERE year=2025 AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND gr_b<=%s""",
                            (reg_id, un_id, ty_id, lan_id, ball))
     elif shakl == "kn":
         if text:
-            cursor.execute("""SELECT DISTINCT id, mvdir, nomi FROM mandat 
-                              WHERE lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
+                cursor.execute("""SELECT DISTINCT id, mvdir, nomi FROM mandat 
+                                        WHERE year=2025 AND lower(nomi) LIKE %s AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
                            (f"%{text}%", reg_id, un_id, ty_id, lan_id, ball))
         else:
             cursor.execute("""SELECT DISTINCT id, mvdir, nomi FROM mandat 
-                              WHERE region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
+                                        WHERE year=2025 AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s AND con_b<=%s""",
                            (reg_id, un_id, ty_id, lan_id, ball))
     facs = cursor.fetchall()[:50]
     results = [
@@ -571,12 +574,12 @@ async def chosen_lang(message: Message, state: FSMContext):
         if shakl == "gr":
             cursor.execute('''SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m 
                               JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
-                              WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1' ''',
+                                        WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s AND m.year = 2025 AND m.gr_b <= %s AND m.gr_b != 0 AND m.ty_id = '1' ''',
                            (un_id, ty_id, reg_id, ball))
         elif shakl == "kn":
             cursor.execute('''SELECT DISTINCT g.lan_id, g.lan_text FROM mandat m 
                               JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
-                              WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s AND m.con_b <= %s AND m.con_b != 0''',
+                                        WHERE m.un_id = %s AND m.ty_id = %s AND m.region_id = %s AND m.year = 2025 AND m.con_b <= %s AND m.con_b != 0''',
                            (un_id, ty_id, reg_id, ball))
         rows = cursor.fetchall()
         keyboard = [[KeyboardButton(text=row[1][:60])] for row in rows]
@@ -606,16 +609,35 @@ async def chosen_lang(message: Message, state: FSMContext):
         shakl = data["shakl"]
         ball = data["ball"]
         if shakl == "gr":
-            cursor.execute("""SELECT gr_b, con_b, olimp FROM mandat 
-                              WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s AND region_id=%s AND gr_b<=%s""",
+                cursor.execute("""SELECT gr_b, con_b, olimp FROM mandat 
+                                        WHERE year=2025 AND un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s AND region_id=%s AND gr_b<=%s""",
                            (un_id, ty_id, lan_id, mvdir, nomi, reg_id, ball))
         elif shakl == "kn":
-            cursor.execute("""SELECT gr_b, con_b, olimp FROM mandat 
-                              WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s AND region_id=%s AND con_b<=%s""",
+                cursor.execute("""SELECT gr_b, con_b, olimp FROM mandat 
+                                        WHERE year=2025 AND un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s AND region_id=%s AND con_b<=%s""",
                            (un_id, ty_id, lan_id, mvdir, nomi, reg_id, ball))
         kaup = cursor.fetchone()
         if kaup:
             gr_b, con_b, olimp = kaup
+            cursor.execute(
+                """
+                SELECT year, gr_b, con_b
+                FROM mandat
+                WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s AND region_id=%s
+                  AND year IN (2025, 2024, 2023)
+                ORDER BY year DESC
+                """,
+                (un_id, ty_id, lan_id, mvdir, nomi, reg_id),
+            )
+            year_rows = cursor.fetchall()
+            year_scores = {int(y): (float(gb or 0), float(cb or 0)) for y, gb, cb in year_rows}
+            score_lines = []
+            for y in _CAPTION_YEARS:
+                if y in year_scores:
+                    y_gr, y_con = year_scores[y]
+                    score_lines.append(f"<b>{y}</b>: Grand {y_gr} | Kontrakt {y_con}")
+            score_block = "\n".join(score_lines) if score_lines else f"<b>{_SCORE_YEAR}</b>: Grand {gr_b} | Kontrakt {con_b}"
+
             cursor.execute("SELECT un_text FROM universities WHERE un_id=%s", (un_id,))
             un_row = cursor.fetchone()
             cursor.execute("SELECT lan_text FROM getlangs WHERE lan_id=%s", (lan_id,))
@@ -631,7 +653,7 @@ async def chosen_lang(message: Message, state: FSMContext):
             ty_text = ty_row[0]
             message_text = (
                 f"<b>🏛 OLIYGOH:</b> {un_name}\n\n<b>📚 TAʼLIM YO‘NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text}\n\n"
-                f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text}\n\n<b>📈 OʻTISH BALLARI:</b>\n<b>Grand</b> - {gr_b} ball | <b>Kontrakt</b> - {con_b} ball\n\n"
+                f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text}\n\n<b>📈 OʻTISH BALLARI (yillar kesimida):</b>\n{score_block}\n\n"
                 f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
                 f"<b>© <a href='https://t.me/mandatjavobbot?start=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>")
             user_id = message.from_user.id

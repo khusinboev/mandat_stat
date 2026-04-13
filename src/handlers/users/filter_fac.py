@@ -40,6 +40,8 @@ fac_router = Router()
 # -- Constants -----------------------------------------------------------------
 _PAGE = 50    # inline results per page
 _TTL  = 120   # Redis cache TTL (seconds)
+_SCORE_YEAR = 2025
+_CAPTION_YEARS = (2025, 2024, 2023)
 
 # Main-menu section buttons — pressing these from any FSM state should clear
 # state and return the user to the main menu.
@@ -120,7 +122,7 @@ async def enter_direction(message: Message, state: FSMContext) -> None:
         )
         return
 
-    cursor.execute("SELECT COUNT(DISTINCT nomi) FROM mandat")
+    cursor.execute("SELECT COUNT(DISTINCT nomi) FROM mandat WHERE year = %s", (_SCORE_YEAR,))
     total = cursor.fetchone()[0]
     await state.set_state(FormFac.fac1)
     await message.answer(
@@ -147,13 +149,13 @@ async def iq_directions(iq: InlineQuery) -> None:
         if text:
             cursor.execute(
                 "SELECT DISTINCT mvdir, nomi FROM mandat "
-                "WHERE lower(nomi) LIKE %s ORDER BY nomi LIMIT %s OFFSET %s",
-                (f"%{text}%", _PAGE + 1, offset),
+                "WHERE year = %s AND lower(nomi) LIKE %s ORDER BY nomi LIMIT %s OFFSET %s",
+                (_SCORE_YEAR, f"%{text}%", _PAGE + 1, offset),
             )
         else:
             cursor.execute(
-                "SELECT DISTINCT mvdir, nomi FROM mandat ORDER BY nomi LIMIT %s OFFSET %s",
-                (_PAGE + 1, offset),
+                "SELECT DISTINCT mvdir, nomi FROM mandat WHERE year = %s ORDER BY nomi LIMIT %s OFFSET %s",
+                (_SCORE_YEAR, _PAGE + 1, offset),
             )
         rows = [[str(r[0]), r[1]] for r in cursor.fetchall()]
         await _cset(ckey, rows)
@@ -240,11 +242,11 @@ async def on_direction_chosen(message: Message, state: FSMContext) -> None:
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = %s AND m.nomi = %s
+            WHERE m.mvdir = %s AND m.nomi = %s AND m.year = %s
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
             """,
-            (mvdir, nomi),
+            (mvdir, nomi, _SCORE_YEAR),
         )
         unis = [[r[0], r[1]] for r in cursor.fetchall()]
         await _cset(ckey, unis)
@@ -298,7 +300,7 @@ async def iq_universities(iq: InlineQuery, state: FSMContext) -> None:
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = %s AND m.nomi = %s {extra}
+            WHERE m.mvdir = %s AND m.nomi = %s AND m.year = {_SCORE_YEAR} {extra}
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
             LIMIT %s OFFSET %s
@@ -341,7 +343,7 @@ async def on_university_chosen(message: Message, state: FSMContext) -> None:
 
     if txt == "\U0001f519 Ortga":
         await state.set_state(FormFac.fac1)
-        cursor.execute("SELECT COUNT(DISTINCT nomi) FROM mandat")
+        cursor.execute("SELECT COUNT(DISTINCT nomi) FROM mandat WHERE year = %s", (_SCORE_YEAR,))
         total = cursor.fetchone()[0]
         await message.answer(
             f"<b>Jami <u>{total}</u> ta yo'nalish mavjud.\n\n"
@@ -408,10 +410,10 @@ async def on_university_chosen(message: Message, state: FSMContext) -> None:
             SELECT DISTINCT g.ty_id, g.ty_text
             FROM mandat m
             JOIN gettypes g ON m.ty_id::text = g.ty_id::text AND m.un_id::text = g.un_id::text
-            WHERE m.un_id = %s AND m.mvdir = %s
+            WHERE m.un_id = %s AND m.mvdir = %s AND m.year = %s
             ORDER BY g.ty_text
             """,
-            (un_id_s, mvdir),
+            (un_id_s, mvdir, _SCORE_YEAR),
         )
         types = [[r[0], r[1]] for r in cursor.fetchall()]
         await _cset(ckey, types)
@@ -450,9 +452,9 @@ async def on_type_chosen(message: Message, state: FSMContext) -> None:
             SELECT COUNT(DISTINCT u.un_id)
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = %s AND m.nomi = %s
+            WHERE m.mvdir = %s AND m.nomi = %s AND m.year = %s
             """,
-            (mvdir, fac_name),
+            (mvdir, fac_name, _SCORE_YEAR),
         )
         count = cursor.fetchone()[0]
         await message.answer(
@@ -504,8 +506,8 @@ async def on_type_chosen(message: Message, state: FSMContext) -> None:
     await state.set_state(FormFac.fac4)
 
     cursor.execute(
-        "SELECT COUNT(*) FROM mandat WHERE un_id=%s AND ty_id=%s AND mvdir=%s AND nomi=%s",
-        (un_id, str(ty_id), str(mvdir), fac_name),
+        "SELECT COUNT(*) FROM mandat WHERE un_id=%s AND ty_id=%s AND mvdir=%s AND nomi=%s AND year=%s",
+        (un_id, str(ty_id), str(mvdir), fac_name, _SCORE_YEAR),
     )
     count = cursor.fetchone()[0]
 
@@ -557,12 +559,12 @@ async def iq_records(iq: InlineQuery, state: FSMContext) -> None:
                            AND m.un_id::text     = g.un_id::text
                            AND m.ty_id::text     = g.ty_id::text
                            AND m.region_id::text = g.region_id::text
-            WHERE m.un_id = %s AND m.ty_id = %s AND m.mvdir = %s AND m.nomi = %s
+            WHERE m.un_id = %s AND m.ty_id = %s AND m.mvdir = %s AND m.nomi = %s AND m.year = %s
             {extra}
             ORDER BY g.lan_text
             LIMIT %s OFFSET %s
             """,
-            params,
+            params[:4] + [_SCORE_YEAR] + params[4:],
         )
         rows = [[str(r[0]), r[1], r[2], str(r[3])] for r in cursor.fetchall()]
         await _cset(ckey, rows)
@@ -612,10 +614,10 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
                 SELECT DISTINCT g.ty_id, g.ty_text
                 FROM mandat m
                 JOIN gettypes g ON m.ty_id::text = g.ty_id::text AND m.un_id::text = g.un_id::text
-                WHERE m.un_id = %s AND m.mvdir = %s
+                WHERE m.un_id = %s AND m.mvdir = %s AND m.year = %s
                 ORDER BY g.ty_text
                 """,
-                (un_id, mvdir),
+                (un_id, mvdir, _SCORE_YEAR),
             )
             types = [[r[0], r[1]] for r in cursor.fetchall()]
         keyboard = [[KeyboardButton(text=ty_text)] for _, ty_text in types]
@@ -686,10 +688,10 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
                        AND m.region_id::text = g.region_id::text
         JOIN gettypes  t ON m.ty_id::text = t.ty_id::text AND m.un_id::text = t.un_id::text
         WHERE m.un_id = %s AND m.ty_id = %s AND m.mvdir = %s
-          AND m.nomi  = %s AND m.lan_id = %s
+                    AND m.nomi  = %s AND m.lan_id = %s AND m.year = %s
         LIMIT 1
         """,
-        (un_id, ty_id, mv_s, fac_name, lan_id_s),
+                (un_id, ty_id, mv_s, fac_name, lan_id_s, _SCORE_YEAR),
     )
     row = cursor.fetchone()
     if not row:
@@ -698,13 +700,34 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
 
     mv_val, nomi, gr_b, con_b, olimp, un_text, lan_text, ty_text = row
 
+    cursor.execute(
+        """
+        SELECT year, gr_b, con_b
+        FROM mandat
+        WHERE un_id = %s AND ty_id = %s AND mvdir = %s AND nomi = %s AND lan_id = %s
+          AND year IN (2025, 2024, 2023)
+        ORDER BY year DESC
+        """,
+        (un_id, ty_id, mv_s, fac_name, lan_id_s),
+    )
+    year_rows = cursor.fetchall()
+    year_scores = {int(y): (float(gb or 0), float(cb or 0)) for y, gb, cb in year_rows}
+
+    score_lines = []
+    for y in _CAPTION_YEARS:
+        if y in year_scores:
+            y_gr, y_con = year_scores[y]
+            score_lines.append(f"<b>{y}</b>: Grand {y_gr} | Kontrakt {y_con}")
+
+    score_block = "\n".join(score_lines) if score_lines else f"<b>{_SCORE_YEAR}</b>: Grand {gr_b} | Kontrakt {con_b}"
+
     caption = (
         f"<b>\U0001f3db OLIYGOH:</b> {un_text}\n\n"
         f"<b>\U0001f4da TA'LIM YO'NALISHI</b> \u2014 {mv_val} \u2014 {nomi}\n\n"
         f"<b>\U0001f1fa\U0001f1ff TA'LIM TILI</b> \u2014 {lan_text}\n\n"
         f"<b>\U0001f530 TA'LIM SHAKLI</b> \u2014 {ty_text}\n\n"
-        f"<b>\U0001f4c8 O'TISH BALLARI:</b>\n"
-        f"<b>Grand</b> \u2014 {gr_b} ball | <b>Kontrakt</b> \u2014 {con_b} ball\n\n"
+        f"<b>\U0001f4c8 O'TISH BALLARI (yillar kesimida):</b>\n"
+        f"{score_block}\n\n"
         f"<b>\U0001f3c6 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
         f"<b>\u00a9 <a href='https://t.me/mandatjavobbot?start=share'>@Mandatjavobbot</a>"
         f" \u2014 o'tish ballari va mandat natijalari</b>"
