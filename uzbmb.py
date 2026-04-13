@@ -144,6 +144,9 @@ def create_tables(conn):
         """)
         cur.execute("""
             DO $$
+            DECLARE
+                legacy_con RECORD;
+                legacy_idx RECORD;
             BEGIN
                 IF NOT EXISTS (
                     SELECT 1 FROM information_schema.columns
@@ -173,6 +176,33 @@ def create_tables(conn):
                     ADD CONSTRAINT mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_year_key
                     UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi, year);
                 END IF;
+
+                -- Legacy (year-siz) unique constraintlarni tozalash
+                FOR legacy_con IN (
+                    SELECT c.conname
+                    FROM pg_constraint c
+                    WHERE c.conrelid = 'public.mandat'::regclass
+                      AND c.contype = 'u'
+                      AND pg_get_constraintdef(c.oid) ILIKE 'UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi)%'
+                      AND pg_get_constraintdef(c.oid) NOT ILIKE '%year%'
+                ) LOOP
+                    EXECUTE format('ALTER TABLE public.mandat DROP CONSTRAINT %I', legacy_con.conname);
+                END LOOP;
+
+                -- Legacy (year-siz) unique indexlarni tozalash
+                FOR legacy_idx IN (
+                    SELECT idx.relname AS index_name
+                    FROM pg_index i
+                    JOIN pg_class tbl ON tbl.oid = i.indrelid
+                    JOIN pg_class idx ON idx.oid = i.indexrelid
+                    WHERE tbl.relname = 'mandat'
+                      AND i.indisunique = true
+                      AND i.indisprimary = false
+                      AND pg_get_indexdef(i.indexrelid) ILIKE '%(region_id, un_id, ty_id, lan_id, mvdir, nomi)%'
+                      AND pg_get_indexdef(i.indexrelid) NOT ILIKE '%year%'
+                ) LOOP
+                    EXECUTE format('DROP INDEX IF EXISTS public.%I', legacy_idx.index_name);
+                END LOOP;
             END
             $$;
         """)
@@ -190,12 +220,25 @@ def create_tables(conn):
     conn.commit()
     log.info("✓ Jadvallar tayyor (parse2025.py strukturasi).")
 
-def clean_all_parser_tables(conn):
-    """Parser bilan bog'liq barcha jadvallarni to'liq tozalaydi."""
+def clean_all_parser_tables(conn, drop_tables: bool = True):
+    """Parser bilan bog'liq jadvallarni tozalaydi yoki butunlay qayta yaratadi."""
     with conn.cursor() as cur:
-        cur.execute("TRUNCATE TABLE photos, mandat, getlangs, gettypes, universities, regions RESTART IDENTITY")
+        if drop_tables:
+            cur.execute("""
+                DROP TABLE IF EXISTS photos CASCADE;
+                DROP TABLE IF EXISTS mandat CASCADE;
+                DROP TABLE IF EXISTS getlangs CASCADE;
+                DROP TABLE IF EXISTS gettypes CASCADE;
+                DROP TABLE IF EXISTS universities CASCADE;
+                DROP TABLE IF EXISTS regions CASCADE;
+            """)
+        else:
+            cur.execute("TRUNCATE TABLE photos, mandat, getlangs, gettypes, universities, regions RESTART IDENTITY")
     conn.commit()
-    log.info("✓ Parser jadvallari to'liq tozalandi.")
+    if drop_tables:
+        log.info("✓ Parser jadvallari drop qilindi (0 dan qayta yaratiladi).")
+    else:
+        log.info("✓ Parser jadvallari to'liq tozalandi.")
 
 # ──────────────────────────── PROGRESS ────────────────────────────
 
@@ -283,9 +326,9 @@ class UzbmbParser:
         self.lang_counter = 1
 
         if self.conn:
-            create_tables(self.conn)
             if clean:
-                clean_all_parser_tables(self.conn)
+                clean_all_parser_tables(self.conn, drop_tables=True)
+            create_tables(self.conn)
 
         self.headers = {
             "User-Agent": (
