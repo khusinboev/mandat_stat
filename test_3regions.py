@@ -35,11 +35,11 @@ BASE_URL = "https://my.uzbmb.uz"
 TARGET_REGION_IDS = {1730, 1733, 1735}
 
 # Rate limiting
-DELAY_MIN = 2.0
-DELAY_MAX = 4.0
-CONCURRENT_REQUESTS = 1
+ELAY_MIN = 0.5
+DELAY_MAX = 1.5
+CONCURRENT_REQUESTS = 3
 
-# Retry
+# Retry sozlamalari
 MAX_RETRIES = 5
 BACKOFF_FACTOR = 3
 
