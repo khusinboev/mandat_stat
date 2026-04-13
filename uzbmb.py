@@ -138,8 +138,43 @@ def create_tables(conn):
                 gr_b      REAL,
                 con_b     REAL,
                 olimp     INTEGER,
-                UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi)
+                year      INTEGER NOT NULL DEFAULT 2025,
+                UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi, year)
             )
+        """)
+        cur.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = 'mandat' AND column_name = 'year'
+                ) THEN
+                    ALTER TABLE public.mandat ADD COLUMN year INTEGER;
+                END IF;
+
+                UPDATE public.mandat SET year = 2025 WHERE year IS NULL;
+                ALTER TABLE public.mandat ALTER COLUMN year SET DEFAULT 2025;
+                ALTER TABLE public.mandat ALTER COLUMN year SET NOT NULL;
+
+                IF EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conrelid = 'public.mandat'::regclass
+                      AND conname = 'mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_key'
+                ) THEN
+                    ALTER TABLE public.mandat DROP CONSTRAINT mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_key;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conrelid = 'public.mandat'::regclass
+                      AND conname = 'mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_year_key'
+                ) THEN
+                    ALTER TABLE public.mandat
+                    ADD CONSTRAINT mandat_region_id_un_id_ty_id_lan_id_mvdir_nomi_year_key
+                    UNIQUE (region_id, un_id, ty_id, lan_id, mvdir, nomi, year);
+                END IF;
+            END
+            $$;
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS photos (
@@ -216,19 +251,19 @@ def upsert_lang(cur, region_id, un_id, ty_id, lan_disabled, lan_group, lan_selec
     """, (region_id, un_id, ty_id, lan_disabled, lan_group, lan_selected, lan_text, lan_id))
 
 def upsert_mandat(cur, region_id, un_id, ty_id, lan_id,
-                  mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp):
+                  mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp, year=2025):
     """Mandat ma'lumotlarini saqlash yoki yangilash."""
     cur.execute("""
-        INSERT INTO mandat (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (region_id, un_id, ty_id, lan_id, mvdir, nomi)
+        INSERT INTO mandat (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp, year)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (region_id, un_id, ty_id, lan_id, mvdir, nomi, year)
         DO UPDATE SET
             gr_k  = EXCLUDED.gr_k,
             con_k = EXCLUDED.con_k,
             gr_b  = EXCLUDED.gr_b,
             con_b = EXCLUDED.con_b,
             olimp = EXCLUDED.olimp
-    """, (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp))
+    """, (region_id, un_id, ty_id, lan_id, mvdir, nomi, gr_k, con_k, gr_b, con_b, olimp, year))
 
 # ──────────────────────────── PARSER ────────────────────────────
 
@@ -419,8 +454,7 @@ class UzbmbParser:
             body = card.select_one(".accordion-body")
             grant_count = 0
             contract_count = 0
-            grant_score = 0.0
-            contract_score = 0.0
+            scores_by_year: Dict[int, Dict[str, float]] = {}
             olimp_count = 0
 
             if body:
@@ -439,14 +473,20 @@ class UzbmbParser:
                     except ValueError:
                         contract_count = 0
 
-                # O'tish ballari
+                # O'tish ballari (2025/2024/2023 mavjud bo'lsa alohida saqlaymiz)
                 for table in body.select(".d-grid"):
                     headers = [h.get_text(strip=True) for h in table.select(".bd-accordion-table-header div")]
                     if "O'tish bali" not in headers:
                         continue
 
-                    years = [h for h in headers if h.isdigit()]
-                    latest_year = max([int(y) for y in years]) if years else 2024
+                    year_cols = []
+                    for idx, h in enumerate(headers):
+                        if h.isdigit():
+                            y = int(h)
+                            if 2023 <= y <= 2025:
+                                year_cols.append((y, idx))
+                                if y not in scores_by_year:
+                                    scores_by_year[y] = {"gr_b": 0.0, "con_b": 0.0}
 
                     for row in table.select(".bd-accordion-table-body"):
                         cols = row.select("div")
@@ -454,35 +494,43 @@ class UzbmbParser:
                             continue
 
                         score_type_raw = cols[0].get_text(strip=True).replace("O'tish bali", "").strip().lower()
-                        
-                        # Eng so'nggi yil uchun ballarni olish
-                        year_idx = years.index(str(latest_year)) + 1 if str(latest_year) in years else 1
-                        if year_idx < len(cols):
-                            raw = cols[year_idx].get_text(strip=True).replace(str(latest_year), "").strip()
+
+                        for year, year_idx in year_cols:
+                            if year_idx >= len(cols):
+                                continue
+
+                            raw = cols[year_idx].get_text(strip=True).replace(str(year), "").strip()
+                            raw = raw.replace(",", ".")
                             try:
                                 score = float(raw)
-                                if "grand" in score_type_raw:
-                                    grant_score = score
-                                else:
-                                    contract_score = score
                             except ValueError:
-                                pass
+                                continue
 
-            mandat_items.append({
-                "region_id": region_id,
-                "un_id": str(uni_id),
-                "ty_id": ty_id,
-                "lan_id": lan_id,
-                "mvdir": direction_key,
-                "nomi": name,
-                "gr_k": grant_count,
-                "con_k": contract_count,
-                "gr_b": grant_score,
-                "con_b": contract_score,
-                "olimp": olimp_count,
-                "edu_mode": edu_mode,
-                "edu_lang": edu_lang
-            })
+                            if "grand" in score_type_raw:
+                                scores_by_year[year]["gr_b"] = score
+                            elif "kontrakt" in score_type_raw or "contract" in score_type_raw:
+                                scores_by_year[year]["con_b"] = score
+
+            if not scores_by_year:
+                scores_by_year[2025] = {"gr_b": 0.0, "con_b": 0.0}
+
+            for year in sorted(scores_by_year.keys(), reverse=True):
+                mandat_items.append({
+                    "region_id": region_id,
+                    "un_id": str(uni_id),
+                    "ty_id": ty_id,
+                    "lan_id": lan_id,
+                    "mvdir": direction_key,
+                    "nomi": name,
+                    "gr_k": grant_count,
+                    "con_k": contract_count,
+                    "gr_b": scores_by_year[year]["gr_b"],
+                    "con_b": scores_by_year[year]["con_b"],
+                    "olimp": olimp_count,
+                    "edu_mode": edu_mode,
+                    "edu_lang": edu_lang,
+                    "year": year,
+                })
 
         return mandat_items
 
@@ -579,7 +627,8 @@ class UzbmbParser:
                         item['con_k'],
                         item['gr_b'],
                         item['con_b'],
-                        item['olimp']
+                        item['olimp'],
+                        item.get('year', 2025),
                     )
                     saved_count += 1
             self.conn.commit()
