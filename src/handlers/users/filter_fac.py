@@ -148,13 +148,13 @@ async def iq_directions(iq: InlineQuery) -> None:
     if rows is None:
         if text:
             cursor.execute(
-                "SELECT DISTINCT mvdir, nomi FROM mandat "
-                "WHERE year = %s AND lower(nomi) LIKE %s ORDER BY nomi LIMIT %s OFFSET %s",
+                "SELECT DISTINCT ON (nomi) mvdir, nomi FROM mandat "
+                "WHERE year = %s AND lower(nomi) LIKE %s ORDER BY nomi, mvdir LIMIT %s OFFSET %s",
                 (_SCORE_YEAR, f"%{text}%", _PAGE + 1, offset),
             )
         else:
             cursor.execute(
-                "SELECT DISTINCT mvdir, nomi FROM mandat WHERE year = %s ORDER BY nomi LIMIT %s OFFSET %s",
+                "SELECT DISTINCT ON (nomi) mvdir, nomi FROM mandat WHERE year = %s ORDER BY nomi, mvdir LIMIT %s OFFSET %s",
                 (_SCORE_YEAR, _PAGE + 1, offset),
             )
         rows = [[str(r[0]), r[1]] for r in cursor.fetchall()]
