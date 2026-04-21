@@ -1,10 +1,13 @@
 import os
+import json
+import logging
 
 from PIL import Image, ImageDraw, ImageFont
 from aiogram import Router, F
 from aiogram.enums import ChatType
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
 
 from config import bot, ADMIN_ID
@@ -12,6 +15,93 @@ from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 
 user_router = Router()
+logger = logging.getLogger(__name__)
+
+
+class CloneTestState(StatesGroup):
+    waiting_samples = State()
+
+
+def _message_clone_payload(message: Message) -> dict:
+    payload = message.model_dump(mode="json", exclude_none=True)
+    payload["content_type"] = message.content_type
+
+    # Keep a compact summary in the same payload for faster inspection.
+    payload["_summary"] = {
+        "text": message.text,
+        "caption": message.caption,
+        "document": {
+            "file_id": message.document.file_id,
+            "file_name": message.document.file_name,
+            "mime_type": message.document.mime_type,
+            "file_size": message.document.file_size,
+        } if message.document else None,
+    }
+    return payload
+
+
+def _pretty_json(data: dict) -> str:
+    return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+@user_router.message(Command("clone_test"))
+async def start_clone_test(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_ID:
+        return
+
+    await state.set_state(CloneTestState.waiting_samples)
+    await state.update_data(clone_samples=[])
+    await message.answer(
+        "✅ Clone test rejimi yoqildi.\n"
+        "1) Oddiy text yuboring\n"
+        "2) Document + caption yuboring\n\n"
+        "Har bir xabar server logiga JSON qilib chiqadi. To'xtatish: /clone_stop",
+        parse_mode="html"
+    )
+
+
+@user_router.message(Command("clone_stop"), CloneTestState.waiting_samples)
+async def stop_clone_test(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_ID:
+        return
+
+    await state.clear()
+    await message.answer("🛑 Clone test rejimi to'xtatildi.")
+
+
+@user_router.message(CloneTestState.waiting_samples)
+async def collect_clone_sample(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMIN_ID:
+        return
+
+    data = await state.get_data()
+    samples = data.get("clone_samples", [])
+
+    payload = _message_clone_payload(message)
+    payload_text = _pretty_json(payload)
+
+    # Console + logger output for easy copy/use in next update step.
+    print("CLONE_TEST_PAYLOAD:")
+    print(payload_text)
+    logger.info("CLONE_TEST_PAYLOAD: %s", payload_text)
+
+    samples.append(payload)
+    await state.update_data(clone_samples=samples)
+
+    short_preview = payload_text[:3500]
+    await message.answer(
+        f"📥 Qabul qilindi ({len(samples)}/2).\n"
+        f"<code>{short_preview}</code>",
+        parse_mode="html"
+    )
+
+    if len(samples) >= 2:
+        await state.clear()
+        await message.answer(
+            "✅ 2 ta sinov xabar olindi va log qilindi.\n"
+            "Logdan nusxa yuboring, keyin shu asosida bo'lim matnlarini yangilayman.",
+            parse_mode="html"
+        )
 
 
 @user_router.message(CommandStart())
@@ -99,7 +189,7 @@ async def start_cmd5(message: Message):
 
         "✅ <b>Jami to‘plash mumkin bo‘lgan ball – 156 ball.</b>\n\n"
 
-        "📝 <i>Umumiy holda, 2025/2026-o‘quv yilida o‘qishni ko‘chirish talabida bo‘lganlar uchun "
+        "📝 <i>Umumiy holda, 2026/2027-o‘quv yilida o‘qishni ko‘chirish talabida bo‘lganlar uchun "
         "5 ta fan bo‘yicha jami 90 ta test topshirig‘i beriladi. "
         "Bunda to‘plash mumkin bo‘lgan maksimal ball – <b>189 ball</b>ni tashkil etadi.</i>\n\n"
 
