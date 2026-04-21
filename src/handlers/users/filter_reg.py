@@ -299,7 +299,7 @@ async def chosen_type(message: Message, state: FSMContext):
                 handler_name="chosen_type (reg3)"
             )
             await message.answer("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
-            )
+
             await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
 
 
