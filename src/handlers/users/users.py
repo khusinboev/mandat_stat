@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 from aiogram import Router, F
@@ -22,8 +23,18 @@ class CloneTestState(StatesGroup):
     waiting_samples = State()
 
 
+def _to_jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(v) for v in value]
+    return str(value)
+
+
 def _message_clone_payload(message: Message) -> dict:
-    payload = message.model_dump(mode="json", exclude_none=True)
+    payload = _to_jsonable(message.model_dump(exclude_none=True))
     payload["content_type"] = message.content_type
 
     # Keep a compact summary in the same payload for faster inspection.
