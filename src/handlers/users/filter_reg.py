@@ -1,4 +1,5 @@
 import os
+import unicodedata
 
 from aiogram import Router, F
 from aiogram.enums import ChatType
@@ -12,6 +13,12 @@ from config import sql, bot, ADMIN_ID, cursor, conn
 from src.handlers.users.users import create_card
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
+from src.utils.admin_logger import send_error_to_admin
+
+
+def normalize_input(text: str) -> str:
+    """Normalize user input: trim whitespace and normalize unicode."""
+    return unicodedata.normalize('NFKD', text.strip())
 
 reg_router = Router()
 _SCORE_YEAR = 2025
@@ -183,24 +190,38 @@ async def chosen_university(message: Message, state: FSMContext):
     else:
         if message.text in _SECTION_BTNS:
             await state.clear()
-            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html", reply_markup=await UserPanels.main_manu())
+            await message.answer("<b>Quyidagi menulardan birini tanlang</b>", parse_mode="html", reply_markup=await UserPanels.main_manu())
             return
-        un_name = message.text
-        cursor.execute("SELECT un_id FROM universities WHERE lower(un_text)=%s", (un_name.lower(),))
-        un_id = cursor.fetchone()
-        if un_id:
-            un_id = un_id[0]
-            await state.update_data(un_id=un_id)
-            await state.set_state(FormReg.reg3)
-            data = await state.get_data()
-            region_id = data.get("region_id")
-            cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=%s AND un_id=%s", (region_id, un_id))
-            rows = cursor.fetchall()
-            if rows:
-                keyboard = [[KeyboardButton(text=row[1])] for row in rows]
-                keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-                btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-                await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+        try:
+            un_name = normalize_input(message.text)
+            cursor.execute("SELECT un_id FROM universities WHERE TRIM(LOWER(un_text))=%s", (un_name.lower(),))
+            un_id = cursor.fetchone()
+            if un_id:
+                un_id = un_id[0]
+                await state.update_data(un_id=un_id)
+                await state.set_state(FormReg.reg3)
+                data = await state.get_data()
+                region_id = data.get("region_id")
+                cursor.execute("SELECT ty_id, ty_text FROM gettypes WHERE region_id=%s AND un_id=%s", (region_id, un_id))
+                rows = cursor.fetchall()
+                if rows:
+                    keyboard = [[KeyboardButton(text=row[1])] for row in rows]
+                    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+                    btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+                    await message.answer("<b>🔰 Ta'lim shaklini tanlang: 👇</b>", parse_mode="html", reply_markup=btn)
+                else:
+                    await message.answer("❌ Bu OTM uchun ta'lim turi mavjud emas. Iltimos, boshqa OTMni tanlang.")
+                    await state.set_state(FormReg.reg2)
+            else:
+                await message.answer("❌ OTM topilmadi. Iltimos, ro'yxatdan tanlang yoki tezkor qidiruvdan foydalaning.")
+        except Exception as e:
+            await send_error_to_admin(
+                bot=bot,
+                error=e,
+                context={"user_id": message.from_user.id, "handler": "FormReg.reg2 (university selection)"},
+                handler_name="chosen_university (reg2)"
+            )
+            await message.answer("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
 @reg_router.message(FormReg.reg3)
 async def chosen_type(message: Message, state: FSMContext):
@@ -230,37 +251,54 @@ async def chosen_type(message: Message, state: FSMContext):
     else:
         if message.text in _SECTION_BTNS:
             await state.clear()
-            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+            await message.answer("<b>Quyidagi menulardan birini tanlang</b>", parse_mode="html",
                                  reply_markup=await UserPanels.main_manu())
             return
-        name = message.text.lower()
-        data = await state.get_data()
-        un_id = data.get("un_id")
-        region_id = data.get("region_id")
-        cursor.execute("SELECT ty_id FROM gettypes WHERE lower(ty_text)=%s AND un_id=%s AND region_id=%s", (name, un_id, region_id))
-        ty_id = cursor.fetchone()
-        if ty_id:
-            ty_id = ty_id[0]
-            await state.update_data(ty_id=ty_id)
-            await state.set_state(FormReg.reg4)
+        try:
+            name = normalize_input(message.text)
             data = await state.get_data()
             un_id = data.get("un_id")
-            cursor.execute('''
-                SELECT DISTINCT g.lan_id, g.lan_text
-                FROM mandat m
-                JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
-                WHERE m.un_id = %s AND m.ty_id = %s AND m.year = 2025
-            ''', (un_id, ty_id))
-            rows = cursor.fetchall()
-            keyboard = []
-            for row1, row2 in rows:
-                keyboard.append([KeyboardButton(text=row2[:60])])
+            region_id = data.get("region_id")
+            cursor.execute("SELECT ty_id FROM gettypes WHERE TRIM(LOWER(ty_text))=%s AND un_id=%s AND region_id=%s", (name.lower(), un_id, region_id))
+            ty_id = cursor.fetchone()
+            if ty_id:
+                ty_id = ty_id[0]
+                await state.update_data(ty_id=ty_id)
+                await state.set_state(FormReg.reg4)
+                data = await state.get_data()
+                un_id = data.get("un_id")
+                cursor.execute('''
+                    SELECT DISTINCT g.lan_id, g.lan_text
+                    FROM mandat m
+                    JOIN getlangs g ON m.lan_id::text = g.lan_id::text AND m.un_id::text = g.un_id::text AND m.ty_id::text = g.ty_id::text AND m.region_id::text = g.region_id::text
+                    WHERE m.un_id = %s AND m.ty_id = %s AND m.year = 2025
+                ''', (un_id, ty_id))
+                rows = cursor.fetchall()
+                if rows:
+                    keyboard = []
+                    for row1, row2 in rows:
+                        keyboard.append([KeyboardButton(text=row2[:60])])
 
-            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+                    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
 
-            btn = ReplyKeyboardMarkup(
-                keyboard=keyboard,
-                resize_keyboard=True,
+                    btn = ReplyKeyboardMarkup(
+                        keyboard=keyboard,
+                        resize_keyboard=True,
+                    )
+                    await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
+                else:
+                    await message.answer("❌ Bu ta'lim shakli uchun til mavjud emas. Iltimos, boshqa shakl tanlang.")
+                    await state.set_state(FormReg.reg3)
+            else:
+                await message.answer("❌ Ta'lim shakli topilmadi. Iltimos, ro'yxatdan tanlang.")
+        except Exception as e:
+            await send_error_to_admin(
+                bot=bot,
+                error=e,
+                context={"user_id": message.from_user.id, "handler": "FormReg.reg3 (education type selection)"},
+                handler_name="chosen_type (reg3)"
+            )
+            await message.answer("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
             )
             await message.answer("<b>🇺🇿 Ta'lim tilini tanlang:</b>", parse_mode="html", reply_markup=btn)
 
@@ -288,45 +326,60 @@ async def chosen_lang(message: Message, state: FSMContext):
     else:
         if message.text in _SECTION_BTNS:
             await state.clear()
-            await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+            await message.answer("<b>Quyidagi menulardan birini tanlang</b>", parse_mode="html",
                                  reply_markup=await UserPanels.main_manu())
             return
-        data = await state.get_data()
-        un_id = data["un_id"]
-        ty_id = data["ty_id"]
-        region_id = data["region_id"]
-        cursor.execute(
-            "SELECT lan_id FROM getlangs WHERE lower(lan_text)=%s AND un_id=%s AND ty_id=%s AND region_id=%s",
-            (lan_text, un_id, ty_id, region_id),
-        )
-        lan_id = cursor.fetchone()
-        if lan_id:
-            lan_id = lan_id[0]
-            await state.update_data(lan_id=lan_id)
+        try:
             data = await state.get_data()
-            region_id = data["region_id"]
             un_id = data["un_id"]
             ty_id = data["ty_id"]
-            lan_id = data["lan_id"]
-            cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE year=2025 AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s""",
-                           (region_id, un_id, ty_id, lan_id))
-            rows = cursor.fetchall()
-            keyboard = []
-            for mvdir, nomi in rows:
-                keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
-
-            keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-            btn = ReplyKeyboardMarkup(
-                keyboard=keyboard,
-                resize_keyboard=True,
+            region_id = data["region_id"]
+            cursor.execute(
+                "SELECT lan_id FROM getlangs WHERE TRIM(LOWER(lan_text))=%s AND un_id=%s AND ty_id=%s AND region_id=%s",
+                (lan_text.strip().lower(), un_id, ty_id, region_id),
             )
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
-            ])
-            message_text = f"{len(rows)} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
-            await message.answer(message_text, parse_mode="html", reply_markup=btn)
-            await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
-            await state.set_state(FormReg.reg5)
+            lan_id = cursor.fetchone()
+            if lan_id:
+                lan_id = lan_id[0]
+                await state.update_data(lan_id=lan_id)
+                data = await state.get_data()
+                region_id = data["region_id"]
+                un_id = data["un_id"]
+                ty_id = data["ty_id"]
+                lan_id = data["lan_id"]
+                cursor.execute("""SELECT mvdir, nomi FROM mandat WHERE year=2025 AND region_id=%s AND un_id=%s AND ty_id=%s AND lan_id=%s""",
+                               (region_id, un_id, ty_id, lan_id))
+                rows = cursor.fetchall()
+                if rows:
+                    keyboard = []
+                    for mvdir, nomi in rows:
+                        keyboard.append([KeyboardButton(text=f"{mvdir} - {nomi}")])
+
+                    keyboard.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+                    btn = ReplyKeyboardMarkup(
+                        keyboard=keyboard,
+                        resize_keyboard=True,
+                    )
+                    kb = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
+                    ])
+                    message_text = f"{len(rows)} ta yo'nalish mavjud:\n📚 Ta'lim yo'nalishini tanlang:"
+                    await message.answer(message_text, parse_mode="html", reply_markup=btn)
+                    await message.answer("<b>Tezkor qidiruvdan foydalaning...</b>", parse_mode="html", reply_markup=kb)
+                    await state.set_state(FormReg.reg5)
+                else:
+                    await message.answer("❌ Bu til uchun yo'nalish mavjud emas. Iltimos, boshqa til tanlang.")
+                    await state.set_state(FormReg.reg4)
+            else:
+                await message.answer("❌ Ta'lim tili topilmadi. Iltimos, ro'yxatdan tanlang.")
+        except Exception as e:
+            await send_error_to_admin(
+                bot=bot,
+                error=e,
+                context={"user_id": message.from_user.id, "handler": "FormReg.reg4 (language selection)"},
+                handler_name="chosen_lang (reg4)"
+            )
+            await message.answer("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
 
 @reg_router.inline_query(FormReg.reg5)
 async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
@@ -348,7 +401,8 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔍 Izlash", switch_inline_query_current_chat=" ")]
     ])
-    results = [
+    if facs:
+        results = [
         InlineQueryResultArticle(
             id=str(id),
             title=f"{mvdir} - {nomi}",
@@ -358,8 +412,8 @@ async def inline_search_region(inline_query: InlineQuery, state: FSMContext):
             ),
             reply_markup=kb
         ) for id, mvdir, nomi in facs
-    ]
-    await inline_query.answer(results, cache_time=1, is_personal=True)
+        ]
+        await inline_query.answer(results, cache_time=1, is_personal=True)
 
 
 @reg_router.message(FormReg.reg5)
@@ -392,8 +446,92 @@ async def chosen_lang(message: Message, state: FSMContext):
             await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                                  reply_markup=await UserPanels.main_manu())
             return
-        if " - " not in message.text:
-            await message.answer("Yo'nalishni ro'yxatdan tanlang yoki inline qidiruvdan foydalaning.")
+        try:
+            if " - " not in message.text:
+                await message.answer("Yo'nalishni ro'yxatdan tanlang yoki inline qidiruvdan foydalaning.")
+                return
+            mvdir, nomi = message.text.split(" - ", 1)
+            data = await state.get_data()
+            un_id = data["un_id"]
+            ty_id = data["ty_id"]
+            lan_id = data["lan_id"]
+            cursor.execute("SELECT un_text FROM universities WHERE un_id=%s", (un_id,))
+            un_name = cursor.fetchone()
+            cursor.execute("SELECT lan_text FROM getlangs WHERE lan_id=%s", (lan_id,))
+            lan_text = cursor.fetchone()
+            cursor.execute("SELECT ty_text FROM gettypes WHERE ty_id=%s", (ty_id,))
+            ty_text = cursor.fetchone()
+            cursor.execute("""
+                SELECT gr_b, con_b, olimp FROM mandat
+                WHERE year=2025 AND un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s
+            """, (un_id, ty_id, lan_id, mvdir, nomi))
+            ball_row = cursor.fetchone()
+            if not un_name or not lan_text or not ty_text or not ball_row:
+                await message.answer("Ma'lumot topilmadi yoki to'liq emas. Iltimos, qaytadan tanlang.")
+                return
+            gr_b, con_b, olimp = ball_row
+
+            cursor.execute(
+                """
+                SELECT year, gr_b, con_b
+                FROM mandat
+                WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s AND nomi=%s
+                  AND year IN (2025, 2024, 2023)
+                ORDER BY year DESC
+                """,
+                (un_id, ty_id, lan_id, mvdir, nomi),
+            )
+            year_rows = cursor.fetchall()
+            year_scores = {int(y): (float(gb or 0), float(cb or 0)) for y, gb, cb in year_rows}
+            score_lines = []
+            for y in _CAPTION_YEARS:
+                if y in year_scores:
+                    y_gr, y_con = year_scores[y]
+                    score_lines.append(f"<b>{y}</b>: Grand {y_gr} | Kontrakt {y_con}")
+            score_block = "\n".join(score_lines) if score_lines else f"<b>{_SCORE_YEAR}</b>: Grand {gr_b} | Kontrakt {con_b}"
+
+            message_text = (
+                f"<b>🏛 OLIYGOH:</b> {un_name[0]}\n\n<b>📚 TAʼLIM YO'NALISHI</b> - {mvdir} - {nomi}\n\n<b>🇺🇿 TAʼLIM TILI</b> - {lan_text[0]}\n\n"
+                f"<b>🔰 TAʼLIM SHAKLI</b> - {ty_text[0]}\n\n<b>📈 OʻTISH BALLARI (yillar kesimida):</b>\n{score_block}\n\n"
+                f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
+                f"<b>© <a href='https://t.me/mandatjavobbot%sstart=share'>@Mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>")
+
+            user_id = message.from_user.id
+            cursor.execute("""
+                SELECT file_id FROM photos
+                WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s
+            """, (un_id, ty_id, lan_id, mvdir))
+            old = cursor.fetchone()
+            if old:
+                await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
+            else:
+                if create_card(univer=un_name[0], faculty=f"{mvdir} - {nomi}", lang=lan_text[0], edu=ty_text[0],
+                               grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
+                    file_path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
+                    sent_message = await message.answer_photo(photo=FSInputFile(file_path), caption=message_text, parse_mode="html")
+                    file_id = sent_message.photo[-1].file_id
+                    cursor.execute("""
+                        INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (un_id, ty_id, lan_id, mvdir) DO NOTHING
+                    """, (un_id, ty_id, lan_id, mvdir, file_id))
+                    conn.commit()
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                else:
+                    await message.answer(message_text, parse_mode="html")
+        except Exception as e:
+            await send_error_to_admin(
+                bot=bot,
+                error=e,
+                context={
+                    "user_id": message.from_user.id,
+                    "handler": "FormReg.reg5 (direction selection)",
+                    "selected_direction": message.text
+                },
+                handler_name="chosen_lang (reg5)"
+            )
+            await message.answer("❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")
             return
         mvdir, nomi = message.text.split(" - ", 1)
         data = await state.get_data()
