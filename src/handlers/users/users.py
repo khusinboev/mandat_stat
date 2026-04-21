@@ -216,7 +216,7 @@ async def start_cmd6(message: Message):
     check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
-        await message.answer_document(document="BQACAgIAAxkBAAGQxtNoVAi8RFho9rDGd2uLPCfdPsC5YQACrUwAAtE4SEu0bZFBET334TYE",
+        await message.answer_document(document="BQACAgIAAxkBAV87w2nm4Pm2iJa8zX0pVF6RUi61uN9cAALhpAACM8QwS3TcgLm7CZnfOwQ",
         caption="<b>📕 FANLAR MAJMUASI! \n\n"
 "📝 O'qishni ko'chirish imtihonlarida test topshiriladigan fanlar majmuasi.\n\n"
 "✔️ Yo'nalishlar bo'yicha qaysi fandan imtihon bo'lishi ko'rsatilgan.\n\n"
@@ -265,11 +265,37 @@ async def start_cmd9(message: Message):
     check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
-        await message.answer_document(document="BQACAgIAAxkBAAGQx5toVAkCAX8b_5xpiuOVqfwWAdGstAACvEkAAs5EgUps3NE-tIIBSDYE",
-                                  caption="<b>Tabaqalashtirilgan to‘lov-kontrakt miqdorlari</b>\n\n"
-"2025/2026-oʻquv yilida o'qishni ko'chirish sinovlarida o'tish baliga <b>4,05 balldan ortiq yetmagan, 56,7 balldan kam boʻlmaganlar</b> uchun tabaqalashtirilgan kontrakt miqdorlari yo'nalishlar kesimida.\n\n"
-"Shuningdek, har yili tabaqalashtirilgan toʻlov-kontrakt qiymatini <u>15-oktyabrga qadar to‘liq toʻlagan abituriyentlarga 10%lik chegirma beriladi.</u>\n\n"
-"<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>", parse_mode="html")
+        await message.answer(
+            "<b>⚡️2025/2026-o'quv yilidan tabaqalashtirilgan toʻlov-kontrakt miqdori "
+            "OTM rektorlari (direktorlari) tomonidan belgilanadi</b>\n\n"
+            "Davlat komissiyasi bayoniga muvofiq 2025/2026-oʻquv yili uchun kirish "
+            "imtihonlari natijalariga koʻra 56,7 va undan yuqori ball toʻplagan, lekin "
+            "talabalikka tavsiya etilmagan abituriyentlarni bakalavriat taʼlim "
+            "yoʻnalishlariga qoʻshimcha qabul qilishda tabaqalashtirilgan toʻlov-kontrakt "
+            "miqdorini rektor (direktor) tomonidan mustaqil belgilash quyidagi tartibda "
+            "amaliyotga joriy etiladi:\n\n"
+            "➖ qabul chegaralariga 4,05 ballgacha yetmagan abituriyentlar uchun "
+            "belgilangan tabaqalashtirilgan toʻlov-kontrakt miqdorlari Vazirlar "
+            "Mahkamasining 2025-yil 13-sentyabrdagi 578-son qarori bilan tasdiqlangan "
+            "Nizom talablari (1-ilova 73-band)ga asosan belgilanadi;\n\n"
+            "➖ qabul chegaralariga 4,05 balldan ortiq ball yetmagan abituriyentlar "
+            "uchun tabaqalashtirilgan toʻlov-kontrakt miqdorlari oliy taʼlim muassasalari "
+            "rektorlari (direktorlari) tomonidan bazaviy toʻlov-kontraktning 3,0 "
+            "barobaridan kam boʻlmagan miqdorda belgilanadi.\n\n"
+            "2025/2026-oʻquv yili qabulida tabaqalashtirilgan toʻlov-kontrakt asosida "
+            "tahsil olish istagini bildirgan abituriyentlarga bir yillik oʻqitish "
+            "qiymatining 50 foizini 2025-yilning 31-oktyabrga qadar (shu kuni ham) "
+            "toʻlashga ruxsat beriladi.\n\n"
+            "Shuningdek, bakalavriat taʼlim yoʻnalishlariga kirish imtihonlari natijasi "
+            "boʻyicha tanlovda ishtirok etib, ikkinchi-beshinchi bakalavriat taʼlim "
+            "yoʻnalishlaridan biri boʻyicha davlat granti yoki toʻlov-kontrakt asosida "
+            "talabalikka tavsiya etilgan abituriyentlarga o‘z xohishlariga ko‘ra "
+            "ustuvorligi bo‘yicha tanlagan birinchi bakalavriat taʼlim yoʻnalishida "
+            "tabaqalashtirilgan toʻlov-kontrakt asosida oʻqishga ruxsat berildi "
+            "(maqsadli qabul asosida talabalikka tavsiya qilinganlar bundan mustasno).\n\n"
+            "<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>",
+            parse_mode="html"
+        )
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
                              reply_markup=await CheckData.channels_btn2(channels))
