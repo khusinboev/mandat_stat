@@ -3,6 +3,7 @@ import unicodedata
 
 from aiogram import Router, F
 from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \
@@ -452,9 +453,16 @@ async def chosen_lang(message: Message, state: FSMContext):
                 return
             mvdir, nomi = message.text.split(" - ", 1)
             data = await state.get_data()
-            un_id = data["un_id"]
-            ty_id = data["ty_id"]
-            lan_id = data["lan_id"]
+            un_id = data.get("un_id")
+            ty_id = data.get("ty_id")
+            lan_id = data.get("lan_id")
+            if not un_id or not ty_id or not lan_id:
+                await state.clear()
+                await message.answer(
+                    "❌ Sessiya muddati tugagan. Iltimos, /start bosing.",
+                    reply_markup=await UserPanels.main_manu()
+                )
+                return
             cursor.execute("SELECT un_text FROM universities WHERE un_id=%s", (un_id,))
             un_name = cursor.fetchone()
             cursor.execute("SELECT lan_text FROM getlangs WHERE lan_id=%s", (lan_id,))
@@ -520,6 +528,9 @@ async def chosen_lang(message: Message, state: FSMContext):
                         os.remove(file_path)
                 else:
                     await message.answer(message_text, parse_mode="html")
+        except TelegramForbiddenError:
+            # Foydalanuvchi botni bloklagan — admin ga xabar yubormaslik
+            return
         except Exception as e:
             await send_error_to_admin(
                 bot=bot,
@@ -535,9 +546,16 @@ async def chosen_lang(message: Message, state: FSMContext):
             return
         mvdir, nomi = message.text.split(" - ", 1)
         data = await state.get_data()
-        un_id = data["un_id"]
-        ty_id = data["ty_id"]
-        lan_id = data["lan_id"]
+        un_id = data.get("un_id")
+        ty_id = data.get("ty_id")
+        lan_id = data.get("lan_id")
+        if not un_id or not ty_id or not lan_id:
+            await state.clear()
+            await message.answer(
+                "❌ Sessiya muddati tugagan. Iltimos, /start bosing.",
+                reply_markup=await UserPanels.main_manu()
+            )
+            return
         cursor.execute("SELECT un_text FROM universities WHERE un_id=%s", (un_id,))
         un_name = cursor.fetchone()
         cursor.execute("SELECT lan_text FROM getlangs WHERE lan_id=%s", (lan_id,))
