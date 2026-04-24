@@ -148,13 +148,29 @@ async def iq_directions(iq: InlineQuery) -> None:
     if rows is None:
         if text:
             cursor.execute(
-                "SELECT DISTINCT ON (nomi) mvdir, nomi FROM mandat "
-                "WHERE year = %s AND lower(nomi) LIKE %s ORDER BY nomi, mvdir LIMIT %s OFFSET %s",
+                """
+                SELECT d.id, d.name_uz
+                FROM directions d
+                WHERE lower(d.name_uz) IN (
+                    SELECT DISTINCT lower(nomi) FROM mandat WHERE year = %s
+                )
+                AND lower(d.name_uz) LIKE %s
+                ORDER BY d.name_uz
+                LIMIT %s OFFSET %s
+                """,
                 (_SCORE_YEAR, f"%{text}%", _PAGE + 1, offset),
             )
         else:
             cursor.execute(
-                "SELECT DISTINCT ON (nomi) mvdir, nomi FROM mandat WHERE year = %s ORDER BY nomi, mvdir LIMIT %s OFFSET %s",
+                """
+                SELECT d.id, d.name_uz
+                FROM directions d
+                WHERE lower(d.name_uz) IN (
+                    SELECT DISTINCT lower(nomi) FROM mandat WHERE year = %s
+                )
+                ORDER BY d.name_uz
+                LIMIT %s OFFSET %s
+                """,
                 (_SCORE_YEAR, _PAGE + 1, offset),
             )
         rows = [[str(r[0]), r[1]] for r in cursor.fetchall()]
@@ -234,7 +250,7 @@ async def on_direction_chosen(message: Message, state: FSMContext) -> None:
     _, mvdir_s, nomi = parts
     mvdir = int(mvdir_s)
 
-    ckey = f"fac:ucnt:{mvdir}:{md5(nomi.encode()).hexdigest()}"
+    ckey = f"fac:ucnt:{md5(nomi.encode()).hexdigest()}"
     unis = await _cget(ckey)
     if unis is None:
         cursor.execute(
@@ -242,11 +258,11 @@ async def on_direction_chosen(message: Message, state: FSMContext) -> None:
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = %s AND m.nomi = %s AND m.year = %s
+            WHERE m.nomi = %s AND m.year = %s
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
             """,
-            (mvdir, nomi, _SCORE_YEAR),
+            (nomi, _SCORE_YEAR),
         )
         unis = [[r[0], r[1]] for r in cursor.fetchall()]
         await _cset(ckey, unis)
@@ -280,18 +296,17 @@ async def iq_universities(iq: InlineQuery, state: FSMContext) -> None:
     text   = iq.query.strip().lower()
     offset = int(iq.offset or 0)
     data   = await state.get_data()
-    mvdir  = data.get("mvdir")
     nomi   = data.get("fac_name", "")
 
-    if mvdir is None:
+    if not nomi:
         await iq.answer([], cache_time=1, is_personal=True)
         return
 
-    ckey = f"fac:u:{mvdir}:{md5((nomi + text).encode()).hexdigest()}:{offset}"
+    ckey = f"fac:u:{md5((nomi + text).encode()).hexdigest()}:{offset}"
     rows = await _cget(ckey)
     if rows is None:
         extra  = "AND lower(u.un_text) LIKE %s" if text else ""
-        params = [mvdir, nomi]
+        params = [nomi, _SCORE_YEAR]
         if text:
             params.append(f"%{text}%")
         params += [_PAGE + 1, offset]
@@ -300,7 +315,7 @@ async def iq_universities(iq: InlineQuery, state: FSMContext) -> None:
             SELECT u.un_id, u.un_text
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = %s AND m.nomi = %s AND m.year = {_SCORE_YEAR} {extra}
+            WHERE m.nomi = %s AND m.year = %s {extra}
             GROUP BY u.un_id, u.un_text
             ORDER BY u.un_text
             LIMIT %s OFFSET %s
@@ -400,9 +415,9 @@ async def on_university_chosen(message: Message, state: FSMContext) -> None:
 
     _, un_id_s, un_text = parts
     data  = await state.get_data()
-    mvdir = data["mvdir"]
+    nomi  = data.get("fac_name", "")
 
-    ckey  = f"fac:t:{un_id_s}:{mvdir}"
+    ckey  = f"fac:t:{un_id_s}:{md5(nomi.encode()).hexdigest()}"
     types = await _cget(ckey)
     if types is None:
         cursor.execute(
@@ -410,10 +425,10 @@ async def on_university_chosen(message: Message, state: FSMContext) -> None:
             SELECT DISTINCT g.ty_id, g.ty_text
             FROM mandat m
             JOIN gettypes g ON m.ty_id::text = g.ty_id::text AND m.un_id::text = g.un_id::text
-            WHERE m.un_id = %s AND m.mvdir = %s AND m.year = %s
+            WHERE m.un_id = %s AND m.nomi = %s AND m.year = %s
             ORDER BY g.ty_text
             """,
-            (un_id_s, mvdir, _SCORE_YEAR),
+            (un_id_s, nomi, _SCORE_YEAR),
         )
         types = [[r[0], r[1]] for r in cursor.fetchall()]
         await _cset(ckey, types)
@@ -445,16 +460,15 @@ async def on_type_chosen(message: Message, state: FSMContext) -> None:
 
     if txt == "\U0001f519 Ortga":
         await state.set_state(FormFac.fac2)
-        mvdir    = data["mvdir"]
         fac_name = data["fac_name"]
         cursor.execute(
             """
             SELECT COUNT(DISTINCT u.un_id)
             FROM mandat m
             JOIN universities u ON m.un_id = u.un_id
-            WHERE m.mvdir = %s AND m.nomi = %s AND m.year = %s
+            WHERE m.nomi = %s AND m.year = %s
             """,
-            (mvdir, fac_name, _SCORE_YEAR),
+            (fac_name, _SCORE_YEAR),
         )
         count = cursor.fetchone()[0]
         await message.answer(
@@ -480,7 +494,6 @@ async def on_type_chosen(message: Message, state: FSMContext) -> None:
         return
 
     un_id    = data["un_id"]
-    mvdir    = data["mvdir"]
     fac_name = data["fac_name"]
 
     if txt in _SECTION_BTNS:
@@ -506,8 +519,8 @@ async def on_type_chosen(message: Message, state: FSMContext) -> None:
     await state.set_state(FormFac.fac4)
 
     cursor.execute(
-        "SELECT COUNT(*) FROM mandat WHERE un_id=%s AND ty_id=%s AND mvdir=%s AND nomi=%s AND year=%s",
-        (un_id, str(ty_id), str(mvdir), fac_name, _SCORE_YEAR),
+        "SELECT COUNT(*) FROM mandat WHERE un_id=%s AND ty_id=%s AND nomi=%s AND year=%s",
+        (un_id, str(ty_id), fac_name, _SCORE_YEAR),
     )
     count = cursor.fetchone()[0]
 
@@ -536,18 +549,17 @@ async def iq_records(iq: InlineQuery, state: FSMContext) -> None:
     data   = await state.get_data()
     un_id  = data.get("un_id", "")
     ty_id  = str(data.get("ty_id", ""))
-    mvdir  = str(data.get("mvdir", ""))
     nomi   = data.get("fac_name", "")
 
-    if not un_id or not ty_id or not mvdir:
+    if not un_id or not ty_id or not nomi:
         await iq.answer([], cache_time=1, is_personal=True)
         return
 
-    ckey = f"fac:r:{un_id}:{ty_id}:{mvdir}:{md5((nomi + text).encode()).hexdigest()}:{offset}"
+    ckey = f"fac:r:{un_id}:{ty_id}:{md5((nomi + text).encode()).hexdigest()}:{offset}"
     rows = await _cget(ckey)
     if rows is None:
         extra  = "AND lower(g.lan_text) LIKE %s" if text else ""
-        params = [un_id, ty_id, mvdir, nomi]
+        params = [un_id, ty_id, nomi]
         if text:
             params.append(f"%{text}%")
         params += [_PAGE + 1, offset]
@@ -559,12 +571,12 @@ async def iq_records(iq: InlineQuery, state: FSMContext) -> None:
                            AND m.un_id::text     = g.un_id::text
                            AND m.ty_id::text     = g.ty_id::text
                            AND m.region_id::text = g.region_id::text
-            WHERE m.un_id = %s AND m.ty_id = %s AND m.mvdir = %s AND m.nomi = %s AND m.year = %s
+            WHERE m.un_id = %s AND m.ty_id = %s AND m.nomi = %s AND m.year = %s
             {extra}
             ORDER BY g.lan_text
             LIMIT %s OFFSET %s
             """,
-            params[:4] + [_SCORE_YEAR] + params[4:],
+            params[:3] + [_SCORE_YEAR] + params[3:],
         )
         rows = [[str(r[0]), r[1], r[2], str(r[3])] for r in cursor.fetchall()]
         await _cset(ckey, rows)
@@ -605,8 +617,8 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
     if txt == "\U0001f519 Ortga":
         await state.set_state(FormFac.fac3)
         un_id = data["un_id"]
-        mvdir = data["mvdir"]
-        ckey  = f"fac:t:{un_id}:{mvdir}"
+        nomi  = data.get("fac_name", "")
+        ckey  = f"fac:t:{un_id}:{md5(nomi.encode()).hexdigest()}"
         types = await _cget(ckey)
         if types is None:
             cursor.execute(
@@ -614,10 +626,10 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
                 SELECT DISTINCT g.ty_id, g.ty_text
                 FROM mandat m
                 JOIN gettypes g ON m.ty_id::text = g.ty_id::text AND m.un_id::text = g.un_id::text
-                WHERE m.un_id = %s AND m.mvdir = %s AND m.year = %s
+                WHERE m.un_id = %s AND m.nomi = %s AND m.year = %s
                 ORDER BY g.ty_text
                 """,
-                (un_id, mvdir, _SCORE_YEAR),
+                (un_id, nomi, _SCORE_YEAR),
             )
             types = [[r[0], r[1]] for r in cursor.fetchall()]
         keyboard = [[KeyboardButton(text=ty_text)] for _, ty_text in types]
