@@ -11,7 +11,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
 
-from config import bot, ADMIN_ID
+from config import bot, ADMIN_ID, sql, db, REQUIRED_REFERRALS
+from urllib.parse import quote
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 
@@ -118,7 +119,95 @@ async def collect_clone_sample(message: Message, state: FSMContext):
 @user_router.message(CommandStart())
 async def start_cmd1(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("Botimizga xush kelibsiz, kerakli bo'limni tanlab va davom eting!", parse_mode="html", reply_markup=await UserPanels.asos_manu())
+    user_id = message.from_user.id
+    args = message.text.split() if message.text else []
+
+    if len(args) > 1 and args[1].startswith("ref_"):
+        try:
+            referrer_id = int(args[1][4:])
+            if referrer_id != user_id:
+                sql.execute(
+                    "SELECT referred_by FROM public.accounts WHERE user_id=%s LIMIT 1",
+                    (user_id,)
+                )
+                row = sql.fetchone()
+                if row and row[0] is None:
+                    sql.execute(
+                        "UPDATE public.accounts SET referred_by=%s WHERE user_id=%s",
+                        (referrer_id, user_id),
+                    )
+                    sql.execute(
+                        "UPDATE public.accounts SET referral_count=referral_count+1 "
+                        "WHERE user_id=%s RETURNING referral_count",
+                        (referrer_id,),
+                    )
+                    ref_row = sql.fetchone()
+                    ref_count = ref_row[0] if ref_row else 0
+
+                    if ref_count >= REQUIRED_REFERRALS:
+                        notify_text = (
+                            f"🎉 <b>Yangi foydalanuvchi siz orqali qo'shildi!</b>\n\n"
+                            f"👥 Jami taklif qilganlar: <b>{ref_count}/{REQUIRED_REFERRALS}</b>\n\n"
+                            f"✅ <b>Tabriklaymiz! Botdan endi cheksiz foydalanishingiz mumkin!</b>"
+                        )
+                    else:
+                        notify_text = (
+                            f"✅ <b>Yangi foydalanuvchi siz orqali qo'shildi!</b>\n\n"
+                            f"👥 Jami taklif qilganlar: <b>{ref_count}/{REQUIRED_REFERRALS}</b>\n\n"
+                            f"➡️ Yana <b>{REQUIRED_REFERRALS - ref_count}</b> ta kishi taklif qiling."
+                        )
+                    try:
+                        await bot.send_message(referrer_id, notify_text, parse_mode="html")
+                    except Exception:
+                        pass
+        except (ValueError, IndexError):
+            pass
+
+    await message.answer(
+        "Botimizga xush kelibsiz, kerakli bo'limni tanlab va davom eting!",
+        parse_mode="html",
+        reply_markup=await UserPanels.asos_manu(),
+    )
+
+
+@user_router.callback_query(F.data == "check_referral")
+async def check_referral_status(call: CallbackQuery):
+    user_id = call.from_user.id
+    sql.execute(
+        "SELECT msg_count, referral_count FROM public.accounts WHERE user_id=%s LIMIT 1",
+        (user_id,)
+    )
+    row = sql.fetchone()
+    referral_count = row[1] if row else 0
+
+    if referral_count >= REQUIRED_REFERRALS:
+        try:
+            await call.message.edit_text(
+                "✅ <b>Siz yetarli do'st taklif qildingiz!</b>\n\n"
+                "Botdan endi cheksiz foydalanishingiz mumkin. "
+                "Boshlash uchun /start bosing.",
+                parse_mode="html",
+            )
+        except Exception:
+            pass
+        await call.answer("✅ Botdan foydalanishingiz mumkin!", show_alert=False)
+    else:
+        remaining = REQUIRED_REFERRALS - referral_count
+        me = await bot.get_me()
+        ref_link = f"https://t.me/{me.username}?start=ref_{user_id}"
+        share_url = f"https://t.me/share/url?url={quote(ref_link, safe='')}"
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📤 Do'stlarga ulashish", url=share_url)],
+            [InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_referral")],
+        ])
+        await call.answer(
+            f"Hali {remaining} ta kishi taklif qilish kerak!",
+            show_alert=True,
+        )
+        try:
+            await call.message.edit_reply_markup(reply_markup=kb)
+        except Exception:
+            pass
 
 @user_router.callback_query(F.data.in_({"check", "check2"}), F.message.chat.type == ChatType.PRIVATE)
 async def check_membership(call: CallbackQuery):

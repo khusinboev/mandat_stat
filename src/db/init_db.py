@@ -94,6 +94,21 @@ async def create_all_base():
         IF to_regclass('public.getlangs') IS NOT NULL THEN
             CREATE INDEX IF NOT EXISTS idx_getlangs_lanid_lower_text ON public.getlangs (lan_id, lower(lan_text));
         END IF;
+
+        -- accounts jadvaliga referral/limit kolonlari
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_schema='public' AND table_name='accounts' AND column_name='msg_count') THEN
+            ALTER TABLE public.accounts ADD COLUMN msg_count INTEGER NOT NULL DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_schema='public' AND table_name='accounts' AND column_name='referral_count') THEN
+            ALTER TABLE public.accounts ADD COLUMN referral_count INTEGER NOT NULL DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                       WHERE table_schema='public' AND table_name='accounts' AND column_name='referred_by') THEN
+            ALTER TABLE public.accounts ADD COLUMN referred_by BIGINT;
+        END IF;
+        CREATE INDEX IF NOT EXISTS idx_accounts_referred_by ON public.accounts (referred_by);
     END $$;
     """)
     db.commit()
