@@ -127,11 +127,13 @@ async def start_cmd1(message: Message, state: FSMContext):
             referrer_id = int(args[1][4:])
             if referrer_id != user_id:
                 sql.execute(
-                    "SELECT referred_by FROM public.accounts WHERE user_id=%s LIMIT 1",
+                    "SELECT referred_by, msg_count FROM public.accounts WHERE user_id=%s LIMIT 1",
                     (user_id,)
                 )
                 row = sql.fetchone()
-                if row and row[0] is None:
+                # Faqat haqiqatan yangi user: msg_count <= 1 (birinchi kirish)
+                # va referred_by NULL (hali boshqa havola orqali qo'shilmagan)
+                if row and row[0] is None and row[1] <= 1:
                     sql.execute(
                         "UPDATE public.accounts SET referred_by=%s WHERE user_id=%s",
                         (referrer_id, user_id),

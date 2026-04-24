@@ -11,7 +11,7 @@ from aiogram.fsm.state import StatesGroup, State
 from dateutil.relativedelta import relativedelta
 
 from src.keyboards.buttons import AdminPanel
-from config import sql, ADMIN_ID, DB_CONFIG, bot
+from config import sql, ADMIN_ID, DB_CONFIG, bot, REQUIRED_REFERRALS
 from src.keyboards.keyboard_func import PanelFunc
 
 admin_router = Router()
@@ -199,6 +199,15 @@ async def statistics(message: Message):
         cur.execute("SELECT COUNT(*) FROM accounts WHERE date = %s", (date_str,))
         last_7_days[date_str] = cur.fetchone()[0] or 0
 
+    cur.execute("SELECT COUNT(*) FROM accounts WHERE referred_by IS NOT NULL")
+    referral_joined = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(DISTINCT referred_by) FROM accounts WHERE referred_by IS NOT NULL")
+    active_referrers = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM accounts WHERE referral_count >= %s", (REQUIRED_REFERRALS,))
+    unlocked_users = cur.fetchone()[0]
+
     cur.close()
     conn.close()
 
@@ -212,6 +221,13 @@ async def statistics(message: Message):
     stats_text += "\n📆 *Oxirgi 7 kun:* (Jami {})\n".format(sum(last_7_days.values()))
     for day, count in last_7_days.items():
         stats_text += f" - {day}: {count} ta\n"
+
+    stats_text += (
+        f"\n🔗 *Referal statistikasi:*\n"
+        f" - Referal orqali qo'shilganlar: {referral_joined} ta\n"
+        f" - Faol referalchilar: {active_referrers} ta\n"
+        f" - Limitdan chiqqanlar (≥{REQUIRED_REFERRALS} ta taklif): {unlocked_users} ta\n"
+    )
 
     await message.answer(stats_text, parse_mode="Markdown")
 
