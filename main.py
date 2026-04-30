@@ -1,6 +1,9 @@
 import asyncio
 import logging
 
+from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
+from aiogram.types import ErrorEvent
+
 from config import (
     AUTO_IMPORT_QUIZ,
     QUIZ_IMPORT_SKIP_ON_HASH_MATCH,
@@ -35,6 +38,20 @@ async def on_startup():
         )
         level = logging.INFO if ok else logging.ERROR
         logging.log(level, "%s (rows=%s)", msg, rows)
+
+
+@dp.errors()
+async def global_error_handler(event: ErrorEvent) -> bool:
+    exc = event.exception
+    if isinstance(exc, TelegramForbiddenError):
+        # Foydalanuvchi botni bloklagan — jim o'tkazib yuboramiz
+        logging.debug("Bot blocked by user: %s", exc)
+        return True
+    if isinstance(exc, TelegramBadRequest):
+        logging.warning("TelegramBadRequest: %s", exc)
+        return True
+    logging.exception("Unhandled error: %s", exc)
+    return False
 
 
 async def main():
