@@ -91,22 +91,30 @@ def _quiz_start_kb(subject_code: str, subject_name: str) -> InlineKeyboardMarkup
     ])
 
 
+IMAGES_DIR = ROOT_DIR / "src" / "handlers" / "users" / "images"
+
+
+def _resolve_disk_source(photo_path: str) -> FSInputFile | None:
+    """Faqat diskdan qidiradi. file_id ga tegmaydi."""
+    candidates = [
+        IMAGES_DIR / photo_path,
+        ROOT_DIR / photo_path,
+    ]
+    for path in candidates:
+        if path.exists() and path.is_file():
+            return FSInputFile(path)
+    return None
+
+
 async def _resolve_photo_source(file_id: str | None, photo_path: str | None) -> str | FSInputFile | None:
+    """Avval file_id qaytaradi; yo'q bo'lsa diskdan qidiradi."""
     if file_id:
         return file_id
 
     if not photo_path:
         return None
 
-    candidates = [
-        ROOT_DIR / photo_path,
-        ROOT_DIR / "ques-bot" / photo_path,
-        ROOT_DIR / "ques-bot" / "src" / "handlers" / "users" / photo_path,
-    ]
-    for path in candidates:
-        if path.exists() and path.is_file():
-            return FSInputFile(path)
-    return None
+    return _resolve_disk_source(photo_path)
 
 
 async def _send_or_edit_question(
@@ -365,15 +373,24 @@ async def show_question(message_or_callback: Message | CallbackQuery, question, 
         return
 
     sent_ok, uploaded_file_id = await _send_or_edit_question(message_or_callback, photo_source, caption, btn)
+
+    # file_id dan yuborish muvaffaqiyatsiz bo'lsa (boshqa botdan o'tgan file_id) — diskdan retry
+    if not sent_ok and isinstance(photo_source, str) and photo_path:
+        disk_source = _resolve_disk_source(photo_path)
+        if disk_source is not None:
+            sent_ok, uploaded_file_id = await _send_or_edit_question(message_or_callback, disk_source, caption, btn)
+
     if not sent_ok:
         await _skip_broken_question(message_or_callback, state, index, score, subject_name)
         return
 
     if uploaded_file_id and photo_path:
-        cursor.execute(
-            f"UPDATE public.{SUBJECT_NAME_TO_CODE[subject_name]} SET file_id=%s WHERE photo=%s",
-            (uploaded_file_id, photo_path),
-        )
+        table = SUBJECT_NAME_TO_CODE.get(subject_name)
+        if table:
+            cursor.execute(
+                f"UPDATE public.{table} SET file_id=%s WHERE photo=%s",
+                (uploaded_file_id, photo_path),
+            )
 
 
 async def _skip_broken_question(message_or_callback: Message | CallbackQuery, state: FSMContext, index: int, score: float, subject_name: str):
