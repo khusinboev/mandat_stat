@@ -97,11 +97,11 @@ class UserPanels:
         btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
-                    KeyboardButton(text="📕BAKALAVRIAT 2025"),
-                    KeyboardButton(text="📘O'qishni ko'chirish")
+                    KeyboardButton(text="📊 O'tish ballari"),
+                    KeyboardButton(text="🎓 Perevod-2026")
                 ],
                 [
-                    KeyboardButton(text="📚 Namunaviy test topshiriqlari")
+                    KeyboardButton(text="😎 Test ishlash")
                 ]
             ],
             resize_keyboard=True,

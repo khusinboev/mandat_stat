@@ -166,9 +166,20 @@ async def start_cmd1(message: Message, state: FSMContext):
             pass
 
     await message.answer(
-        "Botimizga xush kelibsiz, kerakli bo'limni tanlab va davom eting!",
+        "<b>Assalomu alaykum, botimizga xush kelibsiz. Quyidagi ko'rsatilgan menyudan o'zingizga kerakli bo'limni tanlang 👇</b>",
         parse_mode="html",
         reply_markup=await UserPanels.asos_manu(),
+    )
+    await message.answer(
+        "<b>🌟 Botimizda endi yangi imkoniyat bor – Testlar bo'limi!</b>\n"
+        "Bu bo'lim abituriyentlar uchun maxsus tayyorlangan va imtihonga tayyorgarlik ko'rishda yordam beradi. "
+        "Bu yerda siz bilimlaringizni sinab, o'z darajangizni aniqlashingiz mumkin.\n\n"
+        "Yana qanday imkoniyatlar mavjud?\n\n"
+        "- <b>😎 Testga kirish:</b> Abituriyentlar uchun maxsus tayyorlangan testlarni ishlashni boshlang va o'zingizni sinab ko'ring.\n"
+        "- <b>📊 O'tish ballari:</b> 2025/2026-o'quv yili OTMlarga kirish ballari.\n"
+        "- <b>🎓 Perevod-2026:</b> Perevodchilar uchun barcha ma'lumotlar jamlangan bo'lim\n\n"
+        "Tugmalarni bosib, imtihonga tayyorgarlikni hoziroq boshlang va kelajakdagi muvaffaqiyatingizga qadam qo'ying! 🚀",
+        parse_mode="html",
     )
 
 
@@ -239,7 +250,7 @@ async def check_membership(call: CallbackQuery):
         await bot.send_message(chat_id=ADMIN_ID[0], text=f"Error in check:\n{e}")
 
 
-@user_router.message(F.text == "📕BAKALAVRIAT 2025")
+@user_router.message(F.text == "📊 O'tish ballari")
 async def start_cmd2(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.main_manu())
@@ -250,7 +261,7 @@ async def start_cmd3(message: Message, state: FSMContext):
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.asos_manu())
 
 
-@user_router.message(F.text == "📘O'qishni ko'chirish")
+@user_router.message(F.text == "🎓 Perevod-2026")
 async def start_cmd4(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.move_manu())
@@ -404,7 +415,7 @@ async def transkript_handler(message: Message):
                              reply_markup=await CheckData.channels_btn2(channels))
 
 
-@user_router.message(F.text == "📚 Namunaviy test topshiriqlari")
+@user_router.message(F.text == "😎 Test ishlash")
 async def sample_tests_handler(message: Message):
     check_status, channels = await CheckData.check_member(bot, message.from_user.id)
 
