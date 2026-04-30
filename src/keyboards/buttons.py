@@ -154,3 +154,26 @@ class UserPanels:
             keyboard=[[KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")]], resize_keyboard=True,
         )
         return btn
+
+    @staticmethod
+    async def quiz_menu():
+        btn = ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(text="📝 Matematika"),
+                    KeyboardButton(text="📚 Ona tili"),
+                ],
+                [
+                    KeyboardButton(text="📚 Tarix"),
+                    KeyboardButton(text="🧮 Hammasidan"),
+                ],
+                [
+                    KeyboardButton(text="📊 Natijalarim")
+                ],
+                [
+                    KeyboardButton(text="◀️ Ortga")
+                ],
+            ],
+            resize_keyboard=True,
+        )
+        return btn

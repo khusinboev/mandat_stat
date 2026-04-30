@@ -421,38 +421,10 @@ async def sample_tests_handler(message: Message):
 
     if check_status:
         await message.answer(
-        "<b>⚡️Bilimni baholash agentligi tomonidan olinadigan imtihonlarning "
-        "<u>majburiy va mutaxassislik</u> fanlaridan <u>namunaviy test topshiriqlari</u></b>\n\n"
-
-        "<b>Majburiy bloklar:</b>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1393'>Ona tili</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1394'>Rus tili va adabiyoti</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1395'>Qoraqalpoq tili va adabiyoti</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1396'>Matematika</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1397'>Matematika (rus)</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1398'>O‘zbekiston tarixi</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1399'>O‘zbekiston tarixi (rus)</a>\n\n"
-
-        "<b>Mutaxassislik fanlari:</b>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1400'>Huquqshunoslik</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1401'>Tarix</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1402'>Biologiya</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1403'>Fizika</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1404'>Kimyo</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1405'>Matematika</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1406'>Geografiya</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1407'>Ingliz tili</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1408'>Nemis tili</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1409'>Fransuz tili</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1410'>Ona tili va adabiyoti</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1412'>Rus tili va adabiyoti</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1411'>Qoraqalpoq tili va adabiyoti</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1413'>Ona tili va adabiyoti (o‘zga tilli guruhlar uchun)</a>\n"
-        "👉 <a href='https://t.me/nodavlattalim/1414'>Rus tili va adabiyoti (o‘zga tilli guruhlar uchun)</a>\n\n"
-
-        "<b>© <a href='https://t.me/mandatjavobbot?start=share'>@mandatjavobbot</a> - oʻtish ballari va mandat natijalari</b>",
-        parse_mode="HTML"
-    )
+            "<b>Kerakli test bo'limini tanlang 👇</b>",
+            parse_mode="html",
+            reply_markup=await UserPanels.quiz_menu(),
+        )
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
                              reply_markup=await CheckData.channels_btn(channels))

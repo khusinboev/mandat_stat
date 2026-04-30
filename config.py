@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+
+def env_bool(name: str, default: str = "false") -> bool:
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
+
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
@@ -42,6 +46,18 @@ ADMIN_ID = ADMINS = [int(admin_id) for admin_id in os.getenv("ADMINS_ID").split(
 # Referral / limit tizimi
 MSG_LIMIT = int(os.getenv("MSG_LIMIT", "10"))                   # Bepul xabarlar soni
 REQUIRED_REFERRALS = int(os.getenv("REQUIRED_REFERRALS", "2"))  # Cheksiz foydalanish uchun kerakli taklif soni
+
+# Quiz import sozlamalari
+AUTO_IMPORT_QUIZ = env_bool("AUTO_IMPORT_QUIZ", "false")
+QUIZ_IMPORT_SKIP_ON_HASH_MATCH = env_bool("QUIZ_IMPORT_SKIP_ON_HASH_MATCH", "true")
+
+QUIZ_SOURCE_DB_CONFIG = {
+    "dbname": os.getenv("QUES_BOT_DB_NAME", DB_NAME),
+    "user": os.getenv("QUES_BOT_DB_USER", DB_USER),
+    "password": os.getenv("QUES_BOT_DB_PASSWORD", DB_PASSWORD),
+    "host": os.getenv("QUES_BOT_DB_HOST", DB_HOST),
+    "port": os.getenv("QUES_BOT_DB_PORT", DB_PORT),
+}
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(link_preview_is_disabled=True))
 REDIS_URL = os.getenv("REDIS_URL")

@@ -35,6 +35,15 @@ Scale va monitoring uchun:
 - PROGRESS_UPDATE_MIN_SECONDS
 - SLOW_UPDATE_MS
 
+Quiz import uchun:
+- AUTO_IMPORT_QUIZ
+- QUIZ_IMPORT_SKIP_ON_HASH_MATCH
+- QUES_BOT_DB_NAME
+- QUES_BOT_DB_USER
+- QUES_BOT_DB_PASSWORD
+- QUES_BOT_DB_HOST
+- QUES_BOT_DB_PORT
+
 Namuna konfiguratsiya: [.env.example](.env.example)
 
 ## 3. Windows localda to'liq ishga tushirish
@@ -140,7 +149,29 @@ python parse2025.py --no-clean
 python main.py
 ```
 
-### 3.7. Tezkor tekshiruv
+### 3.7. Quiz DB import (ixtiyoriy)
+
+Agar AUTO_IMPORT_QUIZ=true bo'lsa, bot startup vaqtida quiz jadvallarini source DB dan target DB ga import qiladi.
+
+Manual import:
+
+```powershell
+python scripts/import_quiz_data.py
+```
+
+Majburan (hash tekshiruvsiz) qayta import:
+
+```powershell
+python scripts/import_quiz_data.py --force
+```
+
+Source DB dan SQL export:
+
+```powershell
+bash ./scripts/export_quiz_data.sh ques_bot_db ./quiz_dump.sql
+```
+
+### 3.8. Tezkor tekshiruv
 
 - Botga start yuboring
 - User flow larni tekshiring: filter bo'limlari

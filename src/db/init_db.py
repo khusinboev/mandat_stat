@@ -112,3 +112,66 @@ async def create_all_base():
     END $$;
     """)
     db.commit()
+
+    sql.execute("""
+    CREATE TABLE IF NOT EXISTS public.math (
+        id SERIAL PRIMARY KEY,
+        varyant VARCHAR(50) NOT NULL,
+        answer VARCHAR(10) NOT NULL,
+        file_id VARCHAR,
+        status VARCHAR(20) DEFAULT 'True',
+        photo VARCHAR,
+        created_at TIMESTAMP DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.literature (
+        id SERIAL PRIMARY KEY,
+        varyant VARCHAR(50) NOT NULL,
+        answer VARCHAR(10) NOT NULL,
+        file_id VARCHAR,
+        status VARCHAR(20) DEFAULT 'True',
+        photo VARCHAR,
+        created_at TIMESTAMP DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.history (
+        id SERIAL PRIMARY KEY,
+        varyant VARCHAR(50) NOT NULL,
+        answer VARCHAR(10) NOT NULL,
+        file_id VARCHAR,
+        status VARCHAR(20) DEFAULT 'True',
+        photo VARCHAR,
+        created_at TIMESTAMP DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.results (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        math BOOLEAN DEFAULT FALSE,
+        literature BOOLEAN DEFAULT FALSE,
+        history BOOLEAN DEFAULT FALSE,
+        number INTEGER DEFAULT 0,
+        finished_at TIMESTAMP DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS public.quiz_import_state (
+        id SERIAL PRIMARY KEY,
+        source_db_name VARCHAR,
+        import_type VARCHAR,
+        source_data_hash VARCHAR,
+        total_rows_imported INTEGER DEFAULT 0,
+        status VARCHAR DEFAULT 'success',
+        import_log TEXT,
+        last_import_at TIMESTAMP DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_math_varyant_status ON public.math (varyant, status);
+    CREATE INDEX IF NOT EXISTS idx_math_file_id ON public.math (file_id);
+    CREATE INDEX IF NOT EXISTS idx_literature_varyant_status ON public.literature (varyant, status);
+    CREATE INDEX IF NOT EXISTS idx_literature_file_id ON public.literature (file_id);
+    CREATE INDEX IF NOT EXISTS idx_history_varyant_status ON public.history (varyant, status);
+    CREATE INDEX IF NOT EXISTS idx_history_file_id ON public.history (file_id);
+    CREATE INDEX IF NOT EXISTS idx_results_user_id ON public.results (user_id);
+    CREATE INDEX IF NOT EXISTS idx_quiz_import_state_hash ON public.quiz_import_state (source_data_hash);
+    """)
+    db.commit()
