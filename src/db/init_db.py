@@ -165,13 +165,41 @@ async def create_all_base():
         last_import_at TIMESTAMP DEFAULT now()
     );
 
-    CREATE INDEX IF NOT EXISTS idx_math_varyant_status ON public.math (varyant, status);
-    CREATE INDEX IF NOT EXISTS idx_math_file_id ON public.math (file_id);
-    CREATE INDEX IF NOT EXISTS idx_literature_varyant_status ON public.literature (varyant, status);
-    CREATE INDEX IF NOT EXISTS idx_literature_file_id ON public.literature (file_id);
-    CREATE INDEX IF NOT EXISTS idx_history_varyant_status ON public.history (varyant, status);
-    CREATE INDEX IF NOT EXISTS idx_history_file_id ON public.history (file_id);
-    CREATE INDEX IF NOT EXISTS idx_results_user_id ON public.results (user_id);
-    CREATE INDEX IF NOT EXISTS idx_quiz_import_state_hash ON public.quiz_import_state (source_data_hash);
+    DO $$
+    DECLARE tbl TEXT;
+    BEGIN
+        -- math/literature/history jadvallariga varyant, answer, file_id, status, photo kolonlari
+        FOREACH tbl IN ARRAY ARRAY['math','literature','history'] LOOP
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_schema='public' AND table_name=tbl AND column_name='varyant') THEN
+                EXECUTE format('ALTER TABLE public.%I ADD COLUMN varyant VARCHAR(50)', tbl);
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_schema='public' AND table_name=tbl AND column_name='answer') THEN
+                EXECUTE format('ALTER TABLE public.%I ADD COLUMN answer VARCHAR(10)', tbl);
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_schema='public' AND table_name=tbl AND column_name='file_id') THEN
+                EXECUTE format('ALTER TABLE public.%I ADD COLUMN file_id VARCHAR', tbl);
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_schema='public' AND table_name=tbl AND column_name='status') THEN
+                EXECUTE format('ALTER TABLE public.%I ADD COLUMN status VARCHAR(20) DEFAULT ''True''', tbl);
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                           WHERE table_schema='public' AND table_name=tbl AND column_name='photo') THEN
+                EXECUTE format('ALTER TABLE public.%I ADD COLUMN photo VARCHAR', tbl);
+            END IF;
+        END LOOP;
+
+        CREATE INDEX IF NOT EXISTS idx_math_varyant_status ON public.math (varyant, status);
+        CREATE INDEX IF NOT EXISTS idx_math_file_id ON public.math (file_id);
+        CREATE INDEX IF NOT EXISTS idx_literature_varyant_status ON public.literature (varyant, status);
+        CREATE INDEX IF NOT EXISTS idx_literature_file_id ON public.literature (file_id);
+        CREATE INDEX IF NOT EXISTS idx_history_varyant_status ON public.history (varyant, status);
+        CREATE INDEX IF NOT EXISTS idx_history_file_id ON public.history (file_id);
+        CREATE INDEX IF NOT EXISTS idx_results_user_id ON public.results (user_id);
+        CREATE INDEX IF NOT EXISTS idx_quiz_import_state_hash ON public.quiz_import_state (source_data_hash);
+    END $$;
     """)
     db.commit()
