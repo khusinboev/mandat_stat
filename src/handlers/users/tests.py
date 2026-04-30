@@ -124,15 +124,18 @@ async def _send_or_edit_question(
     reply_markup: InlineKeyboardMarkup,
 ) -> tuple[bool, str | None]:
     if isinstance(message_or_callback, Message):
-        sent = await message_or_callback.answer_photo(
-            photo=photo_source,
-            caption=caption,
-            parse_mode="HTML",
-            reply_markup=reply_markup,
-        )
-        if isinstance(photo_source, FSInputFile):
-            return True, sent.photo[-1].file_id
-        return True, None
+        try:
+            sent = await message_or_callback.answer_photo(
+                photo=photo_source,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup,
+            )
+            if isinstance(photo_source, FSInputFile):
+                return True, sent.photo[-1].file_id
+            return True, None
+        except Exception:
+            return False, None
 
     try:
         if isinstance(photo_source, str):
