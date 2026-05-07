@@ -125,6 +125,9 @@ class UserPanels:
                     KeyboardButton(text="📄 Transkript yuklash")
                 ],
                 [
+                    KeyboardButton(text="📎 Turdosh yo'nalishlar ro'yxati")
+                ],
+                [
                     KeyboardButton(text="◀️ Ortga")
                 ]
             ],

@@ -3,6 +3,7 @@
 import traceback
 from typing import Optional, Dict, Any
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError
 from config import ADMIN_ID
 
 
@@ -22,6 +23,9 @@ async def send_error_to_admin(
         handler_name: Name of the handler where error occurred
     """
     try:
+        if isinstance(error, (TelegramForbiddenError, TelegramNetworkError)):
+            return
+
         # Build error message
         error_trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
         

@@ -9,7 +9,7 @@ from aiogram.enums import ChatType
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo, MessageEntity
 
 from config import bot, ADMIN_ID, sql, db, REQUIRED_REFERRALS
 from urllib.parse import quote
@@ -54,6 +54,26 @@ def _message_clone_payload(message: Message) -> dict:
 
 def _pretty_json(data: dict) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
+
+
+TURDOSH_PDF_FILE_ID = "BQACAgIAAxkBAWvav2n76kt76FcAAWaCI0yi52mqYb1BuwACon0AAio5uEufnBKINSaYHzsE"
+TURDOSH_PDF_CAPTION = (
+    "❗️O’qishni ko’chirishda turdosh yo‘nalishlar ro‘yxati"
+    "\u2060\u2060\u2060\u2060\u2060\n\n"
+    "Oliy taʼlim yo‘nalishlari klassifikatori bo‘yicha turdosh taʼlim yo‘nalishlari ro‘yxati\n\n"
+    "Ushbu faylda o'qishni ko'chirmoqchi bo'lganlar uchun turdosh va noturdosh yo'nalishlar ro'yxati bor. Bir guruhda bo'lsa turdosh har xil guruhlarda bo'lsa noturdosh bo'ladi.\n\n"
+    "© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!"
+)
+TURDOSH_PDF_CAPTION_ENTITIES = [
+    MessageEntity(type="bold", offset=0, length=54),
+    MessageEntity(type="text_link", offset=54, length=1, url="https://t.me/eduuz"),
+    MessageEntity(type="bold", offset=54, length=1),
+    MessageEntity(type="text_link", offset=55, length=4, url="https://t.me/nodavlattalim"),
+    MessageEntity(type="bold", offset=245, length=75),
+    MessageEntity(type="mention", offset=320, length=15),
+    MessageEntity(type="bold", offset=320, length=15),
+    MessageEntity(type="bold", offset=335, length=48),
+]
 
 
 @user_router.message(Command("clone_test"))
@@ -410,6 +430,20 @@ async def transkript_handler(message: Message):
         ])
         await message.answer(text="<b>O'qishni ko'chirishda asosiy hujjat transkript. Transkriptni yuklash uchun pastdagi havolani bosing</b> 👇\n\n",
                              reply_markup=keyboard, parse_mode="html")
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn2(channels))
+
+
+@user_router.message(F.text == "📎 Turdosh yo'nalishlar ro'yxati")
+async def turdosh_directions_handler(message: Message):
+    check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
+    if check_status:
+        await message.answer_document(
+            document=TURDOSH_PDF_FILE_ID,
+            caption=TURDOSH_PDF_CAPTION,
+            caption_entities=TURDOSH_PDF_CAPTION_ENTITIES,
+        )
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
                              reply_markup=await CheckData.channels_btn2(channels))
