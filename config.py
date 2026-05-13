@@ -1,6 +1,8 @@
 import os
+import logging
 
 import psycopg2
+from psycopg2 import InterfaceError, OperationalError
 from psycopg2.pool import SimpleConnectionPool
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -28,12 +30,147 @@ DB_CONFIG = {
     "host": DB_HOST,
     "port": DB_PORT
 }
-db = psycopg2.connect(
-    database=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT)
-db.autocommit = True
-sql = db.cursor()
 
-# Backward-compatible aliases used by filter handlers
+logger = logging.getLogger(__name__)
+
+
+def _open_raw_connection():
+    raw = psycopg2.connect(
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT,
+    )
+    raw.autocommit = True
+    return raw
+
+
+_raw_db = _open_raw_connection()
+_raw_sql = _raw_db.cursor()
+
+
+def _reconnect_raw() -> None:
+    global _raw_db, _raw_sql
+    try:
+        if _raw_sql is not None and not _raw_sql.closed:
+            _raw_sql.close()
+    except Exception:
+        pass
+    try:
+        if _raw_db is not None and not _raw_db.closed:
+            _raw_db.close()
+    except Exception:
+        pass
+
+    _raw_db = _open_raw_connection()
+    _raw_sql = _raw_db.cursor()
+    logger.warning("DB connection re-established after cursor/connection closure")
+
+
+def _ensure_raw_connection():
+    global _raw_db, _raw_sql
+    if _raw_db is None or _raw_db.closed:
+        _reconnect_raw()
+    elif _raw_sql is None or _raw_sql.closed:
+        _raw_sql = _raw_db.cursor()
+
+
+class CursorProxy:
+    def _raw_cursor(self):
+        _ensure_raw_connection()
+        return _raw_sql
+
+    def execute(self, query, vars=None):
+        try:
+            return self._raw_cursor().execute(query, vars)
+        except (InterfaceError, OperationalError):
+            _reconnect_raw()
+            return self._raw_cursor().execute(query, vars)
+
+    def executemany(self, query, vars_list):
+        try:
+            return self._raw_cursor().executemany(query, vars_list)
+        except (InterfaceError, OperationalError):
+            _reconnect_raw()
+            return self._raw_cursor().executemany(query, vars_list)
+
+    def fetchone(self):
+        return self._raw_cursor().fetchone()
+
+    def fetchall(self):
+        return self._raw_cursor().fetchall()
+
+    def fetchmany(self, size=None):
+        if size is None:
+            return self._raw_cursor().fetchmany()
+        return self._raw_cursor().fetchmany(size)
+
+    @property
+    def closed(self):
+        return self._raw_cursor().closed
+
+    def close(self):
+        try:
+            self._raw_cursor().close()
+        except Exception:
+            pass
+
+    def __getattr__(self, item):
+        return getattr(self._raw_cursor(), item)
+
+
+class ConnectionProxy:
+    def _raw_connection(self):
+        _ensure_raw_connection()
+        return _raw_db
+
+    @property
+    def autocommit(self):
+        return self._raw_connection().autocommit
+
+    @autocommit.setter
+    def autocommit(self, value):
+        self._raw_connection().autocommit = value
+
+    @property
+    def closed(self):
+        return self._raw_connection().closed
+
+    def cursor(self, *args, **kwargs):
+        try:
+            return self._raw_connection().cursor(*args, **kwargs)
+        except (InterfaceError, OperationalError):
+            _reconnect_raw()
+            return self._raw_connection().cursor(*args, **kwargs)
+
+    def commit(self):
+        try:
+            return self._raw_connection().commit()
+        except (InterfaceError, OperationalError):
+            _reconnect_raw()
+            return self._raw_connection().commit()
+
+    def rollback(self):
+        try:
+            return self._raw_connection().rollback()
+        except (InterfaceError, OperationalError):
+            _reconnect_raw()
+            return self._raw_connection().rollback()
+
+    def close(self):
+        try:
+            return self._raw_connection().close()
+        except Exception:
+            return None
+
+    def __getattr__(self, item):
+        return getattr(self._raw_connection(), item)
+
+
+# Backward-compatible proxies used across handlers
+db = ConnectionProxy()
+sql = CursorProxy()
 conn = db
 cursor = sql
 
