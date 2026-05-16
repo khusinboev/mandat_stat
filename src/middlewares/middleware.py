@@ -53,9 +53,9 @@ class RegisterUserMiddleware(BaseMiddleware):
         lang_code = user.language_code or "uz"
         date = datetime.now(pytz.timezone("Asia/Tashkent")).date()
 
-        # Admin uchun limit yo'q
-        if user_id in ADMIN_ID:
-            return await handler(event, data)
+        # Adminlar ham accounts jadvaliga yoziladi (statistika uchun),
+        # lekin ular uchun limit qo'llanmaydi.
+        is_admin = user_id in ADMIN_ID
 
         # DB: ro'yxatdan o'tkazish + msg_count yangilash
         msg_count = 0
@@ -103,7 +103,7 @@ class RegisterUserMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         # Limit tekshiruvi
-        is_limited = msg_count > MSG_LIMIT and referral_count < REQUIRED_REFERRALS
+        is_limited = (not is_admin) and msg_count > MSG_LIMIT and referral_count < REQUIRED_REFERRALS
 
         if is_limited:
             if is_inline:

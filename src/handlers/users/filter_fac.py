@@ -16,6 +16,7 @@ from _md5 import md5
 import redis.asyncio as aioredis
 from aiogram import Router, F
 from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -756,13 +757,26 @@ async def on_record_chosen(message: Message, state: FSMContext) -> None:
     cached_photo = cursor.fetchone()
 
     if cached_photo:
-        await message.answer_photo(
-            photo=cached_photo[0],
-            caption=caption,
-            parse_mode="html",
-            reply_markup=again_kb,
-        )
+        try:
+            await message.answer_photo(
+                photo=cached_photo[0],
+                caption=caption,
+                parse_mode="html",
+                reply_markup=again_kb,
+            )
+            sent_from_cache = True
+        except TelegramBadRequest:
+            # Eski botdan qolgan file_id bo'lsa keshni tozalaymiz.
+            cursor.execute(
+                "DELETE FROM photos WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s",
+                (un_id, ty_id, lan_id_s, str(mv_val)),
+            )
+            conn.commit()
+            sent_from_cache = False
     else:
+        sent_from_cache = False
+
+    if not sent_from_cache:
         photo_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "photos", f"{user_id}.jpg"
         )

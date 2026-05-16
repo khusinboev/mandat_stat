@@ -2,6 +2,7 @@ import os
 
 from aiogram import Router, F
 # removed  # <-- faqat bu qo‘shildi
+from aiogram.exceptions import TelegramBadRequest
 
 from aiogram.enums import ChatType
 from aiogram.fsm.state import StatesGroup, State
@@ -662,20 +663,29 @@ async def chosen_lang(message: Message, state: FSMContext):
                            (un_id, ty_id, lan_id, mvdir))
             old = cursor.fetchone()
             if old:
-                await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
-            else:
-                if create_card(univer=un_name, faculty=f"{mvdir} - {nomi}", lang=lan_text, edu=ty_text,
-                               grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
-                    path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
-                    sent_message = await message.answer_photo(photo=FSInputFile(path), caption=message_text, parse_mode="html")
-                    file_id = sent_message.photo[-1].file_id
-                    cursor.execute("""
-                        INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT DO NOTHING
-                    """, (un_id, ty_id, lan_id, mvdir, file_id))
+                try:
+                    await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
+                    return
+                except TelegramBadRequest:
+                    # Old file_id boshqa botga tegishli bo'lsa keshdan o'chiramiz.
+                    cursor.execute(
+                        "DELETE FROM photos WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s",
+                        (un_id, ty_id, lan_id, mvdir),
+                    )
                     conn.commit()
-                    if os.path.exists(path):
-                        os.remove(path)
-                else:
-                    await message.answer(message_text, parse_mode="html")
+
+            if create_card(univer=un_name, faculty=f"{mvdir} - {nomi}", lang=lan_text, edu=ty_text,
+                           grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
+                path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
+                sent_message = await message.answer_photo(photo=FSInputFile(path), caption=message_text, parse_mode="html")
+                file_id = sent_message.photo[-1].file_id
+                cursor.execute("""
+                    INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT DO NOTHING
+                """, (un_id, ty_id, lan_id, mvdir, file_id))
+                conn.commit()
+                if os.path.exists(path):
+                    os.remove(path)
+            else:
+                await message.answer(message_text, parse_mode="html")

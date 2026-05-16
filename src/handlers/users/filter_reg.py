@@ -4,7 +4,7 @@ import unicodedata
 
 from aiogram import Router, F
 from aiogram.enums import ChatType
-from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramNetworkError
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InlineQuery, \
@@ -563,23 +563,32 @@ async def chosen_lang(message: Message, state: FSMContext):
             """, (un_id, ty_id, lan_id, mvdir))
             old = cursor.fetchone()
             if old:
-                await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
-            else:
-                if create_card(univer=un_name[0], faculty=f"{mvdir} - {nomi}", lang=lan_text[0], edu=ty_text[0],
-                               grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
-                    file_path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
-                    sent_message = await message.answer_photo(photo=FSInputFile(file_path), caption=message_text, parse_mode="html")
-                    file_id = sent_message.photo[-1].file_id
-                    cursor.execute("""
-                        INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (un_id, ty_id, lan_id, mvdir) DO NOTHING
-                    """, (un_id, ty_id, lan_id, mvdir, file_id))
+                try:
+                    await message.answer_photo(photo=old[0], caption=message_text, parse_mode="html")
+                    return
+                except TelegramBadRequest:
+                    # Eski file_id ishlamasa keshdan o'chirib qayta yaratamiz.
+                    cursor.execute(
+                        "DELETE FROM photos WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s",
+                        (un_id, ty_id, lan_id, mvdir),
+                    )
                     conn.commit()
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                else:
-                    await message.answer(message_text, parse_mode="html")
+
+            if create_card(univer=un_name[0], faculty=f"{mvdir} - {nomi}", lang=lan_text[0], edu=ty_text[0],
+                           grand=gr_b, kont=con_b, olmp=olimp, name=user_id):
+                file_path = f"{os.path.dirname(os.path.abspath(__file__))}/photos/{user_id}.jpg"
+                sent_message = await message.answer_photo(photo=FSInputFile(file_path), caption=message_text, parse_mode="html")
+                file_id = sent_message.photo[-1].file_id
+                cursor.execute("""
+                    INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (un_id, ty_id, lan_id, mvdir) DO NOTHING
+                """, (un_id, ty_id, lan_id, mvdir, file_id))
+                conn.commit()
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            else:
+                await message.answer(message_text, parse_mode="html")
         except TelegramForbiddenError:
             # Foydalanuvchi botni bloklagan — admin ga xabar yubormaslik
             return
