@@ -6,6 +6,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFont
 from aiogram import Router, F
 from aiogram.enums import ChatType
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -18,6 +19,107 @@ from src.keyboards.keyboard_func import CheckData
 
 user_router = Router()
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Bot-specific static file cache helpers
+# ---------------------------------------------------------------------------
+
+def _get_static_file_id(key: str) -> str | None:
+    """bot_static_files jadvalidan keyed file_id ni qaytaradi."""
+    try:
+        sql.execute("SELECT file_id FROM public.bot_static_files WHERE key = %s", (key,))
+        row = sql.fetchone()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
+def _set_static_file_id(key: str, file_id: str) -> None:
+    """bot_static_files jadvaliga key/file_id ni saqlaydi yoki yangilaydi."""
+    try:
+        sql.execute(
+            "INSERT INTO public.bot_static_files (key, file_id) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO UPDATE SET file_id = EXCLUDED.file_id, updated_at = now()",
+            (key, file_id),
+        )
+        db.commit()
+    except Exception as exc:
+        logger.warning("_set_static_file_id error: %s", exc)
+
+
+def _del_static_file_id(key: str) -> None:
+    """Eskirgan/ishlamaydigan file_id ni keshdan o'chiradi."""
+    try:
+        sql.execute("DELETE FROM public.bot_static_files WHERE key = %s", (key,))
+        db.commit()
+    except Exception as exc:
+        logger.warning("_del_static_file_id error: %s", exc)
+
+
+async def _send_static_document(
+    message: Message,
+    key: str,
+    fallback_file_id: str,
+    caption: str,
+    **kwargs,
+) -> None:
+    """
+    Bot-specific keyed cache ni tekshirib document yuboradi.
+    Agar TelegramBadRequest bo'lsa, keshni o'chirib fallback_file_id bilan qayta sinaydi.
+    Ikkisi ham ishlamasa foydalanuvchiga xabar beradi.
+    """
+    cached = _get_static_file_id(key)
+    for file_id in dict.fromkeys([cached, fallback_file_id]):
+        if not file_id:
+            continue
+        try:
+            await message.answer_document(document=file_id, caption=caption, **kwargs)
+            if file_id != fallback_file_id:
+                pass  # already in cache
+            elif cached != file_id:
+                _set_static_file_id(key, file_id)
+            return
+        except TelegramBadRequest:
+            if file_id == cached:
+                _del_static_file_id(key)
+            logger.warning("Static document send failed for key=%s file_id=%s", key, file_id[:20])
+    await message.answer(
+        "⚠️ Fayl hozircha yuklanmagan.\n"
+        f"Admin: <code>/set_file {key} &lt;file_id&gt;</code> buyrug'i orqali yangilang.",
+        parse_mode="html",
+    )
+
+
+async def _send_static_photo(
+    message: Message,
+    key: str,
+    fallback_file_id: str,
+    caption: str,
+    **kwargs,
+) -> None:
+    """
+    Bot-specific keyed cache ni tekshirib photo yuboradi.
+    Agar TelegramBadRequest bo'lsa, keshni o'chirib fallback_file_id bilan qayta sinaydi.
+    """
+    cached = _get_static_file_id(key)
+    for file_id in dict.fromkeys([cached, fallback_file_id]):
+        if not file_id:
+            continue
+        try:
+            await message.answer_photo(photo=file_id, caption=caption, **kwargs)
+            if file_id != fallback_file_id and cached != file_id:
+                _set_static_file_id(key, file_id)
+            return
+        except TelegramBadRequest:
+            if file_id == cached:
+                _del_static_file_id(key)
+            logger.warning("Static photo send failed for key=%s file_id=%s", key, file_id[:20])
+    await message.answer(
+        "⚠️ Rasm hozircha yuklanmagan.\n"
+        f"Admin: <code>/set_file {key} &lt;file_id&gt;</code> buyrug'i orqali yangilang.",
+        parse_mode="html",
+    )
 
 
 class CloneTestState(StatesGroup):
@@ -74,6 +176,27 @@ TURDOSH_PDF_CAPTION_ENTITIES = [
     MessageEntity(type="bold", offset=320, length=15),
     MessageEntity(type="bold", offset=335, length=48),
 ]
+
+
+@user_router.message(Command("set_file"))
+async def set_static_file_cmd(message: Message):
+    """Admin buyrug'i: /set_file <key> <file_id> — static kesh yangilash."""
+    if message.from_user.id not in ADMIN_ID:
+        return
+    parts = (message.text or "").split(maxsplit=2)
+    if len(parts) < 3:
+        await message.answer(
+            "Ishlatish: <code>/set_file &lt;key&gt; &lt;file_id&gt;</code>\n\n"
+            "Mavjud kalitlar:\n"
+            "• <code>otish_ballari_photo</code>\n"
+            "• <code>fanlar_majmuasi_pdf</code>\n"
+            "• <code>turdosh_pdf</code>",
+            parse_mode="html",
+        )
+        return
+    key, file_id = parts[1], parts[2].strip()
+    _set_static_file_id(key, file_id)
+    await message.answer(f"✅ Saqlandi: <code>{key}</code> → <code>{file_id[:30]}...</code>", parse_mode="html")
 
 
 @user_router.message(Command("clone_test"))
@@ -338,33 +461,47 @@ async def start_cmd6(message: Message):
     check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
-        await message.answer_document(document="BQACAgIAAxkBAV87w2nm4Pm2iJa8zX0pVF6RUi61uN9cAALhpAACM8QwS3TcgLm7CZnfOwQ",
-        caption="<b>📕 FANLAR MAJMUASI! \n\n"
-"📝 O'qishni ko'chirish imtihonlarida test topshiriladigan fanlar majmuasi.\n\n"
-"✔️ Yo'nalishlar bo'yicha qaysi fandan imtihon bo'lishi ko'rsatilgan.\n\n"
-"⚠️ Oʻqishni koʻchirishda aynan mana shu 2025/2026-o'quv yilidagi fanlar majmuasidan foydalaniladi. \n\n"
-"© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>"
-    , parse_mode="html")
+        await _send_static_document(
+            message,
+            key="fanlar_majmuasi_pdf",
+            fallback_file_id="BQACAgIAAxkBAV87w2nm4Pm2iJa8zX0pVF6RUi61uN9cAALhpAACM8QwS3TcgLm7CZnfOwQ",
+            caption="<b>📕 FANLAR MAJMUASI! \n\n"
+                    "📝 O'qishni ko'chirish imtihonlarida test topshiriladigan fanlar majmuasi.\n\n"
+                    "✔️ Yo'nalishlar bo'yicha qaysi fandan imtihon bo'lishi ko'rsatilgan.\n\n"
+                    "⚠️ Oʻqishni koʻchirishda aynan mana shu 2025/2026-o'quv yilidagi fanlar majmuasidan foydalaniladi. \n\n"
+                    "© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!</b>",
+            parse_mode="html",
+        )
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
                              reply_markup=await CheckData.channels_btn2(channels))
 
 @user_router.message(F.text == "📊 O'tish ballari️")
+@user_router.message(F.text == "📊 O'tish ballari️")
 async def start_cmd7(message: Message):
     check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
 
     if check_status:
-        await message.answer_photo(photo="AgACAgIAAxkBAAHxJvRofhQTCwdIp6X_ZwJrQ9eIPMDENAACNvIxG0SS-EtT5x82hi17mgEAAwIAA3kAAzYE", caption="<b>⚡️O‘qishni ko‘chirishda qancha ball to'plash kerak?</b>\n\n"
-"2025/2026-oʻquv yili uchun xorijiy va nodavlat oliy taʼlim muassasalaridan talabalar oʻqishini respublika <b>davlat oliy taʼlim muassasalariga koʻchirish boʻyicha oʻtkaziladigan maxsus sinovlar boʻyicha oʻtish ballari</b> tasdiqlangan.\n\n"
-"<b>Yuqoridagi o’tish ballari quyidagilarga taalluqli:</b>\n\n"
-"1️⃣ xorijdagi OTMlardan yurtimizdagi davlat OTMlariga o’qishini ko’chirmoqchi bo’lganlarga;\n"
-"2️⃣ yurtimizdagi nodavlat OTMlar hamda xorijiy OTMlarning filiallaridan davlat OTMlariga o’qishini ko’chirmoqchi bo’lganlarga.\n\n"
-"Eslatma: o’qishni ko’chirish bo’yicha arizalar <b>15-iyuldan 5-avgustgacha</b> qabul qilinadi.\n\n"
-"<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!!</b>", parse_mode="html")
+        caption = (
+            "<b>⚡️O'qishni ko'chirishda qancha ball to'plash kerak?</b>\n\n"
+            "2025/2026-oʻquv yili uchun xorijiy va nodavlat oliy taʼlim muassasalaridan talabalar oʻqishini respublika "
+            "<b>davlat oliy taʼlim muassasalariga koʻchirish boʻyicha oʻtkaziladigan maxsus sinovlar boʻyicha oʻtish ballari</b> tasdiqlangan.\n\n"
+            "<b>Yuqoridagi o'tish ballari quyidagilarga taalluqli:</b>\n\n"
+            "1️⃣ xorijdagi OTMlardan yurtimizdagi davlat OTMlariga o'qishini ko'chirmoqchi bo'lganlarga;\n"
+            "2️⃣ yurtimizdagi nodavlat OTMlar hamda xorijiy OTMlarning filiallaridan davlat OTMlariga o'qishini ko'chirmoqchi bo'lganlarga.\n\n"
+            "Eslatma: o'qishni ko'chirish boʻyicha arizalar <b>15-iyuldan 5-avgustgacha</b> qabul qilinadi.\n\n"
+            "<b>© @mandatjavobbot — O'qishni ko'chirishga oid ma'lumotlar bazasi!!</b>"
+        )
+        await _send_static_photo(
+            message,
+            key="otish_ballari_photo",
+            fallback_file_id="AgACAgIAAxkBAAHxJvRofhQTCwdIp6X_ZwJrQ9eIPMDENAACNvIxG0SS-EtT5x82hi17mgEAAwIAA3kAAzYE",
+            caption=caption,
+            parse_mode="html",
+        )
     else:
-        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo’ling:",
                              reply_markup=await CheckData.channels_btn2(channels))
-
 @user_router.message(F.text == "💰 Super kontrakt miqdori️")
 async def start_cmd8(message: Message):
     check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
@@ -439,11 +576,30 @@ async def transkript_handler(message: Message):
 async def turdosh_directions_handler(message: Message):
     check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
     if check_status:
-        await message.answer_document(
-            document=TURDOSH_PDF_FILE_ID,
-            caption=TURDOSH_PDF_CAPTION,
-            caption_entities=TURDOSH_PDF_CAPTION_ENTITIES,
-        )
+        cached = _get_static_file_id("turdosh_pdf")
+        file_id_to_try = cached if cached else TURDOSH_PDF_FILE_ID
+        sent = False
+        for fid in dict.fromkeys([file_id_to_try, TURDOSH_PDF_FILE_ID]):
+            if not fid:
+                continue
+            try:
+                await message.answer_document(
+                    document=fid,
+                    caption=TURDOSH_PDF_CAPTION,
+                    caption_entities=TURDOSH_PDF_CAPTION_ENTITIES,
+                )
+                sent = True
+                break
+            except TelegramBadRequest:
+                if fid == cached:
+                    _del_static_file_id("turdosh_pdf")
+                logger.warning("turdosh_pdf send failed for file_id=%s", fid[:20])
+        if not sent:
+            await message.answer(
+                "⚠️ Fayl hozircha yuklanmagan.\n"
+                "Admin: <code>/set_file turdosh_pdf &lt;file_id&gt;</code> buyrug'i orqali yangilang.",
+                parse_mode="html",
+            )
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
                              reply_markup=await CheckData.channels_btn2(channels))
