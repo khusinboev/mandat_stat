@@ -11,7 +11,7 @@ from aiogram.fsm.state import StatesGroup, State
 from dateutil.relativedelta import relativedelta
 
 from src.keyboards.buttons import AdminPanel
-from config import sql, ADMIN_ID, DB_CONFIG, REFERRAL_SYSTEM_ENABLED, bot, REQUIRED_REFERRALS
+from config import sql, ADMIN_ID, DB_CONFIG, bot, REQUIRED_REFERRALS, is_referral_system_enabled, set_referral_system_enabled
 from src.keyboards.keyboard_func import PanelFunc
 
 admin_router = Router()
@@ -172,6 +172,7 @@ async def back_to_menu2(message: Message, state: FSMContext):
 # ─── Statistika ───
 @admin_router.message(F.text == "📊Statistika", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def statistics(message: Message):
+    referral_enabled = is_referral_system_enabled()
     now = datetime.now(pytz.timezone("Asia/Tashkent")).date()
     current_month = now.replace(day=1)
     months = [current_month - relativedelta(months=i) for i in range(3)]
@@ -224,13 +225,24 @@ async def statistics(message: Message):
 
     stats_text += (
         f"\n🔗 *Referal statistikasi:*\n"
-        f" - Holati: {'yoqilgan' if REFERRAL_SYSTEM_ENABLED else 'o\'chirilgan'}\n"
+        f" - Holati: {'yoqilgan' if referral_enabled else 'o\'chirilgan'}\n"
         f" - Referal orqali qo'shilganlar: {referral_joined} ta\n"
         f" - Faol referalchilar: {active_referrers} ta\n"
         f" - Limitdan chiqqanlar (≥{REQUIRED_REFERRALS} ta taklif): {unlocked_users} ta\n"
     )
 
     await message.answer(stats_text, parse_mode="Markdown")
+
+
+@admin_router.message(F.text.regexp(r"^🎯 Referal:"), F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
+async def toggle_referral_system(message: Message):
+    new_state = not is_referral_system_enabled()
+    set_referral_system_enabled(new_state)
+    status_text = "yoqildi" if new_state else "o'chirildi"
+    await message.answer(
+        f"Referal tizimi {status_text}.",
+        reply_markup=await AdminPanel.admin_menu(),
+    )
 
 
 # ─── Kanallar 1 ───

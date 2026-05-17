@@ -1,16 +1,17 @@
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton, InlineKeyboardMarkup
 
-from config import sql, bot
+from config import sql, bot, is_referral_system_enabled
 
 
 class AdminPanel:
     @staticmethod
     async def admin_menu():
+        referral_status = "ON" if is_referral_system_enabled() else "OFF"
         return ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton(text="📊Statistika"), KeyboardButton(text="🔧Kanallar")],
                 [KeyboardButton(text="🔧Adminlar👨‍💻"), KeyboardButton(text="✍Xabarlar")],
-                [KeyboardButton(text="🔧Kanallar2")],
+                [KeyboardButton(text="🔧Kanallar2"), KeyboardButton(text=f"🎯 Referal: {referral_status}")],
             ],
             resize_keyboard=True,
         )

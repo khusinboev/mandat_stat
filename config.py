@@ -1,5 +1,6 @@
 import os
 import logging
+import time
 
 import psycopg2
 from psycopg2 import InterfaceError, OperationalError
@@ -184,6 +185,66 @@ ADMIN_ID = ADMINS = [int(admin_id) for admin_id in os.getenv("ADMINS_ID").split(
 REFERRAL_SYSTEM_ENABLED = env_bool("REFERRAL_SYSTEM_ENABLED", "true")
 MSG_LIMIT = int(os.getenv("MSG_LIMIT", "10"))                   # Bepul xabarlar soni
 REQUIRED_REFERRALS = int(os.getenv("REQUIRED_REFERRALS", "2"))  # Cheksiz foydalanish uchun kerakli taklif soni
+
+_SETTINGS_CACHE_TTL_SECONDS = 5.0
+_settings_cache: dict[str, tuple[str, float]] = {}
+
+
+def _ensure_runtime_settings_table() -> None:
+    sql.execute(
+        """
+        CREATE TABLE IF NOT EXISTS public.runtime_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT now()
+        )
+        """
+    )
+
+
+def _get_runtime_setting(key: str, default: str) -> str:
+    now = time.monotonic()
+    cached = _settings_cache.get(key)
+    if cached and now - cached[1] < _SETTINGS_CACHE_TTL_SECONDS:
+        return cached[0]
+
+    try:
+        _ensure_runtime_settings_table()
+        sql.execute("SELECT value FROM public.runtime_settings WHERE key=%s", (key,))
+        row = sql.fetchone()
+        value = row[0] if row else default
+    except Exception:
+        value = default
+
+    _settings_cache[key] = (value, now)
+    return value
+
+
+def set_runtime_setting(key: str, value: str) -> None:
+    _ensure_runtime_settings_table()
+    sql.execute(
+        """
+        INSERT INTO public.runtime_settings (key, value)
+        VALUES (%s, %s)
+        ON CONFLICT (key) DO UPDATE
+        SET value = EXCLUDED.value,
+            updated_at = now()
+        """,
+        (key, value),
+    )
+    _settings_cache[key] = (value, time.monotonic())
+
+
+def is_referral_system_enabled() -> bool:
+    value = _get_runtime_setting(
+        "referral_system_enabled",
+        "true" if REFERRAL_SYSTEM_ENABLED else "false",
+    )
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def set_referral_system_enabled(enabled: bool) -> None:
+    set_runtime_setting("referral_system_enabled", "true" if enabled else "false")
 
 # Quiz import sozlamalari
 AUTO_IMPORT_QUIZ = env_bool("AUTO_IMPORT_QUIZ", "false")

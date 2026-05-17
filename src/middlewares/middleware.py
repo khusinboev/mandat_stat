@@ -6,7 +6,7 @@ import logging
 import os
 import time
 import pytz
-from config import db_pool, ADMIN_ID, bot, MSG_LIMIT, REFERRAL_SYSTEM_ENABLED, REQUIRED_REFERRALS
+from config import db_pool, ADMIN_ID, bot, MSG_LIMIT, REQUIRED_REFERRALS, is_referral_system_enabled
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,7 @@ class RegisterUserMiddleware(BaseMiddleware):
         user_id = user.id
         lang_code = user.language_code or "uz"
         date = datetime.now(pytz.timezone("Asia/Tashkent")).date()
+        referral_enabled = is_referral_system_enabled()
 
         # Adminlar ham accounts jadvaliga yoziladi (statistika uchun),
         # lekin ular uchun limit qo'llanmaydi.
@@ -72,7 +73,7 @@ class RegisterUserMiddleware(BaseMiddleware):
             row = cur.fetchone()
             if row is None:
                 # Yangi foydalanuvchi — birinchi xabar hisoblanadi
-                count_val = 1 if (REFERRAL_SYSTEM_ENABLED and is_message) else 0
+                count_val = 1 if (referral_enabled and is_message) else 0
                 cur.execute(
                     "INSERT INTO public.accounts (user_id, lang_code, date, msg_count, referral_count) "
                     "VALUES (%s, %s, %s, %s, 0)",
@@ -83,7 +84,7 @@ class RegisterUserMiddleware(BaseMiddleware):
                 referral_count = 0
             else:
                 msg_count, referral_count = row
-                if REFERRAL_SYSTEM_ENABLED and is_message and msg_count <= MSG_LIMIT:
+                if referral_enabled and is_message and msg_count <= MSG_LIMIT:
                     msg_count += 1
                     cur.execute(
                         "UPDATE public.accounts SET msg_count=%s WHERE user_id=%s",
@@ -104,7 +105,7 @@ class RegisterUserMiddleware(BaseMiddleware):
 
         # Limit tekshiruvi
         is_limited = (
-            REFERRAL_SYSTEM_ENABLED
+            referral_enabled
             and (not is_admin)
             and msg_count > MSG_LIMIT
             and referral_count < REQUIRED_REFERRALS

@@ -17,7 +17,7 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
-from config import MSG_LIMIT, REFERRAL_SYSTEM_ENABLED, REQUIRED_REFERRALS, bot, cursor, sql
+from config import MSG_LIMIT, REQUIRED_REFERRALS, bot, cursor, sql, is_referral_system_enabled
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 from src.utils.quiz_helpers import format_results, insert_result
@@ -57,7 +57,7 @@ def _limit_keyboard(ref_link: str) -> InlineKeyboardMarkup:
 
 
 async def _is_limited(user_id: int) -> tuple[bool, int]:
-    if not REFERRAL_SYSTEM_ENABLED:
+    if not is_referral_system_enabled():
         return False, 0
 
     sql.execute(
