@@ -37,3 +37,6 @@ dist/
 
 # Pytest cache
 .cache/
+
+# PDF test worker base (generated artifacts and input files)
+test_pdf_worker_base/
