@@ -12,7 +12,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo, MessageEntity
 
-from config import bot, ADMIN_ID, sql, db, REQUIRED_REFERRALS
+from config import bot, ADMIN_ID, sql, db, REFERRAL_SYSTEM_ENABLED, REQUIRED_REFERRALS
 from urllib.parse import quote
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
@@ -265,7 +265,7 @@ async def start_cmd1(message: Message, state: FSMContext):
     user_id = message.from_user.id
     args = message.text.split() if message.text else []
 
-    if len(args) > 1 and args[1].startswith("ref_"):
+    if REFERRAL_SYSTEM_ENABLED and len(args) > 1 and args[1].startswith("ref_"):
         try:
             referrer_id = int(args[1][4:])
             if referrer_id != user_id:
@@ -328,6 +328,10 @@ async def start_cmd1(message: Message, state: FSMContext):
 
 @user_router.callback_query(F.data == "check_referral")
 async def check_referral_status(call: CallbackQuery):
+    if not REFERRAL_SYSTEM_ENABLED:
+        await call.answer("Referal tizimi hozir o'chirilgan.", show_alert=True)
+        return
+
     user_id = call.from_user.id
     sql.execute(
         "SELECT msg_count, referral_count FROM public.accounts WHERE user_id=%s LIMIT 1",

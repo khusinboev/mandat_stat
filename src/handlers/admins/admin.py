@@ -11,7 +11,7 @@ from aiogram.fsm.state import StatesGroup, State
 from dateutil.relativedelta import relativedelta
 
 from src.keyboards.buttons import AdminPanel
-from config import sql, ADMIN_ID, DB_CONFIG, bot, REQUIRED_REFERRALS
+from config import sql, ADMIN_ID, DB_CONFIG, REFERRAL_SYSTEM_ENABLED, bot, REQUIRED_REFERRALS
 from src.keyboards.keyboard_func import PanelFunc
 
 admin_router = Router()
@@ -224,6 +224,7 @@ async def statistics(message: Message):
 
     stats_text += (
         f"\n🔗 *Referal statistikasi:*\n"
+        f" - Holati: {'yoqilgan' if REFERRAL_SYSTEM_ENABLED else 'o\'chirilgan'}\n"
         f" - Referal orqali qo'shilganlar: {referral_joined} ta\n"
         f" - Faol referalchilar: {active_referrers} ta\n"
         f" - Limitdan chiqqanlar (≥{REQUIRED_REFERRALS} ta taklif): {unlocked_users} ta\n"
