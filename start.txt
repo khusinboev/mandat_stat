@@ -1,0 +1,10 @@
+ssh root@194.163.136.239
+
+root@vmi2833358:/home/mandat# ls
+broadcast.log  m.service  mandat_stat  my_uzbmb_parser.log  parse2025_errors.log  venv
+root@vmi2833358:/home/mandat# cd mandat_stat/ && ls
+RUN_GUIDE.md   failed_users.txt     parse2025_errors.log  test_3regions.log     upgrade_reja_qisqa.md
+__pycache__    main.py              requirements.txt      test_3regions.py      uzbmb.py
+broadcast.log  my_uzbmb_parser.log  scripts               test_failed_copy.txt
+config.py      parse2025.py         src                   tests
+root@vmi2833358:/home/mandat/mandat_stat#
