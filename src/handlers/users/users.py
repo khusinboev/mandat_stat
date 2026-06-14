@@ -616,9 +616,9 @@ async def sample_tests_handler(message: Message):
 
     if check_status:
         await message.answer(
-            "<b>Kerakli test bo'limini tanlang 👇</b>",
+            "🎓 <b>@BMB_testbot</b> orqali oliy taʼlim muassasalariga kirish imtihonlariga Bilimni baholash agentligi standartlariga muvofiq <b>majburiy fanlardan tayyorgarlik</b> koʻrishingiz mumkin.\n\n<b>Jumladan:</b>\n✅ Majburiy fanlardagi bilim va koʻnikmalaringizni oshirishingiz;\n✅ Kirish imtihonlariga sifatli tayyorgarlik koʻrishingiz;\n✅ Bilimingizni objektiv baholash imkoniyatiga ega boʻlishingiz mumkin.\n\nBot manzili: 👉 @BMB_testbot",
             parse_mode="html",
-            reply_markup=await UserPanels.quiz_menu(),
+            # reply_markup=await UserPanels.quiz_menu(),
         )
     else:
         await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
