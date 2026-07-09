@@ -72,8 +72,10 @@ class RegisterUserMiddleware(BaseMiddleware):
             )
             row = cur.fetchone()
             if row is None:
-                # Yangi foydalanuvchi — birinchi xabar hisoblanadi
-                count_val = 1 if (referral_enabled and is_message) else 0
+                # Yangi foydalanuvchi — birinchi xabar hisoblanadi.
+                # msg_count referal tizimi holatidan qat'i nazar yuritiladi:
+                # u "yangi user" ni aniqlash uchun ham ishlatiladi.
+                count_val = 1 if is_message else 0
                 cur.execute(
                     "INSERT INTO public.accounts (user_id, lang_code, date, msg_count, referral_count) "
                     "VALUES (%s, %s, %s, %s, 0)",
@@ -84,7 +86,7 @@ class RegisterUserMiddleware(BaseMiddleware):
                 referral_count = 0
             else:
                 msg_count, referral_count = row
-                if referral_enabled and is_message and msg_count <= MSG_LIMIT:
+                if is_message and msg_count <= MSG_LIMIT:
                     msg_count += 1
                     cur.execute(
                         "UPDATE public.accounts SET msg_count=%s WHERE user_id=%s",

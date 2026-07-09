@@ -169,6 +169,19 @@ async def back_to_menu2(message: Message, state: FSMContext):
     await state.clear()
 
 
+_MD_ESCAPE = str.maketrans({c: f"\\{c}" for c in "_*`["})
+
+
+async def _admin_display_name(admin_id: int) -> str:
+    """Admin ismini Telegram'dan oladi; topilmasa user_id ni qaytaradi."""
+    try:
+        chat = await bot.get_chat(admin_id)
+        name = chat.full_name or chat.username or str(admin_id)
+    except Exception:
+        return str(admin_id)
+    return f"{name.translate(_MD_ESCAPE)} ({admin_id})"
+
+
 # ─── Statistika ───
 @admin_router.message(F.text == "📊Statistika", F.chat.type == ChatType.PRIVATE, F.from_user.id.in_(ADMIN_ID))
 async def statistics(message: Message):
@@ -209,6 +222,12 @@ async def statistics(message: Message):
     cur.execute("SELECT COUNT(*) FROM accounts WHERE referral_count >= %s", (REQUIRED_REFERRALS,))
     unlocked_users = cur.fetchone()[0]
 
+    cur.execute(
+        "SELECT user_id, referral_count FROM accounts WHERE user_id = ANY(%s)",
+        (list(ADMIN_ID),),
+    )
+    admin_referrals = {row[0]: row[1] for row in cur.fetchall()}
+
     cur.close()
     conn.close()
 
@@ -230,6 +249,12 @@ async def statistics(message: Message):
         f" - Faol referalchilar: {active_referrers} ta\n"
         f" - Limitdan chiqqanlar (≥{REQUIRED_REFERRALS} ta taklif): {unlocked_users} ta\n"
     )
+
+    stats_text += "\n👤 *Adminlar referali:*\n"
+    for admin_id in ADMIN_ID:
+        name = await _admin_display_name(admin_id)
+        count = admin_referrals.get(admin_id, 0)
+        stats_text += f" - {name}: {count} ta\n"
 
     await message.answer(stats_text, parse_mode="Markdown")
 

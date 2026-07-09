@@ -259,55 +259,79 @@ async def collect_clone_sample(message: Message, state: FSMContext):
         )
 
 
+async def _process_referral(user_id: int, payload: str) -> None:
+    """Referal havola orqali kelgan userni qayd qiladi.
+
+    Referal tizimi o'chirilgan bo'lsa ham hisob yuritiladi va egasiga xabar
+    beriladi — o'chirilgan holat faqat limitni qo'llashni to'xtatadi.
+    """
+    try:
+        referrer_id = int(payload[4:])
+    except ValueError:
+        return
+    if referrer_id == user_id:
+        return
+
+    sql.execute(
+        "SELECT referred_by, msg_count FROM public.accounts WHERE user_id=%s LIMIT 1",
+        (user_id,)
+    )
+    row = sql.fetchone()
+    # Faqat haqiqatan yangi user: msg_count <= 1 (birinchi kirish)
+    # va referred_by NULL (hali boshqa havola orqali qo'shilmagan)
+    if not (row and row[0] is None and row[1] <= 1):
+        return
+
+    sql.execute(
+        "UPDATE public.accounts SET referral_count=referral_count+1 "
+        "WHERE user_id=%s RETURNING referral_count",
+        (referrer_id,),
+    )
+    ref_row = sql.fetchone()
+    if ref_row is None:
+        # Taklif qiluvchi bazada yo'q — soxta havola
+        return
+    ref_count = ref_row[0]
+
+    sql.execute(
+        "UPDATE public.accounts SET referred_by=%s WHERE user_id=%s",
+        (referrer_id, user_id),
+    )
+
+    if not is_referral_system_enabled():
+        notify_text = (
+            f"✅ <b>Yangi foydalanuvchi siz orqali qo'shildi!</b>\n\n"
+            f"👥 Jami taklif qilganlar: <b>{ref_count}</b> ta"
+        )
+    elif ref_count >= REQUIRED_REFERRALS:
+        notify_text = (
+            f"🎉 <b>Yangi foydalanuvchi siz orqali qo'shildi!</b>\n\n"
+            f"👥 Jami taklif qilganlar: <b>{ref_count}/{REQUIRED_REFERRALS}</b>\n\n"
+            f"✅ <b>Tabriklaymiz! Botdan endi cheksiz foydalanishingiz mumkin!</b>"
+        )
+    else:
+        notify_text = (
+            f"✅ <b>Yangi foydalanuvchi siz orqali qo'shildi!</b>\n\n"
+            f"👥 Jami taklif qilganlar: <b>{ref_count}/{REQUIRED_REFERRALS}</b>\n\n"
+            f"➡️ Yana <b>{REQUIRED_REFERRALS - ref_count}</b> ta kishi taklif qiling."
+        )
+    try:
+        await bot.send_message(referrer_id, notify_text, parse_mode="html")
+    except Exception:
+        pass
+
+
 @user_router.message(CommandStart())
 async def start_cmd1(message: Message, state: FSMContext):
     await state.clear()
     user_id = message.from_user.id
     args = message.text.split() if message.text else []
-    referral_enabled = is_referral_system_enabled()
 
-    if referral_enabled and len(args) > 1 and args[1].startswith("ref_"):
+    if len(args) > 1 and args[1].startswith("ref_"):
         try:
-            referrer_id = int(args[1][4:])
-            if referrer_id != user_id:
-                sql.execute(
-                    "SELECT referred_by, msg_count FROM public.accounts WHERE user_id=%s LIMIT 1",
-                    (user_id,)
-                )
-                row = sql.fetchone()
-                # Faqat haqiqatan yangi user: msg_count <= 1 (birinchi kirish)
-                # va referred_by NULL (hali boshqa havola orqali qo'shilmagan)
-                if row and row[0] is None and row[1] <= 1:
-                    sql.execute(
-                        "UPDATE public.accounts SET referred_by=%s WHERE user_id=%s",
-                        (referrer_id, user_id),
-                    )
-                    sql.execute(
-                        "UPDATE public.accounts SET referral_count=referral_count+1 "
-                        "WHERE user_id=%s RETURNING referral_count",
-                        (referrer_id,),
-                    )
-                    ref_row = sql.fetchone()
-                    ref_count = ref_row[0] if ref_row else 0
-
-                    if ref_count >= REQUIRED_REFERRALS:
-                        notify_text = (
-                            f"🎉 <b>Yangi foydalanuvchi siz orqali qo'shildi!</b>\n\n"
-                            f"👥 Jami taklif qilganlar: <b>{ref_count}/{REQUIRED_REFERRALS}</b>\n\n"
-                            f"✅ <b>Tabriklaymiz! Botdan endi cheksiz foydalanishingiz mumkin!</b>"
-                        )
-                    else:
-                        notify_text = (
-                            f"✅ <b>Yangi foydalanuvchi siz orqali qo'shildi!</b>\n\n"
-                            f"👥 Jami taklif qilganlar: <b>{ref_count}/{REQUIRED_REFERRALS}</b>\n\n"
-                            f"➡️ Yana <b>{REQUIRED_REFERRALS - ref_count}</b> ta kishi taklif qiling."
-                        )
-                    try:
-                        await bot.send_message(referrer_id, notify_text, parse_mode="html")
-                    except Exception:
-                        pass
-        except (ValueError, IndexError):
-            pass
+            await _process_referral(user_id, args[1])
+        except Exception as e:
+            logger.error("Referal qayd qilishda xato: %s", e)
 
     await message.answer(
         "<b>Assalomu alaykum, botimizga xush kelibsiz. Quyidagi ko'rsatilgan menyudan o'zingizga kerakli bo'limni tanlang 👇</b>",
