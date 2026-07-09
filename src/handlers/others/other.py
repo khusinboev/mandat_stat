@@ -8,12 +8,11 @@ other_router = Router()
 
 @other_router.message()
 async def chosen_lang(message: Message, state: FSMContext):
-    if message.photo: print(message.photo[-1].file_id)
     try:
         await message.delete()
         await state.clear()
     except: pass
-    await message.answer("<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
+    await message.answer(f"`{message.photo[-1].file_id}`<b>Quyidagi menulardan birini tanlang 👇</b>", parse_mode="html",
                          reply_markup=await UserPanels.asos_manu())
 
 
