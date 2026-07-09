@@ -500,7 +500,7 @@ async def start_cmd7(message: Message):
         await _send_static_photo(
             message,
             key="otish_ballari_photo",
-            fallback_file_id="AgACAgIAAxkBAAHxJvRofhQTCwdIp6X_ZwJrQ9eIPMDENAACNvIxG0SS-EtT5x82hi17mgEAAwIAA3kAAzYE",
+            fallback_file_id="AgACAgIAAxkBAdl2UWpPXBTLTzy3Mc-UFJXGVNzgG244AAL8I2sbhDh4ShZWo7083nZaAQADAgADeQADPAQ",
             caption=caption,
             parse_mode="html",
         )
