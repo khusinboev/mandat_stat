@@ -8,7 +8,7 @@ other_router = Router()
 
 @other_router.message()
 async def chosen_lang(message: Message, state: FSMContext):
-    if message.photo: print(message.photo.file_id[-1])
+    if message.photo: print(message.photo[-1].file_id)
     try:
         await message.delete()
         await state.clear()
