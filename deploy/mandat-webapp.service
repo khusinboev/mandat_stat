@@ -1,0 +1,18 @@
+[Unit]
+Description=Mandat Stat O'tish Ballari WebApp (FastAPI/uvicorn)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/mandat_stat
+EnvironmentFile=/opt/mandat_stat/.env
+# 127.0.0.1 ga bog'lanadi — tashqi trafik faqat nginx reverse-proxy orqali kiradi.
+# Domensiz to'g'ridan-to'g'ri LAN/tashqi tekshiruv kerak bo'lsa vaqtincha
+# --host 0.0.0.0 bilan almashtiring, keyin domen ulanganda qaytaring.
+ExecStart=/opt/mandat_stat/.venv/bin/uvicorn webapp.main:app --host 127.0.0.1 --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

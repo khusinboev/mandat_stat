@@ -1,0 +1,15 @@
+[Unit]
+Description=Mandat Stat Telegram Bot
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/mandat_stat
+EnvironmentFile=/opt/mandat_stat/.env
+ExecStart=/opt/mandat_stat/.venv/bin/python /opt/mandat_stat/main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

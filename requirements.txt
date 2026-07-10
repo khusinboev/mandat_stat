@@ -6,3 +6,5 @@ requests==2.32.4
 pillow==11.2.1
 pytz
 redis==5.0.4
+python-dateutil==2.9.0.post0
+aiofiles==24.1.0

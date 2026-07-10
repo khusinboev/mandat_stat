@@ -1,0 +1,453 @@
+/* O'tish ballari 2025 — Telegram mini webapp (faqat mobil) */
+
+:root {
+  /* Kun (light) — validatsiyadan o'tgan palitra */
+  --page: #f9f9f7;
+  --card: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --hairline: #e1e0d9;
+  --ring: rgba(11, 11, 11, 0.10);
+  --accent: #2a78d6;
+  --accent-soft: rgba(42, 120, 214, 0.12);
+  /* Status (ball darajalari) — ikkala rejimda bir xil */
+  --s-good: #0ca30c;
+  --s-warn: #fab219;
+  --s-serious: #ec835a;
+  --s-critical: #d03b3b;
+  --shadow: 0 1px 3px rgba(11, 11, 11, 0.06);
+}
+
+:root[data-theme="dark"] {
+  --page: #0d0d0d;
+  --card: #1a1a19;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --muted: #898781;
+  --hairline: #2c2c2a;
+  --ring: rgba(255, 255, 255, 0.10);
+  --accent: #3987e5;
+  --accent-soft: rgba(57, 135, 229, 0.18);
+  --shadow: none;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+html { background: var(--page); }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background 0.2s, color 0.2s;
+}
+
+#app {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 0 14px calc(76px + env(safe-area-inset-bottom));
+}
+
+/* ── Header ── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--page);
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 10px;
+}
+
+header .back-btn {
+  border: 1px solid var(--ring);
+  background: var(--card);
+  color: var(--ink);
+  width: 36px; height: 36px;
+  border-radius: 12px;
+  font-size: 20px;
+  line-height: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+}
+header.has-back .back-btn { display: flex; }
+
+header h1 {
+  font-size: 17px;
+  font-weight: 700;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.year-chip {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 4px 9px;
+  border-radius: 99px;
+  flex: none;
+}
+
+.theme-btn {
+  border: 1px solid var(--ring);
+  background: var(--card);
+  width: 36px; height: 36px;
+  border-radius: 12px;
+  font-size: 17px;
+  cursor: pointer;
+  flex: none;
+}
+
+/* ── Kartalar ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 18px 2px 8px;
+}
+
+/* ── Stat tiles (2x2) ── */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.tile {
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 14px;
+  min-width: 0;
+}
+.tile .num {
+  font-size: 25px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.tile .num.num-sm { font-size: 19px; line-height: 1.5; }
+.tile .lbl {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin-top: 2px;
+}
+
+/* ── Qidiruv ── */
+.search-wrap { position: relative; margin: 4px 0 6px; }
+.search-wrap input {
+  width: 100%;
+  padding: 13px 14px 13px 40px;
+  font-size: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--ring);
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+}
+.search-wrap input:focus { border-color: var(--accent); }
+.search-wrap .icon {
+  position: absolute;
+  left: 13px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 15px;
+  pointer-events: none;
+}
+
+/* ── Ro'yxat qatorlari ── */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.row:active { background: var(--accent-soft); }
+.row .body { flex: 1; min-width: 0; }
+.row .t {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.row .s {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.row .chev { color: var(--muted); font-size: 17px; flex: none; }
+
+/* ── Ball badge ── */
+.ball {
+  flex: none;
+  min-width: 56px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  padding: 7px 9px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.ball .dot {
+  width: 7px; height: 7px;
+  border-radius: 99px;
+  flex: none;
+}
+.ball.b-good     { background: rgba(12,163,12,0.14); }
+.ball.b-good .dot { background: var(--s-good); }
+.ball.b-warn     { background: rgba(250,178,25,0.16); }
+.ball.b-warn .dot { background: var(--s-warn); }
+.ball.b-serious  { background: rgba(236,131,90,0.16); }
+.ball.b-serious .dot { background: var(--s-serious); }
+.ball.b-critical { background: rgba(208,59,59,0.14); }
+.ball.b-critical .dot { background: var(--s-critical); }
+.ball.b-none { background: transparent; border: 1px dashed var(--hairline); color: var(--muted); font-weight: 600; }
+
+/* ── Legend ── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.legend .li { display: inline-flex; align-items: center; gap: 5px; }
+.legend .dot { width: 8px; height: 8px; border-radius: 99px; }
+
+/* ── Mini badge (til, shakl) ── */
+.mini {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--page);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin-right: 4px;
+}
+
+/* ── Filter chips ── */
+.chips {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 13px;
+  border-radius: 99px;
+  border: 1px solid var(--ring);
+  background: var(--card);
+  color: var(--ink-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ── Ballim (score input) ── */
+.score-input {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.score-input input {
+  flex: 1;
+  min-width: 0;
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  padding: 13px;
+  border-radius: 14px;
+  border: 1.5px solid var(--ring);
+  background: var(--card);
+  color: var(--ink);
+  outline: none;
+}
+.score-input input:focus { border-color: var(--accent); }
+.score-input button {
+  flex: none;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 0 20px;
+  border-radius: 14px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.score-input button:active { opacity: 0.85; }
+
+select.region-sel {
+  width: 100%;
+  margin-top: 8px;
+  padding: 11px 12px;
+  font-size: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--ring);
+  background: var(--card);
+  color: var(--ink);
+}
+
+.result-count {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  margin: 10px 2px;
+}
+.result-count b { color: var(--ink); }
+
+/* ── Tab bar ── */
+nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 30;
+  background: var(--card);
+  border-top: 1px solid var(--hairline);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+nav .inner {
+  max-width: 520px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+nav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 9px 0 7px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+nav a .ic { font-size: 20px; line-height: 1; }
+nav a.on { color: var(--accent); }
+
+/* ── Bottom sheet ── */
+.sheet-back {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.sheet-back.open { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 41;
+  max-width: 520px;
+  margin: 0 auto;
+  background: var(--card);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 18px calc(22px + env(safe-area-inset-bottom));
+  transform: translateY(105%);
+  transition: transform 0.25s ease;
+}
+.sheet.open { transform: translateY(0); }
+.sheet .grab {
+  width: 38px; height: 4px;
+  background: var(--hairline);
+  border-radius: 99px;
+  margin: 4px auto 14px;
+}
+.sheet h2 { font-size: 17px; line-height: 1.35; margin-bottom: 4px; }
+.sheet .code { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+.sheet .kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+  border-top: 1px solid var(--hairline);
+  font-size: 14px;
+}
+.sheet .kv .k { color: var(--ink-2); flex: none; }
+.sheet .kv .v { text-align: right; font-weight: 600; }
+.sheet .big-ball {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  background: var(--accent-soft);
+  border-radius: 14px;
+  padding: 13px 16px;
+  margin: 6px 0 12px;
+}
+.sheet .big-ball .k { font-size: 13.5px; color: var(--ink-2); font-weight: 600; }
+.sheet .big-ball .v { font-size: 28px; font-weight: 800; color: var(--accent); }
+
+/* ── Skeleton / holatlar ── */
+.skel {
+  height: 58px;
+  border-radius: 14px;
+  margin-bottom: 8px;
+  background: linear-gradient(90deg, var(--card) 25%, var(--accent-soft) 50%, var(--card) 75%);
+  background-size: 200% 100%;
+  animation: sk 1.1s infinite linear;
+  border: 1px solid var(--ring);
+}
+@keyframes sk { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 36px 20px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.empty .big { font-size: 34px; margin-bottom: 8px; }
+
+.note {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 10px 4px 0;
+}

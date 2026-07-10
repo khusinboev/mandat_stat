@@ -1,0 +1,23 @@
+# O'tish ballari webapp uchun nginx reverse-proxy shabloni.
+#
+# Domen tayyor bo'lgach:
+#   1. YOUR_DOMAIN ni almashtiring
+#   2. Faylni /etc/nginx/sites-available/mandat-webapp ga nusxalang
+#   3. sudo ln -s /etc/nginx/sites-available/mandat-webapp /etc/nginx/sites-enabled/
+#   4. sudo nginx -t && sudo systemctl reload nginx
+#   5. sudo certbot --nginx -d YOUR_DOMAIN   (Let's Encrypt SSL, avtomatik https bloki qo'shadi)
+#
+# Telegram Mini App HTTPS talab qiladi — certbot bosqichi shart.
+
+server {
+    listen 80;
+    server_name YOUR_DOMAIN;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

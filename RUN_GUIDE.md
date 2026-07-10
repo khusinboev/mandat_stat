@@ -359,3 +359,8 @@ Har ikki muhit uchun eng qisqa ketma-ketlik:
 4. python main.py
 
 Shu ketma-ketlik bilan loyiha to'liq ishlaydi.
+
+## 10. O'tish ballari WebApp (ixtiyoriy)
+
+Bot'dan mustaqil, faqat bazadan o'qiydigan Telegram Mini WebApp: [webapp/README.md](webapp/README.md).
+Systemd va nginx shablonlari: [deploy/](deploy/).
