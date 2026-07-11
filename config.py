@@ -264,6 +264,11 @@ bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(link_preview_is_disabled
 # Telegram web_app tugmalari faqat HTTPS URL bilan ishlaydi.
 WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 
+# Shu bot instansiyasining @username'i (original va klon uchun alohida).
+# Webapp'dagi "ulashish" tugmasi qaysi botga qaytishni bilishi uchun WEBAPP_URL'ga
+# query parametr sifatida qo'shiladi; caption'lardagi hardcoded havolalar o'rniga ham ishlatiladi.
+BOT_USERNAME = os.getenv("BOT_USERNAME", "")
+
 REDIS_URL = os.getenv("REDIS_URL")
 if REDIS_URL:
     storage = RedisStorage.from_url(REDIS_URL)

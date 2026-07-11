@@ -10,9 +10,12 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo, MessageEntity
+from aiogram.types import (
+    Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery,
+    WebAppInfo, MessageEntity, FSInputFile,
+)
 
-from config import bot, ADMIN_ID, sql, db, REQUIRED_REFERRALS, is_referral_system_enabled
+from config import bot, ADMIN_ID, sql, db, REQUIRED_REFERRALS, is_referral_system_enabled, BOT_USERNAME
 from urllib.parse import quote
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
@@ -332,6 +335,17 @@ async def start_cmd1(message: Message, state: FSMContext):
             await _process_referral(user_id, args[1])
         except Exception as e:
             logger.error("Referal qayd qilishda xato: %s", e)
+
+    if len(args) > 1 and args[1].startswith("card_"):
+        parts = args[1].split("_")
+        if len(parts) == 5:
+            try:
+                found = await send_direction_card(user_id, parts[1], parts[2], parts[3], parts[4])
+            except Exception as e:
+                logger.error("Karta yuborishda xato: %s", e)
+                found = False
+            if not found:
+                await message.answer("Ma'lumot topilmadi. Ehtimol, havola eskirgan.")
 
     await message.answer(
         "<b>Assalomu alaykum, botimizga xush kelibsiz. Quyidagi ko'rsatilgan menyudan o'zingizga kerakli bo'limni tanlang 👇</b>",
@@ -734,3 +748,100 @@ def create_card(univer, faculty, lang, edu, grand, kont, olmp, name):
     except Exception as e:
         print(f"Xatolik yuz berdi: {str(e)}")
         return False
+
+
+async def _resolve_bot_username() -> str:
+    if BOT_USERNAME:
+        return BOT_USERNAME
+    me = await bot.get_me()
+    return me.username
+
+
+async def send_direction_card(chat_id: int, un_id: str, ty_id: str, lan_id: str, mvdir: str) -> bool:
+    """un_id/ty_id/lan_id/mvdir bo'yicha yozuvni topib, rasm+caption+ulashish
+    tugmasi bilan yuboradi. Webapp'dagi "Ulashish" tugmasi shu orqali ishlaydi
+    (?start=card_... deep-link). Topilmasa False qaytaradi."""
+    sql.execute(
+        """
+        SELECT m.mvdir, m.nomi, m.gr_b, m.con_b, m.olimp,
+               u.un_text, g.lan_text, t.ty_text
+        FROM mandat m
+        JOIN universities u ON m.un_id = u.un_id
+        JOIN getlangs g ON m.lan_id::text    = g.lan_id::text
+                       AND m.un_id::text     = g.un_id::text
+                       AND m.ty_id::text     = g.ty_id::text
+                       AND m.region_id::text = g.region_id::text
+        JOIN gettypes  t ON m.ty_id::text = t.ty_id::text AND m.un_id::text = t.un_id::text
+        WHERE m.un_id = %s AND m.ty_id = %s AND m.lan_id = %s AND m.mvdir = %s AND m.year = 2025
+        LIMIT 1
+        """,
+        (un_id, ty_id, lan_id, mvdir),
+    )
+    row = sql.fetchone()
+    if not row:
+        return False
+
+    mv_val, nomi, gr_b, con_b, olimp, un_text, lan_text, ty_text = row
+    username = await _resolve_bot_username()
+    grand_text = gr_b if gr_b else "e'lon qilinmagan"
+
+    caption = (
+        f"<b>🏛 OLIYGOH:</b> {un_text}\n\n"
+        f"<b>📚 TA'LIM YO'NALISHI</b> — {mv_val} — {nomi}\n\n"
+        f"<b>🇺🇿 TA'LIM TILI</b> — {lan_text}\n\n"
+        f"<b>🔰 TA'LIM SHAKLI</b> — {ty_text}\n\n"
+        f"<b>📈 O'TISH BALI (2025, kontrakt):</b> {con_b}\n"
+        f"<b>🏅 Grant bali:</b> {grand_text}\n\n"
+        f"<b>🏆 OLIMPIADA G'OLIBLARI:</b> {olimp}\n\n"
+        f"<b>© <a href='https://t.me/{username}'>@{username}</a> — o'tish ballari va mandat natijalari</b>"
+    )
+
+    deep_link = f"https://t.me/{username}?start=card_{un_id}_{ty_id}_{lan_id}_{mv_val}"
+    share_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="📤 Do'stlarga ulashish",
+            url=f"https://t.me/share/url?url={quote(deep_link, safe='')}",
+        )]
+    ])
+
+    sql.execute(
+        "SELECT file_id FROM photos WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s",
+        (un_id, ty_id, lan_id, str(mv_val)),
+    )
+    cached_photo = sql.fetchone()
+
+    if cached_photo:
+        try:
+            await bot.send_photo(chat_id, photo=cached_photo[0], caption=caption,
+                                  parse_mode="html", reply_markup=share_kb)
+            return True
+        except TelegramBadRequest:
+            sql.execute(
+                "DELETE FROM photos WHERE un_id=%s AND ty_id=%s AND lan_id=%s AND mvdir=%s",
+                (un_id, ty_id, lan_id, str(mv_val)),
+            )
+            db.commit()
+
+    photo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "photos", f"{chat_id}.jpg")
+    if create_card(univer=un_text, faculty=f"{mv_val} — {nomi}", lang=lan_text, edu=ty_text,
+                    grand=gr_b, kont=con_b, olmp=olimp, name=chat_id):
+        try:
+            sent = await bot.send_photo(chat_id, photo=FSInputFile(photo_path),
+                                         caption=caption, parse_mode="html", reply_markup=share_kb)
+            file_id = sent.photo[-1].file_id
+            sql.execute(
+                """
+                INSERT INTO photos (un_id, ty_id, lan_id, mvdir, file_id)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
+                """,
+                (un_id, ty_id, lan_id, str(mv_val), file_id),
+            )
+            db.commit()
+        finally:
+            if os.path.exists(photo_path):
+                os.remove(photo_path)
+    else:
+        await bot.send_message(chat_id, caption, parse_mode="html", reply_markup=share_kb)
+
+    return True

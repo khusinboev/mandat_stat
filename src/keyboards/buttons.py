@@ -1,6 +1,19 @@
+from urllib.parse import quote
+
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
-from config import sql, bot, is_referral_system_enabled, WEBAPP_URL
+from config import sql, bot, is_referral_system_enabled, WEBAPP_URL, BOT_USERNAME
+
+
+def _webapp_url() -> str:
+    """WEBAPP_URL'ga shu bot nomini qo'shadi — webapp 'ulashish' tugmasi
+    aynan shu botga qaytishi uchun (original va klon adashmasligi uchun)."""
+    if not WEBAPP_URL:
+        return ""
+    if BOT_USERNAME:
+        sep = "&" if "?" in WEBAPP_URL else "?"
+        return f"{WEBAPP_URL}{sep}bot={quote(BOT_USERNAME)}"
+    return WEBAPP_URL
 
 
 class AdminPanel:
@@ -89,17 +102,22 @@ class UserPanels:
         ]
         if WEBAPP_URL:
             keyboard.append([
-                KeyboardButton(text="🌐 Veb-sahifada ko'rish", web_app=WebAppInfo(url=WEBAPP_URL)),
+                KeyboardButton(text="🌐 Veb-sahifada ko'rish", web_app=WebAppInfo(url=_webapp_url())),
             ])
         keyboard.append([KeyboardButton(text="◀️ Ortga")])
         return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
     @staticmethod
     async def asos_manu():
+        url = _webapp_url()
+        otish_ballari_btn = (
+            KeyboardButton(text="📊 O'tish ballari", web_app=WebAppInfo(url=url))
+            if url else KeyboardButton(text="📊 O'tish ballari")
+        )
         btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
-                    KeyboardButton(text="📊 O'tish ballari"),
+                    otish_ballari_btn,
                     KeyboardButton(text="🎓 Perevod-2026")
                 ],
                 [

@@ -22,6 +22,11 @@
   --warn-bg: rgba(250, 178, 25, 0.14);
   --warn-border: rgba(250, 178, 25, 0.4);
   --warn-ink: #8a5a12;
+  --info-bg: rgba(12, 163, 12, 0.12);
+  --info-border: rgba(12, 163, 12, 0.35);
+  --info-ink: #157a15;
+  /* Pastki menyu — ko'zga tashlanib turishi uchun ko'k tint */
+  --nav-bg: rgba(42, 120, 214, 0.08);
 }
 
 :root[data-theme="dark"] {
@@ -39,6 +44,10 @@
   --warn-bg: rgba(250, 178, 25, 0.14);
   --warn-border: rgba(250, 178, 25, 0.32);
   --warn-ink: #f0c14b;
+  --info-bg: rgba(28, 200, 90, 0.14);
+  --info-border: rgba(28, 200, 90, 0.32);
+  --info-ink: #4ade80;
+  --nav-bg: rgba(57, 135, 229, 0.12);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -129,39 +138,53 @@ header h1 {
 }
 .grant-banner .inner {
   display: flex;
-  gap: 10px;
-  align-items: flex-start;
+  gap: 7px;
+  align-items: center;
   background: var(--warn-bg);
   border: 1px solid var(--warn-border);
-  border-radius: 14px;
-  padding: 12px 14px;
+  border-radius: 11px;
+  padding: 7px 10px;
   margin-bottom: 4px;
+}
+.grant-banner .inner.info {
+  background: var(--info-bg);
+  border-color: var(--info-border);
 }
 .grant-banner .icon {
   flex: none;
-  width: 20px; height: 20px;
+  width: 15px; height: 15px;
   border-radius: 99px;
   background: var(--s-warn);
   color: #1a1200;
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+.grant-banner .inner.info .icon {
+  width: auto; height: auto;
+  background: none;
+  font-size: 12px;
+}
 .grant-banner .title {
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: 11.5px;
+  font-weight: 600;
   color: var(--warn-ink);
-  line-height: 1.4;
+  line-height: 1.35;
+}
+.grant-banner .inner.info .title {
+  color: var(--info-ink);
+  font-weight: 600;
 }
 .grant-banner .text {
-  font-size: 12.5px;
+  font-size: 11px;
   color: var(--warn-ink);
   opacity: 0.85;
-  line-height: 1.5;
-  margin-top: 2px;
+  line-height: 1.4;
+  margin-top: 1px;
 }
+.grant-banner .inner.info .text { color: var(--info-ink); }
 
 /* ── Kartalar ── */
 .card {
@@ -406,8 +429,10 @@ nav {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   z-index: 30;
-  background: var(--card);
-  border-top: 1px solid var(--hairline);
+  background: var(--nav-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--accent-soft);
   padding-bottom: env(safe-area-inset-bottom);
 }
 nav .inner {
@@ -484,6 +509,21 @@ nav a.on { color: var(--accent); }
 }
 .sheet .big-ball .k { font-size: 13.5px; color: var(--ink-2); font-weight: 600; }
 .sheet .big-ball .v { font-size: 28px; font-weight: 800; color: var(--accent); }
+
+.share-btn {
+  width: 100%;
+  margin-top: 14px;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.share-btn:active { opacity: 0.85; }
 
 /* ── Skeleton / holatlar ── */
 .skel {

@@ -46,7 +46,7 @@ def _lan(lan_id: str) -> str:
 
 
 @app.get("/api/stats")
-async def stats():
+async def stats(sort: str = "top"):
     row = await fetchrow(
         """
         SELECT
@@ -61,13 +61,16 @@ async def stats():
         """,
         YEAR,
     )
+    order = "ASC" if sort == "bottom" else "DESC"
     top = await fetch(
-        """
-        SELECT u.un_text, m.nomi, m.ty_id, m.lan_id,
+        f"""
+        SELECT u.un_text, r.region_name AS region, m.nomi, m.ty_id, m.lan_id, m.un_id, m.mvdir,
                ROUND(m.con_b::numeric,1) AS ball
-        FROM mandat m JOIN universities u ON m.un_id = u.un_id
+        FROM mandat m
+        JOIN universities u ON m.un_id = u.un_id
+        JOIN regions r ON m.region_id = r.region_id
         WHERE m.year = $1 AND m.con_b > 0
-        ORDER BY m.con_b DESC LIMIT 5
+        ORDER BY m.con_b {order} LIMIT 5
         """,
         YEAR,
     )
@@ -76,12 +79,18 @@ async def stats():
         "min_ball": float(row["min_ball"]),
         "max_ball": float(row["max_ball"]),
         "year": YEAR,
+        "sort": "bottom" if sort == "bottom" else "top",
         "top": [
             {
+                "un_id": t["un_id"],
                 "un_text": t["un_text"],
+                "region": t["region"],
                 "nomi": t["nomi"],
+                "ty_id": t["ty_id"],
                 "ty": _ty(t["ty_id"]),
+                "lan_id": t["lan_id"],
                 "lan": _lan(t["lan_id"]),
+                "mvdir": t["mvdir"],
                 "ball": float(t["ball"]),
             }
             for t in top
@@ -239,7 +248,9 @@ async def direction(nomi: str):
                 "un_id": r["un_id"],
                 "un_text": r["un_text"],
                 "region": r["region"],
+                "ty_id": r["ty_id"],
                 "ty": _ty(r["ty_id"]),
+                "lan_id": r["lan_id"],
                 "lan": _lan(r["lan_id"]),
                 "mvdir": r["mvdir"],
                 "ball": float(r["ball"]),
@@ -292,7 +303,9 @@ async def by_score(
                 "region": r["region"],
                 "nomi": r["nomi"],
                 "mvdir": r["mvdir"],
+                "ty_id": r["ty_id"],
                 "ty": _ty(r["ty_id"]),
+                "lan_id": r["lan_id"],
                 "lan": _lan(r["lan_id"]),
                 "ball": float(r["ball"]),
             }

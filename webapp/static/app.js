@@ -63,15 +63,6 @@ function ballBadge(b) {
   return `<span class="ball ${cls}"><span class="dot"></span>${b}</span>`;
 }
 
-const LEGEND_HTML = `
-  <div class="legend">
-    <span class="li"><span class="dot" style="background:var(--s-good)"></span>85 gacha</span>
-    <span class="li"><span class="dot" style="background:var(--s-warn)"></span>85–115</span>
-    <span class="li"><span class="dot" style="background:var(--s-serious)"></span>115–150</span>
-    <span class="li"><span class="dot" style="background:var(--s-critical)"></span>150+</span>
-    <span class="li" style="color:var(--muted)">— e’lon qilinmagan</span>
-  </div>`;
-
 function skel(n = 6) {
   return Array.from({ length: n }, () => `<div class="skel"></div>`).join("");
 }
@@ -88,9 +79,39 @@ function setHeader(title, hasBack) {
   }
 }
 
+/* ── Ogohlantirish banneri (sahifaga qarab matn/rang almashadi) ── */
+const BOT_USERNAME = new URLSearchParams(location.search).get("bot") || "";
+
+const BANNERS = {
+  warn: {
+    mode: "warn",
+    icon: "!",
+    title: "2025-yil grant natijalari hali e'lon qilinmagan",
+    text: "Hozircha faqat kontrakt ballari mavjud. Grant natijalari chiqishi bilan yangilanadi.",
+  },
+  info: {
+    mode: "info",
+    icon: "🔍",
+    title: "Ushbu bo'limda sun'iy intellekt (AI) yordamida bilimingizga eng mos ta'lim yo'nalishlarini topishingiz mumkin.",
+    text: "",
+  },
+};
+
+function setBanner(mode) {
+  const b = BANNERS[mode] || BANNERS.warn;
+  const inner = $(".grant-banner .inner");
+  inner.classList.toggle("info", b.mode === "info");
+  $(".grant-banner .icon").textContent = b.icon;
+  $(".grant-banner .title").textContent = b.title;
+  const textEl = $(".grant-banner .text");
+  textEl.textContent = b.text;
+  textEl.style.display = b.text ? "" : "none";
+}
+
 /* ── Bottom sheet (yo'nalish tafsiloti) ── */
 function openSheet(d) {
   const grand = d.grand_ball && d.grand_ball > 0 ? d.grand_ball : null;
+  const canShare = BOT_USERNAME && d.un_id != null && d.ty_id != null && d.lan_id != null && d.mvdir != null;
   $("#sheet").innerHTML = `
     <div class="grab"></div>
     <h2>${esc(d.nomi)}</h2>
@@ -102,9 +123,20 @@ function openSheet(d) {
     <div class="kv"><span class="k">🔰 Ta'lim shakli</span><span class="v">${esc(d.ty)}</span></div>
     <div class="kv"><span class="k">🗣 Ta'lim tili</span><span class="v">${esc(d.lan)}</span></div>
     <div class="kv"><span class="k">🏅 Grant balli</span>
-      <span class="v">${grand ?? "e’lon qilinmagan"}</span></div>`;
+      <span class="v">${grand ?? "e’lon qilinmagan"}</span></div>
+    ${canShare ? `<button class="share-btn" id="sheetShareBtn">📤 Botda ulashish</button>` : ""}`;
   $("#sheetBack").classList.add("open");
   $("#sheet").classList.add("open");
+  if (canShare) {
+    $("#sheetShareBtn").onclick = () => {
+      const payload = `card_${d.un_id}_${d.ty_id}_${d.lan_id}_${d.mvdir}`;
+      const url = `https://t.me/${BOT_USERNAME}?start=${payload}`;
+      if (tg) {
+        try { tg.openTelegramLink(url); return; } catch (e) {}
+      }
+      window.open(url, "_blank");
+    };
+  }
 }
 
 function closeSheet() {
@@ -131,6 +163,27 @@ async function viewHome() {
   });
 
   const s = await api("/stats");
+
+  let extremeList = [];
+
+  function extremeRows(list) {
+    extremeList = list;
+    return list.map((t, i) => `
+      <div class="row" data-i="${i}">
+        <div class="body">
+          <div class="t">${esc(t.nomi)}</div>
+          <div class="s">${esc(t.un_text)}</div>
+        </div>
+        ${ballBadge(t.ball)}
+      </div>`).join("");
+  }
+
+  function bindExtremeRows() {
+    $("#extremeList").querySelectorAll(".row").forEach(el => {
+      el.onclick = () => openSheet(extremeList[+el.dataset.i]);
+    });
+  }
+
   $("#homeBody").innerHTML = `
     <div class="tiles">
       <div class="tile"><div class="num">${s.universities}</div><div class="lbl">🏛 Oliy ta'lim muassasasi</div></div>
@@ -138,19 +191,29 @@ async function viewHome() {
       <div class="tile"><div class="num">${s.regions}</div><div class="lbl">📍 Hudud</div></div>
       <div class="tile"><div class="num num-sm">${s.min_ball} – ${s.max_ball}</div><div class="lbl">📊 Ballar oralig'i</div></div>
     </div>
-    <div class="section-title">Ball darajalari</div>
-    <div class="card">${LEGEND_HTML}</div>
-    <div class="section-title">Eng yuqori ballar — ${s.year}</div>
-    ${s.top.map(t => `
-      <div class="row" onclick="location.hash='#/dir/${encodeURIComponent(t.nomi)}'">
-        <div class="body">
-          <div class="t">${esc(t.nomi)}</div>
-          <div class="s">${esc(t.un_text)}</div>
-        </div>
-        ${ballBadge(t.ball)}
-      </div>`).join("")}
+    <div class="chips" id="extremeToggle" style="margin-top:4px">
+      <button class="chip${s.sort === "bottom" ? "" : " on"}" data-sort="top">📈 Eng baland ballilar</button>
+      <button class="chip${s.sort === "bottom" ? " on" : ""}" data-sort="bottom">📉 Eng past ballilar</button>
+    </div>
+    <div class="section-title" id="extremeTitle">${s.sort === "bottom" ? "Eng past ballar" : "Eng yuqori ballar"} — ${s.year}</div>
+    <div id="extremeList">${extremeRows(s.top)}</div>
     <p class="note">Ma'lumotlar mandat.uzbmb.uz saytining ${s.year}-yil kontrakt o'tish ballari asosida.
     Ball — shu yo'nalishga kontrakt asosida qabul qilingan eng past ball.</p>`;
+  bindExtremeRows();
+
+  $("#extremeToggle").querySelectorAll(".chip").forEach(c => {
+    c.onclick = async () => {
+      if (c.classList.contains("on")) return;
+      $("#extremeToggle").querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+      c.classList.add("on");
+      const sort = c.dataset.sort;
+      $("#extremeList").innerHTML = skel(5);
+      const s2 = await api(`/stats?sort=${sort}`);
+      $("#extremeTitle").textContent = `${sort === "bottom" ? "Eng past ballar" : "Eng yuqori ballar"} — ${s2.year}`;
+      $("#extremeList").innerHTML = extremeRows(s2.top);
+      bindExtremeRows();
+    };
+  });
 }
 
 async function runSearch(q) {
@@ -240,7 +303,7 @@ async function viewUni(unId) {
     $("#uniList").querySelectorAll(".row").forEach(el => {
       el.onclick = () => {
         const d = list[+el.dataset.i];
-        openSheet({ ...d, un_text: u.name, region: u.region });
+        openSheet({ ...d, un_id: u.un_id, un_text: u.name, region: u.region });
       };
     });
   }
@@ -421,7 +484,7 @@ const routes = [
   { re: /^#\/uni\/([^/]+)$/, view: m => viewUni(decodeURIComponent(m[1])), tab: "regions" },
   { re: /^#\/dirs$/, view: () => viewDirs(), tab: "dirs" },
   { re: /^#\/dir\/(.+)$/, view: m => viewDir(decodeURIComponent(m[1])), tab: "dirs" },
-  { re: /^#\/ball$/, view: () => viewBall(), tab: "ball" },
+  { re: /^#\/ball$/, view: () => viewBall(), tab: "ball", banner: "info" },
 ];
 
 async function route() {
@@ -430,6 +493,7 @@ async function route() {
   const r = routes.find(x => x.re.test(h)) || routes[0];
   document.querySelectorAll("nav a").forEach(a =>
     a.classList.toggle("on", a.dataset.tab === r.tab));
+  setBanner(r.banner || "warn");
   window.scrollTo(0, 0);
   try {
     await r.view(h.match(r.re));
