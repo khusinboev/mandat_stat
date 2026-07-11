@@ -5,15 +5,30 @@ from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardBut
 from config import sql, bot, is_referral_system_enabled, WEBAPP_URL, BOT_USERNAME
 
 
-def _webapp_url() -> str:
+_resolved_username: str | None = None
+
+
+async def _bot_username() -> str:
+    """BOT_USERNAME .envda berilmagan bo'lsa, tokendan (bot.get_me) avtomatik
+    aniqlaydi va keshlaydi — original va klon botlar hech qachon adashmaydi,
+    hech kim qo'lda username kiritishni unutib qo'ymaydi."""
+    global _resolved_username
+    if BOT_USERNAME:
+        return BOT_USERNAME
+    if _resolved_username is None:
+        me = await bot.get_me()
+        _resolved_username = me.username
+    return _resolved_username
+
+
+async def _webapp_url() -> str:
     """WEBAPP_URL'ga shu bot nomini qo'shadi — webapp 'ulashish' tugmasi
     aynan shu botga qaytishi uchun (original va klon adashmasligi uchun)."""
     if not WEBAPP_URL:
         return ""
-    if BOT_USERNAME:
-        sep = "&" if "?" in WEBAPP_URL else "?"
-        return f"{WEBAPP_URL}{sep}bot={quote(BOT_USERNAME)}"
-    return WEBAPP_URL
+    username = await _bot_username()
+    sep = "&" if "?" in WEBAPP_URL else "?"
+    return f"{WEBAPP_URL}{sep}bot={quote(username)}"
 
 
 class AdminPanel:
@@ -102,14 +117,14 @@ class UserPanels:
         ]
         if WEBAPP_URL:
             keyboard.append([
-                KeyboardButton(text="🌐 Veb-sahifada ko'rish", web_app=WebAppInfo(url=_webapp_url())),
+                KeyboardButton(text="🌐 Veb-sahifada ko'rish", web_app=WebAppInfo(url=await _webapp_url())),
             ])
         keyboard.append([KeyboardButton(text="◀️ Ortga")])
         return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
     @staticmethod
     async def asos_manu():
-        url = _webapp_url()
+        url = await _webapp_url()
         otish_ballari_btn = (
             KeyboardButton(text="📊 O'tish ballari", web_app=WebAppInfo(url=url))
             if url else KeyboardButton(text="📊 O'tish ballari")

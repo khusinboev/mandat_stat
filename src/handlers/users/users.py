@@ -365,6 +365,26 @@ async def start_cmd1(message: Message, state: FSMContext):
     )
 
 
+@user_router.message(F.web_app_data)
+async def handle_webapp_share(message: Message):
+    """Webapp'dagi 'Ulashish' tugmasi tg.sendData() orqali yuboradi —
+    havola ochish (openTelegramLink/window.open) Telegram WebView'da ko'pincha
+    bloklanadi, shu sabab shu — Mini App'dan botga ma'lumot yuborishning
+    Telegram tomonidan tavsiya etilgan yo'li — ishlatiladi."""
+    try:
+        payload = json.loads(message.web_app_data.data)
+        found = await send_direction_card(
+            message.from_user.id,
+            str(payload["un_id"]), str(payload["ty_id"]),
+            str(payload["lan_id"]), str(payload["mvdir"]),
+        )
+    except Exception as e:
+        logger.error("Webapp'dan ulashishda xato: %s", e)
+        found = False
+    if not found:
+        await message.answer("Ma'lumot topilmadi. Qayta urinib ko'ring.")
+
+
 @user_router.callback_query(F.data == "check_referral")
 async def check_referral_status(call: CallbackQuery):
     if not is_referral_system_enabled():

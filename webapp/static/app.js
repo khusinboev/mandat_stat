@@ -108,10 +108,33 @@ function setBanner(mode) {
   textEl.style.display = b.text ? "" : "none";
 }
 
+/* ── Ulashish (header'dagi tugma, joriy ochiq sheet'ga bog'liq) ── */
+let currentShareData = null;
+
+function shareCurrentCard() {
+  const d = currentShareData;
+  if (!d) return;
+  if (tg && tg.sendData) {
+    // Mini App'dan botga ma'lumot yuborishning Telegram tavsiya etgan yo'li —
+    // link ochish (openTelegramLink/window.open) WebView'da ko'pincha ishlamaydi.
+    try {
+      tg.sendData(JSON.stringify({ un_id: d.un_id, ty_id: d.ty_id, lan_id: d.lan_id, mvdir: d.mvdir }));
+      return;
+    } catch (e) { /* quyida fallback'ga o'tadi */ }
+  }
+  // Telegramsiz (oddiy brauzer) ochilgan bo'lsa — bot havolasi bilan zaxira yo'l.
+  if (BOT_USERNAME) {
+    const payload = `card_${d.un_id}_${d.ty_id}_${d.lan_id}_${d.mvdir}`;
+    window.open(`https://t.me/${BOT_USERNAME}?start=${payload}`, "_blank");
+  }
+}
+
 /* ── Bottom sheet (yo'nalish tafsiloti) ── */
 function openSheet(d) {
   const grand = d.grand_ball && d.grand_ball > 0 ? d.grand_ball : null;
-  const canShare = BOT_USERNAME && d.un_id != null && d.ty_id != null && d.lan_id != null && d.mvdir != null;
+  const canShare = d.un_id != null && d.ty_id != null && d.lan_id != null && d.mvdir != null;
+  currentShareData = canShare ? d : null;
+  $("#shareBtn").classList.toggle("show", !!currentShareData);
   $("#sheet").innerHTML = `
     <div class="grab"></div>
     <h2>${esc(d.nomi)}</h2>
@@ -123,25 +146,16 @@ function openSheet(d) {
     <div class="kv"><span class="k">🔰 Ta'lim shakli</span><span class="v">${esc(d.ty)}</span></div>
     <div class="kv"><span class="k">🗣 Ta'lim tili</span><span class="v">${esc(d.lan)}</span></div>
     <div class="kv"><span class="k">🏅 Grant balli</span>
-      <span class="v">${grand ?? "e’lon qilinmagan"}</span></div>
-    ${canShare ? `<button class="share-btn" id="sheetShareBtn">📤 Botda ulashish</button>` : ""}`;
+      <span class="v">${grand ?? "e’lon qilinmagan"}</span></div>`;
   $("#sheetBack").classList.add("open");
   $("#sheet").classList.add("open");
-  if (canShare) {
-    $("#sheetShareBtn").onclick = () => {
-      const payload = `card_${d.un_id}_${d.ty_id}_${d.lan_id}_${d.mvdir}`;
-      const url = `https://t.me/${BOT_USERNAME}?start=${payload}`;
-      if (tg) {
-        try { tg.openTelegramLink(url); return; } catch (e) {}
-      }
-      window.open(url, "_blank");
-    };
-  }
 }
 
 function closeSheet() {
   $("#sheetBack").classList.remove("open");
   $("#sheet").classList.remove("open");
+  currentShareData = null;
+  $("#shareBtn").classList.remove("show");
 }
 
 /* ── VIEW: Bosh sahifa ── */
@@ -511,6 +525,7 @@ $("#themeBtn").onclick = () => {
   applyTheme(theme);
 };
 $("#backBtn").onclick = () => history.back();
+$("#shareBtn").onclick = shareCurrentCard;
 $("#sheetBack").onclick = closeSheet;
 if (tg) {
   try {

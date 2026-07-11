@@ -70,7 +70,7 @@ async def stats(sort: str = "top"):
         JOIN universities u ON m.un_id = u.un_id
         JOIN regions r ON m.region_id = r.region_id
         WHERE m.year = $1 AND m.con_b > 0
-        ORDER BY m.con_b {order} LIMIT 5
+        ORDER BY m.con_b {order} LIMIT 30
         """,
         YEAR,
     )
