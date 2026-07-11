@@ -76,8 +76,8 @@ async def stats(sort: str = "top"):
     )
     return {
         **dict(row),
-        "min_ball": float(row["min_ball"]) if row["min_ball"] is not None else 0.0,
-        "max_ball": float(row["max_ball"]) if row["max_ball"] is not None else 0.0,
+        "min_ball": float(row["min_ball"]),
+        "max_ball": float(row["max_ball"]),
         "year": YEAR,
         "sort": "bottom" if sort == "bottom" else "top",
         "top": [
@@ -183,7 +183,7 @@ async def university(un_id: str):
             "lan_id": r["lan_id"],
             "lan": _lan(r["lan_id"]),
             "ball": float(r["ball"]),
-            "grand_ball": float(r["grand_ball"]) if r["grand_ball"] is not None else 0.0,
+            "grand_ball": float(r["grand_ball"]),
         }
         for r in rows
     ]
@@ -254,7 +254,7 @@ async def direction(nomi: str):
                 "lan": _lan(r["lan_id"]),
                 "mvdir": r["mvdir"],
                 "ball": float(r["ball"]),
-                "grand_ball": float(r["grand_ball"]) if r["grand_ball"] is not None else 0.0,
+                "grand_ball": float(r["grand_ball"]),
             }
             for r in rows
         ],
