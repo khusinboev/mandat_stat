@@ -1,6 +1,6 @@
-from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton, InlineKeyboardMarkup
+from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
-from config import sql, bot, is_referral_system_enabled
+from config import sql, bot, is_referral_system_enabled, WEBAPP_URL
 
 
 class AdminPanel:
@@ -78,20 +78,21 @@ class UserPanels:
 
     @staticmethod
     async def main_manu():
-        btn = ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    KeyboardButton(text="📊 Ball yetadigan yo'nalishlar"),
-                    KeyboardButton(text="📚 Yoʻnalishlar boʻyicha"),
-                ],
-                [
-                    KeyboardButton(text="📈 Viloyatlar kesimida")
-                ],
-                [KeyboardButton(text="◀️ Ortga")]
+        keyboard = [
+            [
+                KeyboardButton(text="📊 Ball yetadigan yo'nalishlar"),
+                KeyboardButton(text="📚 Yoʻnalishlar boʻyicha"),
             ],
-            resize_keyboard=True,
-        )
-        return btn
+            [
+                KeyboardButton(text="📈 Viloyatlar kesimida")
+            ],
+        ]
+        if WEBAPP_URL:
+            keyboard.append([
+                KeyboardButton(text="🌐 Veb-sahifada ko'rish", web_app=WebAppInfo(url=WEBAPP_URL)),
+            ])
+        keyboard.append([KeyboardButton(text="◀️ Ortga")])
+        return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
     @staticmethod
     async def asos_manu():

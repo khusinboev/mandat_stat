@@ -259,6 +259,11 @@ QUIZ_SOURCE_DB_CONFIG = {
 }
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(link_preview_is_disabled=True))
+
+# O'tish ballari Telegram Mini WebApp (ixtiyoriy). Bo'sh bo'lsa webapp tugmasi ko'rsatilmaydi.
+# Telegram web_app tugmalari faqat HTTPS URL bilan ishlaydi.
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")
+
 REDIS_URL = os.getenv("REDIS_URL")
 if REDIS_URL:
     storage = RedisStorage.from_url(REDIS_URL)
