@@ -108,12 +108,8 @@ function setBanner(mode) {
   textEl.style.display = b.text ? "" : "none";
 }
 
-/* ── Ulashish (header'dagi tugma, joriy ochiq sheet'ga bog'liq) ── */
-let currentShareData = null;
-
-function shareCurrentCard() {
-  const d = currentShareData;
-  if (!d) return;
+/* ── Ulashish (sheet ichida, sarlavha bilan bir qatorda) ── */
+function shareCard(d) {
   if (tg && tg.sendData) {
     // Mini App'dan botga ma'lumot yuborishning Telegram tavsiya etgan yo'li —
     // link ochish (openTelegramLink/window.open) WebView'da ko'pincha ishlamaydi.
@@ -133,11 +129,12 @@ function shareCurrentCard() {
 function openSheet(d) {
   const grand = d.grand_ball && d.grand_ball > 0 ? d.grand_ball : null;
   const canShare = d.un_id != null && d.ty_id != null && d.lan_id != null && d.mvdir != null;
-  currentShareData = canShare ? d : null;
-  $("#shareBtn").classList.toggle("show", !!currentShareData);
   $("#sheet").innerHTML = `
     <div class="grab"></div>
-    <h2>${esc(d.nomi)}</h2>
+    <div class="sheet-head">
+      <h2>${esc(d.nomi)}</h2>
+      ${canShare ? `<button class="sheet-share-btn" id="sheetShareBtn" aria-label="Botda ulashish">📤</button>` : ""}
+    </div>
     <div class="code">Yo'nalish kodi: ${esc(d.mvdir)}</div>
     <div class="big-ball"><span class="k">Kontrakt o'tish balli (2025)</span>
       <span class="v">${d.ball > 0 ? d.ball : "—"}</span></div>
@@ -147,6 +144,9 @@ function openSheet(d) {
     <div class="kv"><span class="k">🗣 Ta'lim tili</span><span class="v">${esc(d.lan)}</span></div>
     <div class="kv"><span class="k">🏅 Grant balli</span>
       <span class="v">${grand ?? "e’lon qilinmagan"}</span></div>`;
+  if (canShare) {
+    $("#sheetShareBtn").onclick = () => shareCard(d);
+  }
   $("#sheetBack").classList.add("open");
   $("#sheet").classList.add("open");
 }
@@ -154,8 +154,6 @@ function openSheet(d) {
 function closeSheet() {
   $("#sheetBack").classList.remove("open");
   $("#sheet").classList.remove("open");
-  currentShareData = null;
-  $("#shareBtn").classList.remove("show");
 }
 
 /* ── VIEW: Bosh sahifa ── */
@@ -525,7 +523,6 @@ $("#themeBtn").onclick = () => {
   applyTheme(theme);
 };
 $("#backBtn").onclick = () => history.back();
-$("#shareBtn").onclick = shareCurrentCard;
 $("#sheetBack").onclick = closeSheet;
 if (tg) {
   try {

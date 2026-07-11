@@ -136,8 +136,6 @@ header h1 {
   flex: none;
 }
 
-#shareBtn { display: none; }
-#shareBtn.show { display: flex; }
 
 /* ── Ogohlantirish banneri (grant natijalari) ── */
 .grant-banner {
@@ -500,7 +498,29 @@ nav a.on { color: var(--accent); }
   border-radius: 99px;
   margin: 4px auto 14px;
 }
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
 .sheet h2 { font-size: 17px; line-height: 1.35; margin-bottom: 4px; }
+.sheet-share-btn {
+  flex: none;
+  width: 32px; height: 32px;
+  margin-top: 1px;
+  border: 1px solid var(--ring);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 10px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sheet-share-btn:active { opacity: 0.8; }
 .sheet .code { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
 .sheet .kv {
   display: flex;
