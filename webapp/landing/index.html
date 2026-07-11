@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f9f9f7">
+<title>MANDAT-2026</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --card: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --ring: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --shadow: 0 1px 3px rgba(11, 11, 11, 0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --card: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --ring: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5;
+      --shadow: none;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: var(--page);
+  }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--card);
+    border: 1px solid var(--ring);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    padding: 36px 28px 32px;
+    text-align: center;
+  }
+  .emoji { font-size: 46px; line-height: 1; margin-bottom: 14px; }
+  h1 { font-size: 21px; font-weight: 800; letter-spacing: 0.01em; }
+  p {
+    font-size: 14px;
+    color: var(--ink-2);
+    line-height: 1.55;
+    margin: 10px 0 26px;
+  }
+  a.btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15.5px;
+    font-weight: 700;
+    padding: 14px 18px;
+    border-radius: 14px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  a.btn:active { opacity: 0.85; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="emoji">🎓</div>
+    <h1>MANDAT-2026</h1>
+    <p>O'tish ballari, qabul jarayoni va testlar — barchasi Telegram botimizda.</p>
+    <a class="btn" href="https://t.me/mandatjavobbot">🤖 @mandatjavobbot ga o'tish</a>
+  </div>
+</body>
+</html>

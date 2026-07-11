@@ -5,7 +5,7 @@
 __pycache__/
 
 test_pdf_worker_base/
-
+start.txt
 # Virtual environment
 venv/
 env/

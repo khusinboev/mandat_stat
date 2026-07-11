@@ -13,6 +13,10 @@ webapp/
     index.html       # SPA qobig'i (Telegram WebApp SDK ulangan)
     app.js           # hash-router, 7 ta ekran, kun/tun, bottom-sheet
     style.css        # mobil-birinchi dizayn, light/dark tokenlar
+  landing/
+    index.html       # Domen ildiziga (masalan talim24.uz) qo'yiladigan oddiy
+                      # bir-tugmali sahifa — botga yo'naltiradi. nginx to'g'ridan-to'g'ri
+                      # statik fayl sifatida beradi, FastAPI'ga bog'liq emas.
 ```
 
 ## Ishga tushirish
@@ -63,6 +67,14 @@ Shablon `127.0.0.1:8080` ga bog'lanadi — tashqi trafik faqat nginx orqali kira
 
 Domen hali yo'q bo'lsa ham hammasi shu holicha ishlaydi — faqat 3-bosqichni
 (BotFather URL) domen tayyor bo'lgach bajarasiz.
+
+### Domen ildizi (masalan talim24.uz, portsiz)
+
+Agar webapp alohida portda (masalan 9876) ishlasa-yu, domenning o'zi
+(https://talim24.uz/) bo'sh tursa — shu domen ildiziga `landing/index.html`ni
+ulab qo'yish mumkin: [`deploy/nginx-talim24-landing.conf`](../deploy/nginx-talim24-landing.conf)
+namunasida ko'rsatilganidek, nginx uni to'g'ridan-to'g'ri statik fayl sifatida
+beradi (FastAPI ishlab turishi shart emas).
 
 ## Ball darajalari rang tizimi
 

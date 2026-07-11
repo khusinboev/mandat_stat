@@ -1,6 +1,7 @@
 /* O'tish ballari 2025 — Telegram mini webapp (faqat mobil) */
 
 :root {
+  color-scheme: light;
   /* Kun (light) — validatsiyadan o'tgan palitra */
   --page: #f9f9f7;
   --card: #fcfcfb;
@@ -17,9 +18,14 @@
   --s-serious: #ec835a;
   --s-critical: #d03b3b;
   --shadow: 0 1px 3px rgba(11, 11, 11, 0.06);
+  /* Ogohlantirish banneri */
+  --warn-bg: rgba(250, 178, 25, 0.14);
+  --warn-border: rgba(250, 178, 25, 0.4);
+  --warn-ink: #8a5a12;
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --page: #0d0d0d;
   --card: #1a1a19;
   --ink: #ffffff;
@@ -30,6 +36,9 @@
   --accent: #3987e5;
   --accent-soft: rgba(57, 135, 229, 0.18);
   --shadow: none;
+  --warn-bg: rgba(250, 178, 25, 0.14);
+  --warn-border: rgba(250, 178, 25, 0.32);
+  --warn-ink: #f0c14b;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -110,6 +119,48 @@ header h1 {
   font-size: 17px;
   cursor: pointer;
   flex: none;
+}
+
+/* ── Ogohlantirish banneri (grant natijalari) ── */
+.grant-banner {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 0 14px;
+}
+.grant-banner .inner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+}
+.grant-banner .icon {
+  flex: none;
+  width: 20px; height: 20px;
+  border-radius: 99px;
+  background: var(--s-warn);
+  color: #1a1200;
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.grant-banner .title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--warn-ink);
+  line-height: 1.4;
+}
+.grant-banner .text {
+  font-size: 12.5px;
+  color: var(--warn-ink);
+  opacity: 0.85;
+  line-height: 1.5;
+  margin-top: 2px;
 }
 
 /* ── Kartalar ── */
@@ -323,12 +374,22 @@ header h1 {
 .score-input button:active { opacity: 0.85; }
 
 select.region-sel {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
   width: 100%;
   margin-top: 8px;
-  padding: 11px 12px;
+  padding: 11px 34px 11px 12px;
   font-size: 14px;
   border-radius: 12px;
   border: 1px solid var(--ring);
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23898781' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  color: var(--ink);
+}
+select.region-sel option {
   background: var(--card);
   color: var(--ink);
 }
