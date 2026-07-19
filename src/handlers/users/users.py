@@ -347,6 +347,16 @@ async def start_cmd1(message: Message, state: FSMContext):
             if not found:
                 await message.answer("Ma'lumot topilmadi. Ehtimol, havola eskirgan.")
 
+    check_status, channels = await CheckData.check_member(bot, user_id)
+    if not check_status:
+        await message.answer(
+            "❗ <b>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling</b> va "
+            "\"✅Qo'shildim\" tugmasini bosing:",
+            parse_mode="html",
+            reply_markup=await CheckData.channels_btn(channels),
+        )
+        return
+
     await message.answer(
         "<b>Assalomu alaykum, botimizga xush kelibsiz. Quyidagi ko'rsatilgan menyudan o'zingizga kerakli bo'limni tanlang 👇</b>",
         parse_mode="html",
