@@ -31,6 +31,10 @@ dist/
 # .env files for environment variables
 .env
 
+# Claude Code maxfiy infratuzilma eslatmalari (server/token/DB sirlari).
+# Ildizdagi CLAUDE.md commit bo'ladi; .claude/ ichidagi PROJECT.md esa yo'q.
+.claude/
+
 # Python packaging
 *.egg
 
