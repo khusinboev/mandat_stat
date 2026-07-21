@@ -2,7 +2,7 @@ from urllib.parse import quote
 
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardButton, KeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
-from config import sql, bot, is_referral_system_enabled, WEBAPP_URL, BOT_USERNAME
+from config import sql, bot, is_referral_system_enabled, WEBAPP_URL, BOT_USERNAME, PORTAL_OTISH_URL
 
 
 _resolved_username: str | None = None
@@ -129,18 +129,21 @@ class UserPanels:
             KeyboardButton(text="📊 O'tish ballari", web_app=WebAppInfo(url=url))
             if url else KeyboardButton(text="📊 O'tish ballari")
         )
-        btn = ReplyKeyboardMarkup(
-            keyboard=[
-                [
-                    otish_ballari_btn,
-                    KeyboardButton(text="🎓 Perevod-2026")
-                ],
-                [
-                    KeyboardButton(text="😎 Test ishlash")
-                ]
+        keyboard = [
+            [
+                otish_ballari_btn,
+                KeyboardButton(text="🎓 Perevod-2026")
             ],
-            resize_keyboard=True,
-        )
+            [
+                KeyboardButton(text="😎 Test ishlash")
+            ]
+        ]
+        # nodavlattalim.uz portaliga funnel (env'da PORTAL_OTISH_URL bo'lsa)
+        if PORTAL_OTISH_URL:
+            keyboard.append([
+                KeyboardButton(text="🌐 Saytda ko'rish", web_app=WebAppInfo(url=PORTAL_OTISH_URL))
+            ])
+        btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
         return btn
 
     @staticmethod

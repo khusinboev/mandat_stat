@@ -269,6 +269,10 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 # query parametr sifatida qo'shiladi; caption'lardagi hardcoded havolalar o'rniga ham ishlatiladi.
 BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 
+# nodavlattalim.uz portalidagi "O'tish ballari" bo'limi havolasi (ixtiyoriy).
+# Bo'sh bo'lsa tugma ko'rsatilmaydi — botni portalga funnel qilish uchun.
+PORTAL_OTISH_URL = os.getenv("PORTAL_OTISH_URL", "")
+
 REDIS_URL = os.getenv("REDIS_URL")
 if REDIS_URL:
     storage = RedisStorage.from_url(REDIS_URL)
