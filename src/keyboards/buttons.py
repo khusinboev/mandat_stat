@@ -22,13 +22,16 @@ async def _bot_username() -> str:
 
 
 async def _webapp_url() -> str:
-    """WEBAPP_URL'ga shu bot nomini qo'shadi — webapp 'ulashish' tugmasi
-    aynan shu botga qaytishi uchun (original va klon adashmasligi uchun)."""
-    if not WEBAPP_URL:
+    """O'tish ballari webapp havolasi + shu bot nomi (?bot=username) — webapp
+    'ulashish' tugmasi aynan shu botga qaytishi uchun (original/klon adashmasin).
+    PORTAL_OTISH_URL berilgan bo'lsa yangi web portal (nodavlattalim.uz)
+    ishlatiladi, aks holda eski WEBAPP_URL (talim24)."""
+    base = PORTAL_OTISH_URL or WEBAPP_URL
+    if not base:
         return ""
     username = await _bot_username()
-    sep = "&" if "?" in WEBAPP_URL else "?"
-    return f"{WEBAPP_URL}{sep}bot={quote(username)}"
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}bot={quote(username)}"
 
 
 class AdminPanel:
@@ -115,9 +118,10 @@ class UserPanels:
                 KeyboardButton(text="📈 Viloyatlar kesimida")
             ],
         ]
-        if WEBAPP_URL:
+        web_url = await _webapp_url()
+        if web_url:
             keyboard.append([
-                KeyboardButton(text="🌐 Veb-sahifada ko'rish", web_app=WebAppInfo(url=await _webapp_url())),
+                KeyboardButton(text="🌐 Veb-sahifada ko'rish", web_app=WebAppInfo(url=web_url)),
             ])
         keyboard.append([KeyboardButton(text="◀️ Ortga")])
         return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
@@ -138,11 +142,6 @@ class UserPanels:
                 KeyboardButton(text="😎 Test ishlash")
             ]
         ]
-        # nodavlattalim.uz portaliga funnel (env'da PORTAL_OTISH_URL bo'lsa)
-        if PORTAL_OTISH_URL:
-            keyboard.append([
-                KeyboardButton(text="🌐 Saytda ko'rish", web_app=WebAppInfo(url=PORTAL_OTISH_URL))
-            ])
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
         return btn
 
