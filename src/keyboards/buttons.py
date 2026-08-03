@@ -150,6 +150,10 @@ class UserPanels:
         btn = ReplyKeyboardMarkup(
             keyboard=[
                 [
+                    # Eng tepada, bitta qatorda alohida turadi
+                    KeyboardButton(text="🔥 Diagnostik test ishlash")
+                ],
+                [
                     KeyboardButton(text="📝 Baholash mezonlari️"),
                     KeyboardButton(text="📚 Fanlar majmuasi️")
                 ],

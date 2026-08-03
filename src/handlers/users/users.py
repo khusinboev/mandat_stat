@@ -482,6 +482,31 @@ async def start_cmd4(message: Message, state: FSMContext):
     await state.clear()
     await message.answer("Quyidagi menulardan birini tanlang!", parse_mode="html", reply_markup=await UserPanels.move_manu())
 
+@user_router.message(F.text == "🔥 Diagnostik test ishlash")
+async def start_cmd4_diagnostic(message: Message):
+    check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
+
+    if check_status:
+        await message.answer(
+            "🔥 <b>@BMB_testbot</b> orqali oliy ta’lim muassasalariga "
+            "<b>o‘qishni ko‘chirish (PEREVOD)</b> imtihonlariga Bilimni baholash "
+            "agentligi standartlariga muvofiq <b>majburiy fanlardan tayyorgarlik</b> "
+            "ko‘rishingiz mumkin.\n\n"
+
+            "<b>Jumladan:</b>\n"
+            "✅ Majburiy fanlardagi bilim va ko‘nikmalaringizni oshirishingiz;\n"
+            "✅ Perevod imtihonlariga sifatli tayyorgarlik ko‘rishingiz;\n"
+            "✅ Bilimingizni objektiv baholash imkoniyatiga ega bo‘lishingiz mumkin.\n\n"
+
+            "<b>Bot manzili:</b> 👉 <b>@BMB_testbot</b>",
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+    else:
+        await message.answer("❗ Iltimos, quyidagi kanallarga a’zo bo‘ling:",
+                             reply_markup=await CheckData.channels_btn2(channels))
+
+
 @user_router.message(F.text == "📝 Baholash mezonlari️")
 async def start_cmd5(message: Message):
     check_status, channels = await CheckData.check_member2(bot, message.from_user.id)
