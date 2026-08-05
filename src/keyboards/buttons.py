@@ -135,14 +135,12 @@ class UserPanels:
         )
         keyboard = [
             [
+                KeyboardButton(text="📊 Mandat saytdagi o'rni"),
+                KeyboardButton(text="🎯 Balingizga mos yo'nalish")
+            ],
+            [
                 otish_ballari_btn,
                 KeyboardButton(text="🎓 Perevod-2026")
-            ],
-            [
-                KeyboardButton(text="📊 Mandat saytdagi o'rni")
-            ],
-            [
-                KeyboardButton(text="🎯 Balingizga mos yo'nalish")
             ],
             [
                 KeyboardButton(text="😎 Test ishlash")
