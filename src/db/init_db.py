@@ -214,3 +214,51 @@ async def create_all_base():
     );
     """)
     db.commit()
+
+    # ── "📊 Mandat saytdagi o'rni" va "🎯 Balingizga mos yo'nalish" ──────────
+    # Ikkala bo'lim ham mandat.uzbmb.uz'dan olingan natijani snapshot qilib
+    # saqlaydi: sayt sekin/band bo'lganda ham javob bera olish va sahifalashda
+    # saytni qayta so'ramaslik uchun.
+    sql.execute("""
+    CREATE TABLE IF NOT EXISTS public.orinlar (
+        abt_id VARCHAR(20) PRIMARY KEY,
+        fio TEXT,
+        ball NUMERIC,
+        orin INT,
+        s4subject TEXT,
+        s5subject TEXT,
+        ed_lang_id INT,
+        result_json JSONB NOT NULL,
+        found_at TIMESTAMP DEFAULT NOW()
+    );
+    """)
+    db.commit()
+
+    # Fan majmuasi kesimidagi agregatlar — barcha foydalanuvchilar uchun umumiy
+    sql.execute("""
+    CREATE TABLE IF NOT EXISTS public.orin_stats (
+        combo_key TEXT PRIMARY KEY,
+        s4subject TEXT,
+        s5subject TEXT,
+        ed_lang_id INT,
+        jami INT,
+        max_ball_count INT,
+        below_pass_count INT,
+        ladder JSONB,
+        full_computed BOOLEAN DEFAULT FALSE,
+        computed_at TIMESTAMP DEFAULT NOW()
+    );
+    """)
+    db.commit()
+
+    # O'tish ballari o'zgarib turadi — found_at bo'yicha eskirganda yangilanadi
+    sql.execute("""
+    CREATE TABLE IF NOT EXISTS public.yonalishlar (
+        abt_id VARCHAR(20) PRIMARY KEY,
+        fio TEXT,
+        ball NUMERIC,
+        result_json JSONB NOT NULL,
+        found_at TIMESTAMP DEFAULT NOW()
+    );
+    """)
+    db.commit()

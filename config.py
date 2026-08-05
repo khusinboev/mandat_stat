@@ -274,6 +274,20 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 PORTAL_OTISH_URL = os.getenv("PORTAL_OTISH_URL", "")
 
 REDIS_URL = os.getenv("REDIS_URL")
+
+# "Mandat saytdagi o'rni" va "Balingizga mos yo'nalish" bo'limlari keshni
+# Redis'da saqlaydi (src/utils/orin.py, ballinfo.py). Bir Redis serverida
+# bir nechta bot ishlaganda kalitlar aralashmasligi uchun har biri o'z
+# DB raqamiga ega bo'ladi. REDIS_URL berilgan bo'lsa, raqam o'shandan olinadi.
+def _redis_db_from_url(url: str | None, default: int = 0) -> int:
+    if not url:
+        return default
+    tail = url.rstrip("/").rsplit("/", 1)[-1]
+    return int(tail) if tail.isdigit() else default
+
+
+REDIS_DB = int(os.getenv("REDIS_DB", _redis_db_from_url(REDIS_URL, 0)))
+
 if REDIS_URL:
     storage = RedisStorage.from_url(REDIS_URL)
 else:

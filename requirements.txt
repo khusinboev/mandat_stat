@@ -8,3 +8,6 @@ pytz
 redis==5.0.4
 python-dateutil==2.9.0.post0
 aiofiles==24.1.0
+# 'Mandat saytdagi o'rni' va 'Balingizga mos yo'nalish' bo'limlari uchun
+# (mandat.uzbmb.uz ga asinxron so'rovlar)
+aiohttp==3.9.5

@@ -23,6 +23,8 @@ from src.handlers.others.other import other_router
 from src.handlers.users.filter_ball import ball_router
 from src.handlers.users.filter_fac import fac_router
 from src.handlers.users.filter_reg import reg_router
+from src.handlers.users.orin import orin_router
+from src.handlers.users.yonalish import yonalish_router
 from src.handlers.users.tests import test_router
 from src.handlers.users.users import user_router
 from src.middlewares.middleware import RegisterUserMiddleware, PerformanceMiddleware
@@ -64,6 +66,10 @@ async def main():
     dp.include_router(admin_router)
     dp.include_router(add_router)
     dp.include_router(msg_router)
+    # 'Mandat saytdagi o'rni' va 'Balingizga mos yo'nalish' — user_router'dan
+    # OLDIN: ular o'z FSM holatlarida ID kutadi, umumiy handler ushlab qolmasin
+    dp.include_router(orin_router)
+    dp.include_router(yonalish_router)
     dp.include_router(user_router)
     dp.include_router(test_router)
     dp.include_router(fac_router)
