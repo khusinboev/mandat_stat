@@ -6,7 +6,8 @@ import logging
 import os
 import time
 import pytz
-from config import db_pool, ADMIN_ID, bot, MSG_LIMIT, REQUIRED_REFERRALS, is_referral_system_enabled
+from config import ADMIN_ID, bot, MSG_LIMIT, REQUIRED_REFERRALS, is_referral_system_enabled
+from src.db import database
 
 
 logger = logging.getLogger(__name__)
@@ -58,48 +59,41 @@ class RegisterUserMiddleware(BaseMiddleware):
         # lekin ular uchun limit qo'llanmaydi.
         is_admin = user_id in ADMIN_ID
 
-        # DB: ro'yxatdan o'tkazish + msg_count yangilash
+        # DB: ro'yxatdan o'tkazish + msg_count yangilash.
+        # `database.py` (pool + asyncio.to_thread) ishlatiladi — bu HAR bir
+        # yangilanishda ishlaydigan middleware, shu sabab bloklovchi
+        # `config.cursor` o'rniga event loop'ni bo'shatib turadigan async
+        # qatlam shart (aks holda bitta sekin so'rov BARCHA foydalanuvchini
+        # kutdiradi — production'da aniqlangan qotish sababi).
         msg_count = 0
         referral_count = 0
-        conn = None
-        cur = None
         try:
-            conn = db_pool.getconn()
-            cur = conn.cursor()
-            cur.execute(
+            row = await database.fetchone(
                 "SELECT msg_count, referral_count FROM public.accounts WHERE user_id=%s LIMIT 1",
                 (user_id,)
             )
-            row = cur.fetchone()
             if row is None:
                 # Yangi foydalanuvchi — birinchi xabar hisoblanadi.
                 # msg_count referal tizimi holatidan qat'i nazar yuritiladi:
                 # u "yangi user" ni aniqlash uchun ham ishlatiladi.
                 count_val = 1 if is_message else 0
-                cur.execute(
+                await database.execute(
                     "INSERT INTO public.accounts (user_id, lang_code, date, msg_count, referral_count) "
                     "VALUES (%s, %s, %s, %s, 0)",
                     (user_id, lang_code, date, count_val),
                 )
-                conn.commit()
                 msg_count = count_val
                 referral_count = 0
             else:
                 msg_count, referral_count = row
                 if is_message and msg_count <= MSG_LIMIT:
                     msg_count += 1
-                    cur.execute(
+                    await database.execute(
                         "UPDATE public.accounts SET msg_count=%s WHERE user_id=%s",
                         (msg_count, user_id),
                     )
-                    conn.commit()
         except Exception as e:
             logger.error("RegisterUserMiddleware DB xatosi: %s", e)
-        finally:
-            if cur:
-                cur.close()
-            if conn:
-                db_pool.putconn(conn)
 
         # /start buyruq har doim o'tadi — referral payload qayta ishlashi uchun
         if is_message and event.message.text and event.message.text.startswith("/start"):
