@@ -157,7 +157,7 @@ async def _return_to_post_report(message: Message, state: FSMContext) -> None:
     abt_id = (data.get("personal") or {}).get("abt_id")
     await state.set_state(QVState.post_report)
     await message.answer(
-        "Quyidagilardan birini tanlashingiz mumkin 👇",
+        "Quyidagi bo'limlardan birini tanlang👇",
         reply_markup=_post_report_keyboard(abt_id),
     )
 
@@ -221,7 +221,11 @@ async def qv_start(message: Message, state: FSMContext):
         return
     await state.set_state(QVState.waiting_pdf)
     await message.answer(
-        "Quyidagi bo'limlardan birini tanlang👇",
+        "🔍 <b>Mandat tahlili</b>\n\n"
+        "Bilim va malakalarni baholash agentligi saytidan yuklab olgan "
+        "<b>Abituriyent qayd varaqasi</b> PDF faylini shu yerga <b>hujjat "
+        "(📎)</b> sifatida yuboring:",
+        parse_mode="HTML",
         reply_markup=_main_menu_only_keyboard(),
     )
 
@@ -324,7 +328,7 @@ async def _finalize_report(message: Message, state: FSMContext, ball: float) -> 
     abt_id = personal.get("abt_id")
     await state.set_state(QVState.post_report)
     await message.answer(
-        "Quyidagilardan birini tanlashingiz mumkin 👇",
+        "Quyidagi bo'limlardan birini tanlang👇",
         reply_markup=_post_report_keyboard(abt_id),
     )
 
@@ -431,7 +435,7 @@ async def qv_post_report_menu(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        "Quyidagi tugmalardan birini tanlang 👇",
+        "Quyidagi bo'limlardan birini tanlang👇",
         reply_markup=_post_report_keyboard(abt_id),
     )
 
