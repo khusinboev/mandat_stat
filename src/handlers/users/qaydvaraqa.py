@@ -18,7 +18,7 @@ from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from config import bot
 from src.keyboards.buttons import UserPanels
@@ -28,6 +28,14 @@ from src.utils.safe_send import answer_safe
 from src.utils.qaydvaraqa import (
     MatchedChoice, parse_pdf, match_choices, format_report, QaydvaraqaParseError,
 )
+# "Raqobatchilarni tahlil qilish" -- '🎯 Balingizga mos yo'nalish'dagi bilan
+# AYNAN BIR XIL mantiq (get_rank + get_stats + format_main/format_details),
+# faqat 7 xonali ID qayta so'ralmaydi -- u qaydvaraqadan allaqachon olingan.
+# `src/handlers/users/orin.py`ga (jonli, ishlab turgan handler) tegilmaydi --
+# faqat uning ochiq (underscore'siz) `src/utils/orin.py` funksiyalari qayta
+# ishlatiladi.
+from src.utils import orin as orin_utils
+from src.utils.mandat_parser import MandatBusy, MandatUnavailable
 
 qv_router = Router()
 
@@ -130,7 +138,11 @@ async def qv_pdf_received(message: Message, state: FSMContext):
 
     await _safe_delete(loading)
 
-    await state.update_data(matched=[vars(m) for m in matched])
+    personal = {
+        "fio": parsed.fio, "abt_id": parsed.abt_id, "passport": parsed.passport,
+        "jshshir": parsed.jshshir, "birth_date": parsed.birth_date, "gender": parsed.gender,
+    }
+    await state.update_data(matched=[vars(m) for m in matched], personal=personal)
     await state.set_state(QVState.waiting_ball)
     await answer_safe(message, _choices_preview(matched), parse_mode="HTML")
     await message.answer(
@@ -180,9 +192,99 @@ async def qv_ball_received(message: Message, state: FSMContext):
 
     data = await state.get_data()
     matched = [MatchedChoice(**m) for m in data.get("matched", [])]
-    report = format_report(matched, ball)
+    personal = data.get("personal") or {}
+    report = format_report(matched, ball, personal=personal)
     await state.clear()
+
     await answer_safe(message, report, parse_mode="HTML", reply_markup=await UserPanels.asos_manu())
+    abt_id = personal.get("abt_id")
+    await message.answer(
+        "Quyidagilardan birini tanlashingiz mumkin 👇",
+        reply_markup=_post_report_markup(abt_id),
+    )
+
+
+def _post_report_markup(abt_id: str | None) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(text="1️⃣ Universitet tavsiyasi", callback_data="qv:reco")]]
+    if abt_id:
+        rows.append([InlineKeyboardButton(
+            text="2️⃣ Raqobatchilarni tahlil qilish", callback_data=f"qv:comp:{abt_id}",
+        )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@qv_router.callback_query(F.data == "qv:reco")
+async def qv_recommendation_placeholder(call: CallbackQuery):
+    await call.answer("🔜 Bu bo'lim tez orada qo'shiladi.", show_alert=True)
+
+
+def _competitor_markup(abt_id: str, detailed: bool) -> InlineKeyboardMarkup:
+    toggle = (
+        InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"qv:comp:{abt_id}")
+        if detailed else
+        InlineKeyboardButton(text="📊 Batafsil", callback_data=f"qv:compdet:{abt_id}")
+    )
+    return InlineKeyboardMarkup(inline_keyboard=[[toggle]])
+
+
+async def _build_competitor_text(abt_id: str, detailed: bool) -> tuple[str, InlineKeyboardMarkup | None]:
+    """`src/handlers/users/orin.py`dagi `_build()` bilan bir xil mantiq —
+    'Mandat saytdagi o'rni' bo'limi allaqachon sinovdan o'tgan, shuni
+    qayta ishlatamiz (nusxa ko'chirilgan, chunki asl funksiya o'sha
+    handler faylida underscore bilan "shaxsiy" deb belgilangan)."""
+    res = await orin_utils.get_rank(abt_id)
+    if "info" not in res:
+        return res["text"], None
+
+    info = res["info"]
+    stats = None
+    try:
+        stats = await orin_utils.get_stats(info["s4subject"], info["s5subject"], info["ed_lang_id"])
+    except (MandatBusy, MandatUnavailable):
+        pass
+    except Exception:
+        logging.exception("Raqobatchilar statistikasini olishda xatolik (ID=%s)", abt_id)
+
+    if detailed:
+        return orin_utils.format_details(info, stats), _competitor_markup(abt_id, True)
+    return (orin_utils.format_main(info, stats, stale=res.get("stale", False)),
+            _competitor_markup(abt_id, False))
+
+
+async def _show_competitors(call: CallbackQuery, abt_id: str, detailed: bool) -> None:
+    if not rate_limit.allow(call.from_user.id):
+        await call.answer("⏳ Juda tez-tez so'rov yubordingiz. Bir necha soniya kutib qayta urining.",
+                          show_alert=True)
+        return
+    await call.answer()
+    text, markup = None, None
+    try:
+        text, markup = await _build_competitor_text(abt_id, detailed)
+    except MandatBusy:
+        text = ("🚨 Hozir so'rovlar juda ko'p, navbat to'la.\n"
+                "Iltimos, 1-2 daqiqadan so'ng qayta urinib ko'ring.")
+    except MandatUnavailable:
+        text = "🚨 mandat.uzbmb.uz sayti hozir javob bermayapti. Iltimos, birozdan so'ng qayta urinib ko'ring."
+    except Exception:
+        logging.exception("Raqobatchilar tahlilida ichki xatolik (ID=%s)", abt_id)
+        text = "🚨 Ichki xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring."
+
+    try:
+        await call.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
+    except Exception:
+        await call.message.answer(text, parse_mode="HTML", reply_markup=markup)
+
+
+@qv_router.callback_query(F.data.startswith("qv:comp:"))
+async def qv_competitors_main(call: CallbackQuery):
+    abt_id = call.data.split(":", 2)[2]
+    await _show_competitors(call, abt_id, detailed=False)
+
+
+@qv_router.callback_query(F.data.startswith("qv:compdet:"))
+async def qv_competitors_detailed(call: CallbackQuery):
+    abt_id = call.data.split(":", 2)[2]
+    await _show_competitors(call, abt_id, detailed=True)
 
 
 async def _safe_delete(message: Message) -> None:

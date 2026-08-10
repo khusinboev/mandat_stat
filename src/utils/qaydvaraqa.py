@@ -55,6 +55,11 @@ class QaydvaraqaData:
     fio: Optional[str]
     lang_raw: Optional[str]
     choices: list[RawChoice] = field(default_factory=list)
+    abt_id: Optional[str] = None
+    passport: Optional[str] = None
+    jshshir: Optional[str] = None
+    birth_date: Optional[str] = None
+    gender: Optional[str] = None
 
 
 class QaydvaraqaParseError(Exception):
@@ -64,6 +69,14 @@ class QaydvaraqaParseError(Exception):
 _RANK_TY_RE = re.compile(r"^(\d+)\s*(Kunduzgi|Kechki|Masofaviy)\s*$", re.IGNORECASE)
 _FIO_RE = re.compile(r"F\.I\.O\.:\s*(.+)")
 _LANG_RE = re.compile(r"Ta['ʻʼ`‘’]lim tili:\s*(\S+)")
+# Shaxsiy ma'lumot maydonlari — barchasi qaydvaraqada bitta qatorda (2 ustunli
+# blokning ICHIDA emas), shu sabab boshqa maydonlardek aralashib ketmaydi
+# (sinovda 6/6 real qaydvaraqada tasdiqlangan).
+_ID_RE = re.compile(r"\bID:\s*(\d+)")
+_PASSPORT_RE = re.compile(r"Pasport \(ID karta\) seriya va raqami:\s*(.+)")
+_JSHSHIR_RE = re.compile(r"JShShIR:\s*(\d+)")
+_BIRTH_RE = re.compile(r"Tug['ʻʼ`‘’]ilgan sanasi:\s*(\S+)")
+_GENDER_RE = re.compile(r"Jinsi:\s*(\S+)")
 
 
 def parse_pdf(data: bytes) -> QaydvaraqaData:
@@ -85,11 +98,17 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
     except Exception as exc:
         raise QaydvaraqaParseError(f"PDF ochilmadi: {exc}") from exc
 
-    fio_m = _FIO_RE.search(text)
-    fio = fio_m.group(1).strip() if fio_m else None
+    def _grp(pattern: re.Pattern) -> Optional[str]:
+        m = pattern.search(text)
+        return m.group(1).strip() if m else None
 
-    lang_m = _LANG_RE.search(text)
-    lang_raw = lang_m.group(1).strip() if lang_m else None
+    fio = _grp(_FIO_RE)
+    lang_raw = _grp(_LANG_RE)
+    abt_id = _grp(_ID_RE)
+    passport = _grp(_PASSPORT_RE)
+    jshshir = _grp(_JSHSHIR_RE)
+    birth_date = _grp(_BIRTH_RE)
+    gender = _grp(_GENDER_RE)
 
     choices: list[RawChoice] = []
     for table in tables:
@@ -111,7 +130,10 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
             "Tanlovlar jadvali topilmadi — bu qaydvaraqa fayliga o'xshamaydi"
         )
     choices.sort(key=lambda c: c.rank)
-    return QaydvaraqaData(fio=fio, lang_raw=lang_raw, choices=choices)
+    return QaydvaraqaData(
+        fio=fio, lang_raw=lang_raw, choices=choices, abt_id=abt_id,
+        passport=passport, jshshir=jshshir, birth_date=birth_date, gender=gender,
+    )
 
 
 # -- Bazaga moslashtirish (entity resolution) --------------------------------
@@ -313,10 +335,31 @@ def _clean_uni(name: str) -> str:
     return name.strip()
 
 
-def format_report(matched: list[MatchedChoice], user_ball: float) -> str:
-    """Chiroyli, tartibli HTML hisobot — har bir tanlov uchun aniq
-    kirish/kirolmaslik + milliy chegaralarga nisbatan umumiy holat."""
+def format_personal_block(personal: dict) -> str:
+    """Abituriyentning shaxsiy ma'lumotlari — hisobot boshida ko'rsatiladi."""
+    rows = [
+        ("🆔 ID", personal.get("abt_id")),
+        ("🪪 F.I.O.", personal.get("fio")),
+        ("📄 Pasport (ID karta)", personal.get("passport")),
+        ("🔢 JShShIR", personal.get("jshshir")),
+        ("🎂 Tug'ilgan sanasi", personal.get("birth_date")),
+        ("⚧ Jinsi", personal.get("gender")),
+    ]
+    lines = ["👤 <b>Abituriyent ma'lumotlari</b>"]
+    for label, value in rows:
+        if value:
+            lines.append(f"{label}: <b>{value}</b>")
+    return "\n".join(lines)
+
+
+def format_report(matched: list[MatchedChoice], user_ball: float, personal: Optional[dict] = None) -> str:
+    """Chiroyli, tartibli HTML hisobot — shaxsiy ma'lumotlar, har bir tanlov
+    uchun aniq kirish/kirolmaslik + milliy chegaralarga nisbatan umumiy holat."""
     lines: list[str] = []
+
+    if personal:
+        lines.append(format_personal_block(personal))
+        lines.append("—" * 20)
 
     eligible = [m for m in matched if m.matched and m.con_b is not None and user_ball >= m.con_b]
     not_eligible = [m for m in matched if m.matched and m.con_b is not None and user_ball < m.con_b]
