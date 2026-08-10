@@ -335,6 +335,311 @@ def _clean_uni(name: str) -> str:
     return name.strip()
 
 
+# -- Super-kontrakt (tabaqalashtirilgan to'lov) hisob-kitobi ----------------
+#
+# Manba: "2025/2026-o'quv yilidan boshlab respublika davlat oliy ta'lim
+# tashkilotlarida ... bitta talabani bazaviy to'lov-kontrakt asosida bir
+# yillik o'qitish qiymati MIQDORLARI" rasmiy jadvali (foydalanuvchi
+# tomonidan taqdim etilgan, 2025-yil, so'mda). Faqat BAKALAVRIAT ustunlari
+# ishlatiladi — bu bo'lim faqat bakalavriat qabuli uchun.
+#
+# Qoida (foydalanuvchi tomonidan berilgan, 2025-yil, manba:
+# https://t.me/nodavlattalim/4271):
+#   o'tish balliga 1 ballgacha yetmasa   -> bazaviy narx x1.5
+#   1,01 dan 2 ballgacha yetmasa         -> x2
+#   2,01 dan 3 ballgacha yetmasa         -> x2.5
+#   3,01 dan 4 ballgacha yetmasa         -> x3
+#   4 balldan ortiq yetmasa              -> OTM o'zi belgilaydi, HISOBLAMAYMIZ
+_SUPER_KONTRAKT_TIERS = (
+    # (yetmagan ball yuqori chegarasi, ko'paytiruvchi)
+    (1.0, 1.5), (2.0, 2.0), (3.0, 2.5), (4.0, 3.0),
+)
+
+# (kategoriya kaliti): (kunduzgi, sirtqi/masofaviy/kechki) — 2025/2026, so'm.
+_BASE_TUITION = {
+    "gumanitar_pedagogika": (7_400_000, 8_623_000),
+    "gumanitar_sanat": (8_950_000, 10_330_000),
+    "gumanitar_fanlar": (7_400_000, 8_623_000),
+    "gumanitar_filologiya_maxsus": (8_150_000, 9_444_000),
+    "gumanitar_jahon_siyosati": (11_250_000, 12_856_000),
+    "gumanitar_matematika_tabiiy": (7_400_000, 8_623_000),
+    "ijtimoiy_baza": (7_400_000, 8_623_000),
+    "ijtimoiy_iqtisod": (10_500_000, 12_030_000),
+    "ijtimoiy_jahon_iqtisod": (11_250_000, 12_856_000),
+    "ijtimoiy_huquq": (11_250_000, 12_856_000),
+    "texnik_muhandislik": (7_400_000, 8_623_000),
+    "texnik_kompyuter": (8_150_000, 9_444_000),
+    "texnik_ikt_iqtisod_menejment": (10_500_000, 12_030_000),
+    "texnik_arxitektura_qurilish": (8_150_000, 9_444_000),
+    "texnik_arxitektura_qishloq": (8_950_000, 10_330_000),
+    "qishloq_suv": (7_400_000, 8_623_000),
+    "sogliq": (10_500_000, 12_030_000),
+    "ijtimoiy_taminot": (7_400_000, 8_623_000),
+    "xizmat_asosiy": (8_150_000, 9_444_000),
+    "xizmat_sport": (7_400_000, 8_623_000),
+    "transport": (7_400_000, 8_623_000),
+    "atrofmuhit": (7_400_000, 8_623_000),
+}
+
+# "X: Y" shaklidagi guruhlar — prefiks bo'yicha (har bir kichik variantni
+# alohida sanab o'tirmaslik uchun). TEKSHIRISH TARTIBI MUHIM: aniqrog'i
+# oldin turishi kerak (masalan "Tarjima nazariyasi va amaliyoti:" —
+# rasmiy jadvalda ANIQ nomlangan yuqori tarifga ega, shu sabab "Filologiya"
+# umumiy qoidasidan OLDIN tekshiriladi).
+_PREFIX_RULES: tuple[tuple[str, str], ...] = (
+    ("tarjima nazariyasi va amaliyoti:", "gumanitar_filologiya_maxsus"),
+    ("aktyorlik san'ati:", "gumanitar_sanat"),
+    ("amaliy san'at:", "gumanitar_sanat"),
+    ("cholg'u ijrochiligi:", "gumanitar_sanat"),
+    ("dirijyorlik:", "gumanitar_sanat"),
+    ("dizayn:", "gumanitar_sanat"),
+    ("grafika:", "gumanitar_sanat"),
+    ("haykaltaroshlik:", "gumanitar_sanat"),
+    ("muzeyshunoslik:", "gumanitar_fanlar"),
+    ("rangtasvir:", "gumanitar_sanat"),
+    ("rejissyorlik:", "gumanitar_sanat"),
+    ("san'atshunoslik:", "gumanitar_sanat"),
+    ("texnogen san'at:", "gumanitar_sanat"),
+    ("vokal san'ati:", "gumanitar_sanat"),
+    ("xalq ijodiyoti:", "gumanitar_sanat"),
+    ("maxsus pedagogika:", "gumanitar_pedagogika"),
+    ("sport faoliyati:", "xizmat_sport"),
+    ("filologiya va tillarni o'qitish:", "gumanitar_fanlar"),
+    ("ona tili va adabiyoti:", "gumanitar_fanlar"),
+    ("xorijiy til va adabiyoti:", "gumanitar_fanlar"),
+    ("texnologik mashinalar va jihozlar:", "texnik_muhandislik"),
+)
+
+_RE_PAREN_SUFFIX = re.compile(r"\s*\([^)]*\)\s*$")
+
+# Alohida (prefikssiz) yo'nalishlar. Ro'yxat bazadagi 330 ta noyob `nomi`
+# qiymati asosida qo'lda tuzilgan va tekshirilgan
+# (`.claude` ishchi eslatmalarida to'liq ro'yxat va mulohaza saqlangan).
+# Chegaraviy holatlarda (masalan "Statistika", "Kompyuter lingvistikasi")
+# eng yaqin rasmiy toifaga onglik ravishda biriktirilgan — 100% aniqlik
+# kafolatlanmaydi, shu sabab bu FAQAT mo'ljal sifatida ko'rsatiladi.
+_EXACT_RULES: dict[str, str] = {
+    "adaptiv jismoniy tarbiya va sport": "gumanitar_pedagogika",
+    "aerokosmik texnologiyalar": "texnik_muhandislik",
+    "agrokimyo va tuproqshunoslik": "qishloq_suv",
+    "agromuhandislik": "qishloq_suv",
+    "agronomiya": "qishloq_suv",
+    "amaliy matematika": "gumanitar_matematika_tabiiy",
+    "antropologiya va etnologiya": "gumanitar_fanlar",
+    "arxeologiya": "gumanitar_fanlar",
+    "arxitektura": "texnik_arxitektura_qurilish",
+    "arxitektura yodgorliklari rekonstruksiyasi va restavratsiyasi": "texnik_arxitektura_qurilish",
+    "arxivshunoslik": "gumanitar_fanlar",
+    "astronomiya": "gumanitar_matematika_tabiiy",
+    "atrof-muhit muhandisligi": "texnik_muhandislik",
+    "aviatsiya muhandisligi": "texnik_muhandislik",
+    "axborot tizimlari va texnologiyalari": "texnik_kompyuter",
+    "axborot xavfsizligi": "texnik_kompyuter",
+    "axborot xizmati va jamoatchilik bilan aloqalar": "ijtimoiy_baza",
+    "bank ishi": "ijtimoiy_iqtisod",
+    "barqaror transport": "transport",
+    "bastakorlik san'ati": "gumanitar_sanat",
+    "biologiya": "gumanitar_matematika_tabiiy",
+    "biotexnologiya": "gumanitar_matematika_tabiiy",
+    "biotibbiyot muhandisligi": "texnik_muhandislik",
+    "biznesni boshqarish": "ijtimoiy_iqtisod",
+    "boshlang'ich ta'lim": "gumanitar_pedagogika",
+    "buxgalteriya hisobi": "ijtimoiy_iqtisod",
+    "chaqiriqqacha harbiy ta'lim": "gumanitar_pedagogika",
+    "dasturiy injiniring": "texnik_kompyuter",
+    "davlat va jamiyat boshqaruvi": "ijtimoiy_baza",
+    "davolash ishi": "sogliq",
+    "dinshunoslik": "gumanitar_fanlar",
+    "dorivor o'simliklarni yetishtirish va qayta ishlash texnologiyasi": "qishloq_suv",
+    "ekologiya va atrof-muhit muhofazasi": "atrofmuhit",
+    "elektr muhandisligi": "texnik_muhandislik",
+    "elektronika va asbobsozlik": "texnik_muhandislik",
+    "energetika muhandisligi": "texnik_muhandislik",
+    "falsafa": "gumanitar_fanlar",
+    "farmatsiya": "sogliq",
+    "fizika": "gumanitar_matematika_tabiiy",
+    "foydali qazilma konlari geologiyasi, qidiruv va razvedkasi": "texnik_muhandislik",
+    "fundamental tibbiyot": "sogliq",
+    "gazni chuqur qayta ishlash texnologiyasi": "texnik_muhandislik",
+    "geodeziya va geoinformatika": "texnik_muhandislik",
+    "geografiya": "gumanitar_matematika_tabiiy",
+    "geologiya": "gumanitar_matematika_tabiiy",
+    "geologiya-qidiruv ishlari texnikasi va texnologiyasi": "texnik_muhandislik",
+    "gidroenergetika": "texnik_muhandislik",
+    "gidrogeologiya va muhandislik geologiyasi": "texnik_muhandislik",
+    "gidrologiya": "gumanitar_matematika_tabiiy",
+    "gidrotexnika inshootlari va nasos stansiyalaridan foydalanish": "qishloq_suv",
+    "gidrotexnika va geotexnika muhandisligi": "texnik_muhandislik",
+    "havodagi harakatni boshqarish": "texnik_muhandislik",
+    "havo kemalarining parvoz ekspluatatsiyasi": "texnik_muhandislik",
+    "hayot faoliyati xavfsizligi": "atrofmuhit",
+    "ijtimoiy ish": "ijtimoiy_taminot",
+    "infokommunikatsiya injiniringi": "texnik_kompyuter",
+    "inson resurslarini boshqarish": "ijtimoiy_iqtisod",
+    "ipakchilik va tutchilik": "qishloq_suv",
+    "iqtisodiyot": "ijtimoiy_iqtisod",
+    "ishlab chqarish muhandisligi": "texnik_muhandislik",
+    "islomshunoslik": "gumanitar_fanlar",
+    "jahon iqtisodiyoti va xalqaro iqtisodiy munosabatlar": "ijtimoiy_jahon_iqtisod",
+    "jismoniy madaniyat": "gumanitar_pedagogika",
+    "jurnalistika": "ijtimoiy_baza",
+    "kadastr": "texnik_muhandislik",
+    "kartografiya va masofadan zondlash": "texnik_muhandislik",
+    "kiberxavfsizlik injiniringi": "texnik_kompyuter",
+    "kimyo": "gumanitar_matematika_tabiiy",
+    "kimyo muhandisligi": "texnik_muhandislik",
+    "kino-teleoperatorlik": "gumanitar_sanat",
+    "kommunal infratuzilmani tashkil etish va boshqarish": "texnik_muhandislik",
+    "kompyuter injiniringi": "texnik_kompyuter",
+    "kompyuter lingvistikasi": "texnik_kompyuter",
+    "konchilik elektr mexanikasi": "texnik_muhandislik",
+    "konchilik ishi": "texnik_muhandislik",
+    "kosmik texnologiyalar": "texnik_muhandislik",
+    "kutubxona-axborot faoliyati": "gumanitar_fanlar",
+    "logistika": "ijtimoiy_iqtisod",
+    "madaniyatshunoslik": "gumanitar_fanlar",
+    "maktabgacha ta'lim": "gumanitar_pedagogika",
+    "marketing": "ijtimoiy_iqtisod",
+    "matbaa va qadoqlash muhandisligi": "texnik_muhandislik",
+    "matematika": "gumanitar_matematika_tabiiy",
+    "materialshunoslik": "texnik_muhandislik",
+    "mehnat muhofazasi va texnika xavfsizligi": "atrofmuhit",
+    "meliorativ gidrogeologiya": "qishloq_suv",
+    "menejment": "ijtimoiy_iqtisod",
+    "metallar texnologiyalari": "texnik_muhandislik",
+    "metallurgiya muhandisligi": "texnik_muhandislik",
+    "meteorologiya va iqlimshunoslik": "gumanitar_matematika_tabiiy",
+    "metrologiya va standartlashtirish": "texnik_muhandislik",
+    "meva-sabzavotchilik va uzumchilik": "qishloq_suv",
+    "mexanika muhandisligi": "texnik_muhandislik",
+    "mexanika va matematik modellashtirish": "gumanitar_matematika_tabiiy",
+    "mexatronika va robototexnika": "texnik_muhandislik",
+    "milliy g'oya, ma'naviyat asoslari va huquq ta'limi": "gumanitar_pedagogika",
+    "moliya va moliyaviy texnologiyalar": "ijtimoiy_iqtisod",
+    "muhandislik kommunikatsiyalari qurilish va ekspluatatsiyasi": "texnik_muhandislik",
+    "musiqa ta'limi": "gumanitar_pedagogika",
+    "neft va gaz ishi": "texnik_muhandislik",
+    "neft' va neft-gazni qayta ishlash texnologiyasi": "texnik_muhandislik",
+    "noshirlik ishi": "ijtimoiy_baza",
+    "noyob va radioaktiv metallar rudalarini qazib olish, qayta ishlash texnikasi va texnologiyasi": "texnik_muhandislik",
+    "o'rmonchilik va aholi yashash joylarini ko'kalamzorlashtirish": "qishloq_suv",
+    "o'simliklar himoyasi va karantini": "qishloq_suv",
+    "o'zbek tili va adabiyoti": "gumanitar_fanlar",
+    "oliy hamshiralik ishi": "sogliq",
+    "oziq-ovqat texnologiyasi": "texnik_muhandislik",
+    "parfyumeriya-kosmetika mahsulotlari texnologiyasi": "texnik_muhandislik",
+    "pedagogika": "gumanitar_pedagogika",
+    "pediatriya ishi": "sogliq",
+    "pochta aloqasi texnologiyasi": "texnik_kompyuter",
+    "psixologiya": "ijtimoiy_baza",
+    "qayta tiklanuvchi energiya manbalari": "texnik_muhandislik",
+    "qishloq xo'jaligi ekinlari seleksiyasi va urug'chiligi": "qishloq_suv",
+    "qishloq xo'jaligini mexanizatsiyalashtirish": "qishloq_suv",
+    "qishloq xo'jalik mahsulotlarini saqlash va qayta ishlash texnologiyasi": "qishloq_suv",
+    "qiymat injiniringi va ko'chmas mulkni boshqarish": "texnik_muhandislik",
+    "qurilish muhandisligi": "texnik_muhandislik",
+    "radioelektron qurilmalar va tizimlar": "texnik_kompyuter",
+    "sanoat farmatsiyasi": "sogliq",
+    "sanoat muhandisligi va menejmenti": "texnik_muhandislik",
+    "savdo ishi": "ijtimoiy_iqtisod",
+    "seysmologiya va seysmometriya": "gumanitar_matematika_tabiiy",
+    "shahar qurilishi va loyihalash": "texnik_arxitektura_qurilish",
+    "simsiz aloqa va teleradioeshittirish injiniringi": "texnik_kompyuter",
+    "siyosatshunoslik": "ijtimoiy_baza",
+    "soliqlar va soliqqa tortish": "ijtimoiy_iqtisod",
+    "sotsiologiya": "ijtimoiy_baza",
+    "statistika": "ijtimoiy_iqtisod",
+    "stomatologiya": "sogliq",
+    "sun'iy intellekt": "texnik_kompyuter",
+    "suv bioresurslari va akvakultura": "qishloq_suv",
+    "suv ta'minoti muhandislik tizimlari": "texnik_muhandislik",
+    "suv xo'jaligi va melioratsiya": "qishloq_suv",
+    "tarix": "gumanitar_fanlar",
+    "tasviriy san'at va muhandislik grafikasi": "gumanitar_sanat",
+    "telekommunikatsiya texnologiyalari": "texnik_kompyuter",
+    "televizion texnologiyalar": "texnik_kompyuter",
+    "texnologik jarayonlar va ishlab chiqarishni avtomatlashtirish": "texnik_muhandislik",
+    "texnologik mashinalar va jihozlar": "texnik_muhandislik",
+    "texnologik ta'lim": "gumanitar_pedagogika",
+    "tibbiy profilaktika ishi": "sogliq",
+    "transport vositalari muhandisligi": "transport",
+    "tuproq bonitirovkasi va yer degredatsiyasi": "qishloq_suv",
+    "turizm va mehmondo'stlik": "xizmat_asosiy",
+    "veterinariya farmatsevtikasi": "qishloq_suv",
+    "veterinariya meditsinasi": "qishloq_suv",
+    "veterinariya sanitariya ekspertizasi": "qishloq_suv",
+    "xalqaro munosabatlar": "ijtimoiy_baza",
+    "xoreografiya": "gumanitar_sanat",
+    "yengil sanoat muhandisligi": "texnik_muhandislik",
+    "yer kadastri va yer tuzish": "texnik_muhandislik",
+    "yo'l harakatini tashkil etish": "transport",
+    "yo'l muhandisligi": "texnik_muhandislik",
+    "yurisprudensiya": "ijtimoiy_huquq",
+    "zooinjeneriya": "qishloq_suv",
+}
+
+
+def classify_soha(nomi: str) -> Optional[str]:
+    """Yo'nalish nomini rasmiy to'lov-kontrakt jadvalidagi 6 sohadan biriga
+    (aniqrog'i, shu soha ichidagi narx-toifasiga) moslashtiradi.
+
+    Bu QATʼIY jadval emas — 330 ta noyob yo'nalish nomi qo'lda ko'rib
+    chiqilib, eng yaqin rasmiy toifaga biriktirilgan (chegaraviy holatlarda
+    ongli ravishda PASTROQ/konservativroq toifa tanlangan). Topilmasa
+    (yangi/kutilmagan yo'nalish nomi) None qaytariladi — bunday holatda
+    super-kontrakt taxmini UMUMAN ko'rsatilmaydi, noto'g'ri raqam
+    ko'rsatishdan ko'ra."""
+    norm = _norm(nomi)
+    # Aniqroq (prefiksli) qoidalar birinchi — "Tarjima nazariyasi..." kabi
+    # maxsus tariflar umumiy "Filologiya..." qoidasidan ustun turishi kerak.
+    for prefix, category in _PREFIX_RULES:
+        if norm.startswith(prefix):
+            return category
+    if norm in _EXACT_RULES:
+        return _EXACT_RULES[norm]
+    # Qavs ichidagi izoh olib tashlab qayta urinib ko'ramiz — masalan
+    # "Xoreografiya (zamonaviy raqs)" -> "Xoreografiya",
+    # "Yurisprudensiya (prokurorlik faoliyati)" -> "Yurisprudensiya".
+    stripped = _RE_PAREN_SUFFIX.sub("", norm).strip()
+    if stripped != norm:
+        for prefix, category in _PREFIX_RULES:
+            if stripped.startswith(prefix):
+                return category
+        if stripped in _EXACT_RULES:
+            return _EXACT_RULES[stripped]
+    return None
+
+
+def super_kontrakt_estimate(nomi: str, ty_text: str, gap: float) -> Optional[dict]:
+    """Ball yetishmovchiligi (gap, musbat son) asosida tabaqalashtirilgan
+    to'lov-kontrakt taxminini hisoblaydi.
+
+    `None` qaytadi: (a) gap > 4 (bu holatda OTM narxni O'ZI belgilaydi —
+    2025-yildan boshlab davlat buni tartibga solmaydi, hisoblash mumkin
+    emas), yoki (b) yo'nalish sohasi aniqlanmagan bo'lsa."""
+    if gap <= 0 or gap > 4.0:
+        return None
+    category = classify_soha(nomi)
+    if category is None:
+        return None
+    base = _BASE_TUITION.get(category)
+    if base is None:
+        return None
+    kunduzgi, boshqa = base
+    is_kunduzgi = _norm(ty_text) == "kunduzgi"
+    base_amount = kunduzgi if is_kunduzgi else boshqa
+    multiplier = next(m for upper, m in _SUPER_KONTRAKT_TIERS if gap <= upper)
+    return {
+        "base_amount": base_amount,
+        "multiplier": multiplier,
+        "amount": round(base_amount * multiplier),
+    }
+
+
+def _format_som(amount: int) -> str:
+    return f"{amount:,}".replace(",", " ") + " so'm"
+
+
 def format_personal_block(personal: dict) -> str:
     """Abituriyentning shaxsiy ma'lumotlari — hisobot boshida ko'rsatiladi."""
     rows = [
@@ -381,13 +686,32 @@ def format_report(matched: list[MatchedChoice], user_ball: float, personal: Opti
         gap = user_ball - m.con_b
         icon = "✅" if gap >= 0 else "❌"
         sign = "+" if gap >= 0 else ""
-        lines.append(
+        entry = (
             f"{icon} <b>{m.rank}-tanlov</b> ({m.ty_text})\n"
             f"   🏛 {_clean_uni(m.un_text)}\n"
             f"   📚 {m.nomi} — {m.lan_text}\n"
             f"   📈 2025 kontrakt balli: <b>{m.con_b:g}</b> "
             f"(sizda {sign}{gap:.1f})\n"
         )
+        if gap < 0:
+            shortfall = -gap
+            est = super_kontrakt_estimate(m.nomi, m.ty_text, shortfall)
+            if est:
+                entry += (
+                    f"   💰 <i>Taxminiy super-kontrakt (bazaviy narx × "
+                    f"{est['multiplier']:g}): <b>{_format_som(est['amount'])}</b></i>\n"
+                )
+            elif shortfall <= 4.0:
+                entry += (
+                    "   💰 <i>Tabaqalashtirilgan to'lov-kontrakt qo'llanilishi mumkin, "
+                    "lekin bu yo'nalish sohasi bo'yicha bazaviy narxni aniq belgilay olmadik.</i>\n"
+                )
+            else:
+                entry += (
+                    "   💰 <i>Ball farqi 4 dan katta — bu holatda to'lov-kontrakt "
+                    "miqdorini OTM mustaqil belgilaydi, biz hisoblay olmaymiz.</i>\n"
+                )
+        lines.append(entry)
 
     if unmatched:
         lines.append("⚠️ <b>Bazamizda aniqlanmagan tanlovlar:</b>")
@@ -415,4 +739,21 @@ def format_report(matched: list[MatchedChoice], user_ball: float, personal: Opti
         "ballari 2025-yilga oid — 2026-yilda o'zgarishi mumkin, faqat mo'ljal "
         "sifatida qarang.</i>"
     )
+
+    if any((user_ball - m.con_b) < 0 for m in matched if m.matched and m.con_b is not None):
+        lines.append(
+            "\n💰 <b>Super-kontrakt (tabaqalashtirilgan to'lov) haqida:</b>\n"
+            "O'tish balidan 4 ballgacha kam bo'lsa, oshirilgan to'lov-kontrakt bilan "
+            "o'qishga kirish imkoniyati bor (2025-yil qoidasi):\n"
+            "<blockquote>➡️ 1 ballgacha yetmasa — bazaviy narxning 1,5 barobari\n"
+            "➡️ 1,01–2 ball — 2 barobari\n"
+            "➡️ 2,01–3 ball — 2,5 barobari\n"
+            "➡️ 3,01–4 ball — 3 barobari</blockquote>\n"
+            "4 balldan ortiq yetmasa — bu holatda narxni OTM 2025-yildan beri "
+            "mustaqil belgilaydi, biz hisoblay olmaymiz "
+            "(<a href='https://t.me/nodavlattalim/4271'>manba</a>).\n"
+            "<i>Bazaviy narxlar ham 2025/2026-yilga oid rasmiy jadvaldan — "
+            "yo'nalish sohasi bo'yicha taxminiy hisoblangan, aniq raqamni "
+            "OTM'ning o'zidan tasdiqlang.</i>"
+        )
     return "\n".join(lines)

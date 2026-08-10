@@ -12,13 +12,17 @@ Oqim:
 Bu bo'lim `asos_manu()` oilasiga tegishli (orin.py/yonalish.py bilan bir
 xil uslub: rate_limit, CheckData.check_member, answer_safe, HTML format).
 """
+import asyncio
 import logging
 
 from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton,
+    Message, ReplyKeyboardMarkup,
+)
 
 from config import bot
 from src.keyboards.buttons import UserPanels
@@ -41,8 +45,13 @@ qv_router = Router()
 
 QV_BTN = "🔍 Mandat tahlili"
 
-# `UserPanels.to_back()` shu ikki tugmani beradi — ikkalasi ham bosh menyuga qaytaradi.
-BACK_BUTTONS = {"🔙 Ortga", "🔙 Bosh menu", "◀️ Ortga"}
+# "Ortga" va "Bosh menu" turlicha ma'noga ega: "Ortga" — bir bosqich orqaga
+# (masalan PDF qayta yuborish), "Bosh menu" — butunlay chiqish. PDF kutish
+# bosqichida ORTGA qilinadigan bosqich yo'q (bu birinchi qadam), shu sabab
+# o'sha yerda faqat "Bosh menu" ko'rsatiladi — ikkalasi bir xil natija
+# berib, chalkashtirmasin (production'da aniqlangan bug).
+_BACK_TEXTS = {"🔙 Ortga", "◀️ Ortga"}
+_MAIN_MENU_TEXTS = {"🔙 Bosh menu"}
 
 # `asos_manu()`dagi barcha bo'lim tugmalari. Mid-flow'da (PDF yoki ball
 # kutilayotganda) foydalanuvchi BOSHQA bo'limga o'tmoqchi bo'lsa, buni
@@ -82,6 +91,31 @@ async def _to_main_menu(message: Message, state: FSMContext) -> None:
     await message.answer("Bosh menyu:", reply_markup=await UserPanels.asos_manu())
 
 
+def _main_menu_only_keyboard() -> ReplyKeyboardMarkup:
+    """PDF kutish bosqichida — bu birinchi qadam, "Ortga" qaytadigan
+    boshqa bosqich yo'q, shu sabab faqat "Bosh menu" ko'rsatiladi."""
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text="🔙 Bosh menu")]], resize_keyboard=True,
+    )
+
+
+async def _prefetch_competitor_data(abt_id: str) -> None:
+    """Foydalanuvchi ballni kiritayotgan vaqtda (bir necha soniya bo'sh
+    vaqt) fonda raqobatchilar ma'lumotini oldindan yuklab, keshlaydi.
+    Shu tufayli "📊 Raqobatchilar tahlil qilinsinmi?" bosilganda —
+    eng sekin qism (mandat.uzbmb.uz saytiga tarmoq so'rovi) odatda
+    ALLAQACHON tugagan bo'ladi. Xato bo'lsa jim o'tkazib yuboriladi —
+    bu faqat tezlik uchun, keyinroq baribir oddiy yo'l bilan qayta
+    urinilaveradi."""
+    try:
+        res = await orin_utils.get_rank(abt_id)
+        if "info" in res:
+            info = res["info"]
+            await orin_utils.get_stats(info["s4subject"], info["s5subject"], info["ed_lang_id"])
+    except Exception:
+        logging.debug("Raqobatchilar ma'lumotini oldindan isitishda xato (ID=%s)", abt_id, exc_info=True)
+
+
 @qv_router.message(F.text == QV_BTN, F.chat.type == ChatType.PRIVATE)
 async def qv_start(message: Message, state: FSMContext):
     check_status, channels = await CheckData.check_member(bot, message.from_user.id)
@@ -96,12 +130,16 @@ async def qv_start(message: Message, state: FSMContext):
         "<b>Abituriyent qayd varaqasi</b> PDF faylini shu yerga <b>hujjat "
         "(📎)</b> sifatida yuboring:",
         parse_mode="HTML",
-        reply_markup=await UserPanels.to_back(),
+        reply_markup=_main_menu_only_keyboard(),
     )
 
 
-@qv_router.message(QVState.waiting_pdf, F.document, F.chat.type == ChatType.PRIVATE)
-async def qv_pdf_received(message: Message, state: FSMContext):
+async def _process_new_pdf(message: Message, state: FSMContext) -> None:
+    """PDF hujjatini qabul qilib tahlil qiladi. Ikki joydan chaqiriladi:
+    birinchi marta yuborilganda VA foydalanuvchi ball kutish bosqichida
+    (masalan noto'g'ri ball kiritganidan keyin) qaydvaraqani QAYTA
+    yuborganda — ikkalasida ham bir xil, oxirgi yuborilgan PDF asosiy
+    hisoblanadi (eski tanlovlar/shaxsiy ma'lumot almashtiriladi)."""
     user_id = message.from_user.id
     if not rate_limit.allow(user_id, interval=5.0):
         await message.answer("⏳ Juda tez-tez yubordingiz. Bir necha soniya kutib qayta urining.")
@@ -144,6 +182,13 @@ async def qv_pdf_received(message: Message, state: FSMContext):
     }
     await state.update_data(matched=[vars(m) for m in matched], personal=personal)
     await state.set_state(QVState.waiting_ball)
+
+    # ⚡ Foydalanuvchi hozir ballni yozib o'tiradi — shu "bo'sh vaqt"da fonda
+    # raqobatchilar ma'lumotini oldindan isitib qo'yamiz (tezlik uchun,
+    # pastdagi izohga qarang).
+    if parsed.abt_id:
+        asyncio.create_task(_prefetch_competitor_data(parsed.abt_id))
+
     await answer_safe(message, _choices_preview(matched), parse_mode="HTML")
     await message.answer(
         "🎯 Endi to'plagan (umumiy) ballingizni kiriting:",
@@ -151,9 +196,14 @@ async def qv_pdf_received(message: Message, state: FSMContext):
     )
 
 
+@qv_router.message(QVState.waiting_pdf, F.document, F.chat.type == ChatType.PRIVATE)
+async def qv_pdf_received(message: Message, state: FSMContext):
+    await _process_new_pdf(message, state)
+
+
 @qv_router.message(QVState.waiting_pdf, F.chat.type == ChatType.PRIVATE)
 async def qv_pdf_fallback(message: Message, state: FSMContext):
-    if message.text in BACK_BUTTONS:
+    if message.text in _BACK_TEXTS or message.text in _MAIN_MENU_TEXTS:
         await _to_main_menu(message, state)
         return
     if message.text in _ASOS_MENU_BTNS:
@@ -165,13 +215,26 @@ async def qv_pdf_fallback(message: Message, state: FSMContext):
     )
 
 
+# Ball kutilayotganda foydalanuvchi PDF'ni QAYTA yuborishi mumkin (masalan
+# birinchi safar balini xato kiritib, "Ortga" bosmasdan to'g'ridan-to'g'ri
+# qaytadan fayl tashlashi) — buni ball sifatida talqin qilish o'rniga,
+# qaydvaraqani qaytadan tahlil qilish kerak. Shu handler matn-handlerdan
+# OLDIN ro'yxatdan o'tgani uchun hujjatni ushlab qoladi.
+@qv_router.message(QVState.waiting_ball, F.document, F.chat.type == ChatType.PRIVATE)
+async def qv_pdf_resent_during_ball(message: Message, state: FSMContext):
+    await _process_new_pdf(message, state)
+
+
 @qv_router.message(QVState.waiting_ball, F.chat.type == ChatType.PRIVATE)
 async def qv_ball_received(message: Message, state: FSMContext):
-    if message.text in BACK_BUTTONS:
+    if message.text in _MAIN_MENU_TEXTS:
+        await _to_main_menu(message, state)
+        return
+    if message.text in _BACK_TEXTS:
         await state.set_state(QVState.waiting_pdf)
         await message.answer(
             "📋 Qaydvaraqa PDF faylini qayta yuboring:",
-            reply_markup=await UserPanels.to_back(),
+            reply_markup=_main_menu_only_keyboard(),
         )
         return
     if message.text in _ASOS_MENU_BTNS:
@@ -205,10 +268,10 @@ async def qv_ball_received(message: Message, state: FSMContext):
 
 
 def _post_report_markup(abt_id: str | None) -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text="1️⃣ Universitet tavsiyasi", callback_data="qv:reco")]]
+    rows = [[InlineKeyboardButton(text="🎓 Universitet tavsiyasi", callback_data="qv:reco")]]
     if abt_id:
         rows.append([InlineKeyboardButton(
-            text="2️⃣ Raqobatchilarni tahlil qilish", callback_data=f"qv:comp:{abt_id}",
+            text="📊 Raqobatchilar tahlil qilinsinmi?", callback_data=f"qv:comp:{abt_id}",
         )])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -257,6 +320,15 @@ async def _show_competitors(call: CallbackQuery, abt_id: str, detailed: bool) ->
                           show_alert=True)
         return
     await call.answer()
+    # Fon prefetch odatda buni allaqachon isitib qo'yadi, lekin isitilmagan
+    # bo'lsa (masalan ID qaydvaraqadan topilmagan holatlar) haqiqiy tarmoq
+    # so'rovi bir necha soniya cho'zilishi mumkin — foydalanuvchi kutish
+    # o'rniga jarayon ketayotganini ko'rishi uchun darhol yangilanadi.
+    try:
+        await call.message.edit_text("🔍 Raqobatchilar ma'lumoti aniqlanmoqda, iltimos kuting...")
+    except Exception:
+        pass
+
     text, markup = None, None
     try:
         text, markup = await _build_competitor_text(abt_id, detailed)
