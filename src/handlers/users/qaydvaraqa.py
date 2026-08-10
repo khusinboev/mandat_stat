@@ -12,7 +12,7 @@ Oqim:
     ID orqali ball saytdan AVTOMATIK olishga urinib ko'riladi (topilmasa —
     qo'lda so'raladi)
   ball aniqlangach -> yakuniy hisobot yuboriladi, keyin POST_REPORT menyusi:
-    - "🎓 Universitet tavsiyasi" (hozircha bo'sh joy — logika keyinroq beriladi)
+    - "🎓 Universitet tavsiyasi" (bitta umumiy matn, admin tomonidan tayyorlangan)
     - "📊 Raqobatchilar tahlil qilinsinmi?" (huddi "Mandat saytdagi o'rni"
       bo'limidagi kabi, orin.py funksiyalari qayta ishlatiladi)
     - "🧮 Super-kontrakt kalkulyatori" (tanlov tanlanadi -> soha aniqlanadi
@@ -56,6 +56,10 @@ BTN_UNI_RECO = "🎓 Universitet tavsiyasi"
 BTN_COMPETITORS = "📊 Raqobatchilar tahlil qilinsinmi?"
 BTN_CALCULATOR = "🧮 Super-kontrakt kalkulyatori"
 BTN_DETAILED = "📊 Batafsil"
+
+# Bitta umumiy matn, barcha foydalanuvchilarga bir xil ko'rsatiladi (admin
+# tomonidan qo'lda tayyorlangan tavsiyalar ro'yxati).
+UNIVERSITY_RECOMMENDATION_TEXT = '<b>1️⃣-TAVSIYA</b>\n🎓 Universitet nomi:<b> </b><a href="https://qabul.tdxu.uz/register"><b>Turkiy davlatlar xalqaro universiteti</b></a>\n📍 <b>Shahar:</b> Toshkent shahri \n📚 <b>Yo\'nalishlar soni:</b>  5 ta\n📖 <b>Asosiy yo\'nalishlar: </b>Davolash ishi, Kompyuter injiniringi)\n🕒 <b>Ta\'lim shakli:</b> kunduzgi\n💰 <b>Kontrakt narxi:</b> (<b>11 mln</b>dan <b>25 mln</b> so\'mgacha)\n🔗<b> Bog\'lanish uchun havola:</b> https://qabul.tdxu.uz/register\n<i>______________________</i><b>\n\n2️⃣-TAVSIYA</b>\n🎓<b> Universitet nomi: </b><a href="https://forms.amocrm.ru/rztwtdc"><b>Perfect universiteti</b></a>\n📍<b> Shahar: </b>Toshkent shahri\n📚 <b>Yo\'nalishlar soni:</b> Bakalavr: 16 ta, Ikkinchi mutaxasislik: 16 ta.\n📖<b> Asosiy yo\'nalishlar:</b> Jahon iqtisodiyoti va xalqaro iqtisodiy munosabatlar, Iqtisodiyot, Dasturiy injiniring.\n🕒 <b>Ta\'lim shakli:</b> (kunduzgi / kechki)\n💰 <b>Kontrakt narxi: </b>(<b>10 mln</b>dan boshlab)\n🔗 <b>Bog\'lanish havolasi uchun havola: </b>https://forms.amocrm.ru/rztwtdc\n<i>______________________</i><b>\n\n3️⃣-TAVSIYA\n</b>🎓 <b>Universitet nomi:</b> <a href="https://forms.amocrm.ru/rztwtwd"><b>Afrasiab university</b></a>\n📍<b> Shahar: </b>Toshkent shahri\n📚<b> Yo\'nalishlar soni: </b> Bakalavr: 18 ta, Magistratura: 7 ta, Ikkinchi mutahasislik: 4 ta.\n📖 <b>Asosiy yo\'nalishlar</b>: Yurisprudensiya, kiberxavsizlik injiniringi, sun`iy intellekt.\n🕒 <b>Ta\'lim shakli:</b> (kunduzgi)\n💰<b> Kontrakt narxi: </b>(<b>18 mln</b>dan boshlab)\n🔗 <b>Bog\'lanish havolasi uchun havola:</b> https://forms.amocrm.ru/rztwtwd<b>\n</b><i>______________________</i><b>\n\n4️⃣-TAVSIYA\n</b>🎓<b> Universitet nomi: </b><a href="https://forms.amocrm.ru/rztwtwl"><b>Xalqaro ijtimoiy innovatsiyalar universiteti</b></a>\n📍 <b>Shahar: </b>Toshkent shahri\n📚 <b>Yo\'nalishlar soni: </b>Bakalavr: 20 ta\n📖 <b>Asosiy yo\'nalishlar: </b> Yurisprudensiya, Arab tili, Sun`iy intellekt\n🕒 <b>Ta\'lim shakli:</b> (kunduzgi / kechki)\n💰 <b>Kontrakt narxi: </b>(<b>15 mln</b>dan boshlab)\n🔗<b> Bog\'lanish havolasi uchun havola: </b>https://forms.amocrm.ru/rztwtwl<b>\n</b><i>______________________</i><b>\n\n5️⃣-TAVSIYA</b>\n🎓 Universitet nomi:<b> </b><a href="https://forms.amocrm.ru/rzttdrl"><b>Sarbon universiteti</b></a>\n📍 <b>Shahar:</b> Toshkent shahri \n📚 <b>Yo\'nalishlar soni:</b>  34 ta\n📖 <b>Asosiy yo\'nalishlar: </b>Yurisprudensiya, davlat va jamiyat boshqaruvi, kosmetalogiya)\n🕒 <b>Ta\'lim shakli:</b> (kunduzgi / kechki / masofaviy)\n💰 <b>Kontrakt narxi:</b> (<b>14 mln</b>dan <b>25 mln</b> so\'mgacha)\n🔗<b> Bog\'lanish uchun havola:</b> https://forms.amocrm.ru/rzttdrl<i>\n______________________\n</i>\n6️⃣<b>-TAVSIYA</b>\n🎓<b> </b>Universitet nomi: <a href="https://forms.amocrm.ru/rzttdrd"><b>Toshkent Gumanitar Fanlar Universiteti </b></a><b>(TGFU)</b>\n📍 <b>Shahar: </b>Toshkent shahri, Samarqand shahri, Qoraqalpog\'iston Respublikasi \n📚 <b>Yo\'nalishlar soni: </b>bakalavr: 24 ta, Magistratura: 3 ta.\n📖 <b>Asosiy yo\'nalishlar</b>: (Xalqaro munosabatlar, Iqtisodiyot, Maktabgacha ta\'lim, Sport faoliyati): \n🕒 <b>Ta\'lim shakli:</b> (kunduzgi / kechki / part time)\n💰 <b>Kontrakt narxi: </b>(<b>8 mln</b>dan <b>17 mln</b> so\'mgacha)\n🔗<b> Bog\'lanish uchun havola:</b> https://forms.amocrm.ru/rzttdrd'
 
 # "Ortga" va "Bosh menu" turlicha ma'noga ega: "Ortga" — bir bosqich orqaga,
 # "Bosh menu" — butunlay chiqish. PDF kutish bosqichida ORTGA qilinadigan
@@ -420,7 +424,7 @@ async def qv_post_report_menu(message: Message, state: FSMContext):
     abt_id = personal.get("abt_id")
 
     if text == BTN_UNI_RECO:
-        await message.answer("🔜 Bu bo'lim tez orada qo'shiladi.")
+        await answer_safe(message, UNIVERSITY_RECOMMENDATION_TEXT, parse_mode="HTML")
         return
     if text == BTN_COMPETITORS and abt_id:
         await _show_competitors(message, state, abt_id, detailed=False)
