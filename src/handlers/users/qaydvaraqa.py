@@ -221,11 +221,7 @@ async def qv_start(message: Message, state: FSMContext):
         return
     await state.set_state(QVState.waiting_pdf)
     await message.answer(
-        "🔍 <b>Mandat tahlili</b>\n\n"
-        "Bilim va malakalarni baholash agentligi saytidan yuklab olgan "
-        "<b>Abituriyent qayd varaqasi</b> PDF faylini shu yerga <b>hujjat "
-        "(📎)</b> sifatida yuboring:",
-        parse_mode="HTML",
+        "Quyidagi bo'limlardan birini tanlang👇",
         reply_markup=_main_menu_only_keyboard(),
     )
 
