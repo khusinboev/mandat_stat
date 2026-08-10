@@ -709,7 +709,10 @@ def format_personal_block(personal: dict) -> str:
     return "\n".join(lines)
 
 
-def format_report(matched: list[MatchedChoice], user_ball: float, personal: Optional[dict] = None) -> str:
+def format_report(
+    matched: list[MatchedChoice], user_ball: float, personal: Optional[dict] = None,
+    bot_username: Optional[str] = None,
+) -> str:
     """Chiroyli, tartibli HTML hisobot — shaxsiy ma'lumotlar, har bir tanlov
     uchun aniq kirish/kirolmaslik + milliy chegaralarga nisbatan umumiy holat."""
     lines: list[str] = []
@@ -783,9 +786,9 @@ def format_report(matched: list[MatchedChoice], user_ball: float, personal: Opti
             f"<i>(2025-yilgi ballar bilan solishtirganda)</i>\n"
         )
 
-    lines.append("📊 <b>Milliy minimal ballar (2025) bilan taqqoslash:</b>")
+    lines.append("📊 <b>Minimal ballar (2025) bilan taqqoslash:</b>")
     if user_ball >= NATIONAL_GRANT_FLOOR:
-        lines.append(f"🏆 Balingiz davlat granti milliy minimal balidan "
+        lines.append(f"🏆 Balingiz davlat granti minimal balidan "
                      f"(<b>{NATIONAL_GRANT_FLOOR:g}</b>) yuqori — grant tanlovida "
                      f"umumiy ishtirok etish imkoniyati bor.")
     elif user_ball >= NATIONAL_CONTRACT_FLOOR:
@@ -816,8 +819,14 @@ def format_report(matched: list[MatchedChoice], user_ball: float, personal: Opti
             "\n4 balldan ortiq yetmasa — bu holatda narxni OTM 2025-yildan beri "
             "mustaqil belgilaydi, biz hisoblay olmaymiz "
             "(<a href='https://t.me/nodavlattalim/4271'>manba</a>).\n"
-            "<i>Bazaviy narxlar ham 2025/2026-yilga oid rasmiy jadvaldan — "
+            "\n<i>Bazaviy narxlar ham 2025/2026-yilga oid rasmiy jadvaldan — "
             "yo'nalish sohasi bo'yicha taxminiy hisoblangan, aniq raqamni "
             "OTM'ning o'zidan tasdiqlang.</i>"
+        )
+
+    if bot_username:
+        lines.append(
+            f"\n🤖 <i>Ma'lumotlar <a href='https://t.me/{bot_username}'>"
+            f"@{bot_username}</a> orqali olindi.</i>"
         )
     return "\n".join(lines)

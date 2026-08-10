@@ -31,7 +31,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
-from config import bot
+from config import bot, BOT_USERNAME
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 from src.utils import rate_limit
@@ -212,6 +212,24 @@ async def _fetch_and_cache_competitor_data(abt_id: str) -> tuple[dict, dict | No
     return info, stats
 
 
+# `src/keyboards/buttons.py`dagi `_bot_username()` bilan bir xil mantiq —
+# BOT_USERNAME .envda berilmagan bo'lsa, tokendan (bot.get_me) avtomatik
+# aniqlaydi va keshlaydi. Shu tufayli hisobot ostidagi havola ORIGINAL va
+# KLON botda har doim TO'G'RI o'zining username'ini ko'rsatadi (boshqa
+# bot havolasi bilan aralashib qolmaydi).
+_resolved_bot_username: str | None = None
+
+
+async def _own_bot_username() -> str:
+    global _resolved_bot_username
+    if BOT_USERNAME:
+        return BOT_USERNAME
+    if _resolved_bot_username is None:
+        me = await bot.get_me()
+        _resolved_bot_username = me.username
+    return _resolved_bot_username
+
+
 @qv_router.message(F.text == QV_BTN, F.chat.type == ChatType.PRIVATE)
 async def qv_start(message: Message, state: FSMContext):
     check_status, channels = await CheckData.check_member(bot, message.from_user.id)
@@ -322,7 +340,8 @@ async def _finalize_report(message: Message, state: FSMContext, ball: float) -> 
     data = await state.get_data()
     matched = [MatchedChoice(**m) for m in data.get("matched", [])]
     personal = data.get("personal") or {}
-    report = format_report(matched, ball, personal=personal)
+    bot_username = await _own_bot_username()
+    report = format_report(matched, ball, personal=personal, bot_username=bot_username)
 
     await answer_safe(message, report, parse_mode="HTML")
     abt_id = personal.get("abt_id")
