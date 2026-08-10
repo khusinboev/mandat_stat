@@ -11,3 +11,6 @@ aiofiles==24.1.0
 # 'Mandat saytdagi o'rni' va 'Balingizga mos yo'nalish' bo'limlari uchun
 # (mandat.uzbmb.uz ga asinxron so'rovlar)
 aiohttp==3.9.5
+# 'Qaydvaraqa bo'yicha tekshirish' bo'limi uchun — PDF matn qatlamini
+# o'qiydi (OCR/AI emas, qaydvaraqa PDF matn sifatida saqlangan)
+pdfplumber==0.11.4

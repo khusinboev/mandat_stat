@@ -143,7 +143,8 @@ class UserPanels:
                 KeyboardButton(text="🎓 Perevod-2026")
             ],
             [
-                KeyboardButton(text="😎 Test ishlash")
+                KeyboardButton(text="😎 Test ishlash"),
+                KeyboardButton(text="📋 Qaydvaraqa bo'yicha tekshirish")
             ]
         ]
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
