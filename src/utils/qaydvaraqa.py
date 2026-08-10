@@ -648,7 +648,7 @@ def format_personal_block(personal: dict) -> str:
         ("📄 Pasport (ID karta)", personal.get("passport")),
         ("🔢 JShShIR", personal.get("jshshir")),
         ("🎂 Tug'ilgan sanasi", personal.get("birth_date")),
-        ("⚧ Jinsi", personal.get("gender")),
+        ("🧑 Jinsi", personal.get("gender")),
     ]
     lines = ["👤 <b>Abituriyent ma'lumotlari</b>"]
     for label, value in rows:
