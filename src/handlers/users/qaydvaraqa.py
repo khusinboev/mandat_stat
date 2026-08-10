@@ -12,8 +12,8 @@ Oqim:
 Bu bo'lim `asos_manu()` oilasiga tegishli (orin.py/yonalish.py bilan bir
 xil uslub: rate_limit, CheckData.check_member, answer_safe, HTML format).
 """
-import asyncio
 import logging
+import time
 
 from aiogram import Router, F
 from aiogram.enums import ChatType
@@ -99,21 +99,54 @@ def _main_menu_only_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-async def _prefetch_competitor_data(abt_id: str) -> None:
-    """Foydalanuvchi ballni kiritayotgan vaqtda (bir necha soniya bo'sh
-    vaqt) fonda raqobatchilar ma'lumotini oldindan yuklab, keshlaydi.
-    Shu tufayli "📊 Raqobatchilar tahlil qilinsinmi?" bosilganda —
-    eng sekin qism (mandat.uzbmb.uz saytiga tarmoq so'rovi) odatda
-    ALLAQACHON tugagan bo'ladi. Xato bo'lsa jim o'tkazib yuboriladi —
-    bu faqat tezlik uchun, keyinroq baribir oddiy yo'l bilan qayta
-    urinilaveradi."""
+# abt_id -> (info, stats, olingan_vaqt). Qaydvaraqa qayta ishlanganda
+# saytdan bir marta olingan (get_rank/get_stats) ma'lumot shu yerda
+# saqlanadi — "Raqobatchilar tahlil qilinsinmi?" bosilganda ENDI QAYTA
+# SO'ROV YUBORILMAYDI, mana shu keshdan o'qiladi. Redis emas: bu faqat
+# BITTA suhbat sessiyasi davomida (bir necha daqiqa) kerak bo'ladigan
+# vaqtinchalik ma'lumot — loyihaning "middleware/qo'shimcha infratuzilma
+# yo'q" konvensiyasiga mos, xotiradagi oddiy dict yetarli.
+_competitor_cache: dict[str, tuple[dict, dict | None, float]] = {}
+_COMPETITOR_CACHE_TTL_S = 15 * 60
+
+
+def _cache_competitor_data(abt_id: str, info: dict, stats: dict | None) -> None:
+    _competitor_cache[abt_id] = (info, stats, time.monotonic())
+
+
+def _get_cached_competitor_data(abt_id: str) -> tuple[dict, dict | None] | None:
+    entry = _competitor_cache.get(abt_id)
+    if not entry:
+        return None
+    info, stats, fetched_at = entry
+    if time.monotonic() - fetched_at > _COMPETITOR_CACHE_TTL_S:
+        return None
+    return info, stats
+
+
+async def _fetch_and_cache_competitor_data(abt_id: str) -> tuple[dict, dict | None] | None:
+    """`get_rank` + `get_stats`ni chaqirib, natijani keshlaydi. Topilmasa
+    (yoki xato bo'lsa) `None` — chaqiruvchi buni "avtomatik aniqlab
+    bo'lmadi" deb talqin qiladi."""
     try:
         res = await orin_utils.get_rank(abt_id)
-        if "info" in res:
-            info = res["info"]
-            await orin_utils.get_stats(info["s4subject"], info["s5subject"], info["ed_lang_id"])
+    except (MandatBusy, MandatUnavailable):
+        return None
     except Exception:
-        logging.debug("Raqobatchilar ma'lumotini oldindan isitishda xato (ID=%s)", abt_id, exc_info=True)
+        logging.exception("get_rank chaqiruvida xato (ID=%s)", abt_id)
+        return None
+    if "info" not in res:
+        return None
+    info = res["info"]
+    stats = None
+    try:
+        stats = await orin_utils.get_stats(info["s4subject"], info["s5subject"], info["ed_lang_id"])
+    except (MandatBusy, MandatUnavailable):
+        pass
+    except Exception:
+        logging.exception("get_stats chaqiruvida xato (ID=%s)", abt_id)
+    _cache_competitor_data(abt_id, info, stats)
+    return info, stats
 
 
 @qv_router.message(F.text == QV_BTN, F.chat.type == ChatType.PRIVATE)
@@ -181,18 +214,58 @@ async def _process_new_pdf(message: Message, state: FSMContext) -> None:
         "jshshir": parsed.jshshir, "birth_date": parsed.birth_date, "gender": parsed.gender,
     }
     await state.update_data(matched=[vars(m) for m in matched], personal=personal)
-    await state.set_state(QVState.waiting_ball)
-
-    # ⚡ Foydalanuvchi hozir ballni yozib o'tiradi — shu "bo'sh vaqt"da fonda
-    # raqobatchilar ma'lumotini oldindan isitib qo'yamiz (tezlik uchun,
-    # pastdagi izohga qarang).
-    if parsed.abt_id:
-        asyncio.create_task(_prefetch_competitor_data(parsed.abt_id))
-
     await answer_safe(message, _choices_preview(matched), parse_mode="HTML")
+
+    # ⚡ ID qaydvaraqadan allaqachon ma'lum — mandat.uzbmb.uz saytidan
+    # ballni AVTOMATIK olishga urinamiz, shunda foydalanuvchidan qo'lda
+    # so'rash shart bo'lmaydi (u yerda "Mandat saytdagi o'rni" bo'limi
+    # allaqachon aynan shu ID orqali ballni topa oladi). Natija bir yo'la
+    # keshlanadi — "Raqobatchilar tahlil qilinsinmi?" bosilganda bu SAYTGA
+    # QAYTA SO'ROV YUBORMAYDI, shu yerda olingan ma'lumotdan foydalanadi.
+    ball = None
+    if parsed.abt_id:
+        status = await message.answer(
+            "🔍 Siz haqingizda ma'lumot yig'ilmoqda (saytdan balingiz aniqlanmoqda)..."
+        )
+        result = await _fetch_and_cache_competitor_data(parsed.abt_id)
+        await _safe_delete(status)
+        if result:
+            info, _stats = result
+            raw_ball = info.get("ball")
+            if raw_ball is not None and float(raw_ball) > 0:
+                ball = float(raw_ball)
+
+    if ball is not None:
+        await message.answer(
+            f"✅ Balingiz saytdan avtomatik aniqlandi: <b>{ball:g}</b>", parse_mode="HTML",
+        )
+        await _finalize_report(message, state, ball)
+        return
+
+    # Saytdan avtomatik aniqlab bo'lmadi (ID topilmadi, sayt band/ishlamayapti
+    # yoki ball hali e'lon qilinmagan) — zaxira yo'l: qo'lda so'raymiz.
+    await state.set_state(QVState.waiting_ball)
     await message.answer(
         "🎯 Endi to'plagan (umumiy) ballingizni kiriting:",
         reply_markup=await UserPanels.to_back(),
+    )
+
+
+async def _finalize_report(message: Message, state: FSMContext, ball: float) -> None:
+    """Ball aniqlangach (avtomatik saytdan yoki foydalanuvchi qo'lda
+    kiritgach) yakuniy hisobotni yaratib yuboradi va undan keyingi
+    tugmalarni ko'rsatadi."""
+    data = await state.get_data()
+    matched = [MatchedChoice(**m) for m in data.get("matched", [])]
+    personal = data.get("personal") or {}
+    report = format_report(matched, ball, personal=personal)
+    await state.clear()
+
+    await answer_safe(message, report, parse_mode="HTML", reply_markup=await UserPanels.asos_manu())
+    abt_id = personal.get("abt_id")
+    await message.answer(
+        "Quyidagilardan birini tanlashingiz mumkin 👇",
+        reply_markup=_post_report_markup(abt_id),
     )
 
 
@@ -253,18 +326,7 @@ async def qv_ball_received(message: Message, state: FSMContext):
         )
         return
 
-    data = await state.get_data()
-    matched = [MatchedChoice(**m) for m in data.get("matched", [])]
-    personal = data.get("personal") or {}
-    report = format_report(matched, ball, personal=personal)
-    await state.clear()
-
-    await answer_safe(message, report, parse_mode="HTML", reply_markup=await UserPanels.asos_manu())
-    abt_id = personal.get("abt_id")
-    await message.answer(
-        "Quyidagilardan birini tanlashingiz mumkin 👇",
-        reply_markup=_post_report_markup(abt_id),
-    )
+    await _finalize_report(message, state, ball)
 
 
 def _post_report_markup(abt_id: str | None) -> InlineKeyboardMarkup:
@@ -294,23 +356,33 @@ async def _build_competitor_text(abt_id: str, detailed: bool) -> tuple[str, Inli
     """`src/handlers/users/orin.py`dagi `_build()` bilan bir xil mantiq —
     'Mandat saytdagi o'rni' bo'limi allaqachon sinovdan o'tgan, shuni
     qayta ishlatamiz (nusxa ko'chirilgan, chunki asl funksiya o'sha
-    handler faylida underscore bilan "shaxsiy" deb belgilangan)."""
-    res = await orin_utils.get_rank(abt_id)
-    if "info" not in res:
-        return res["text"], None
+    handler faylida underscore bilan "shaxsiy" deb belgilangan).
 
-    info = res["info"]
-    stats = None
-    try:
-        stats = await orin_utils.get_stats(info["s4subject"], info["s5subject"], info["ed_lang_id"])
-    except (MandatBusy, MandatUnavailable):
-        pass
-    except Exception:
-        logging.exception("Raqobatchilar statistikasini olishda xatolik (ID=%s)", abt_id)
+    QAYDVARAQA PDF qayta ishlanganda bu ma'lumot ALLAQACHON bir marta
+    olib, keshlangan bo'lishi mumkin (`_fetch_and_cache_competitor_data`) —
+    shu holatda saytga QAYTA SO'ROV YUBORILMAYDI, kesh ishlatiladi."""
+    cached = _get_cached_competitor_data(abt_id)
+    if cached:
+        info, stats = cached
+        stale = False
+    else:
+        res = await orin_utils.get_rank(abt_id)
+        if "info" not in res:
+            return res["text"], None
+        info = res["info"]
+        stats = None
+        try:
+            stats = await orin_utils.get_stats(info["s4subject"], info["s5subject"], info["ed_lang_id"])
+        except (MandatBusy, MandatUnavailable):
+            pass
+        except Exception:
+            logging.exception("Raqobatchilar statistikasini olishda xatolik (ID=%s)", abt_id)
+        _cache_competitor_data(abt_id, info, stats)
+        stale = res.get("stale", False)
 
     if detailed:
         return orin_utils.format_details(info, stats), _competitor_markup(abt_id, True)
-    return (orin_utils.format_main(info, stats, stale=res.get("stale", False)),
+    return (orin_utils.format_main(info, stats, stale=stale),
             _competitor_markup(abt_id, False))
 
 
