@@ -55,7 +55,6 @@ QV_BTN = "🔍 Mandat tahlili"
 BTN_UNI_RECO = "🎓 Universitet tavsiyasi"
 BTN_COMPETITORS = "📊 Raqobatchilar tahlil qilinsinmi?"
 BTN_CALCULATOR = "🧮 Super-kontrakt kalkulyatori"
-BTN_DETAILED = "📊 Batafsil"
 
 # Bitta umumiy matn, barcha foydalanuvchilarga bir xil ko'rsatiladi (admin
 # tomonidan qo'lda tayyorlangan tavsiyalar ro'yxati).
@@ -91,8 +90,6 @@ class QVState(StatesGroup):
     waiting_pdf = State()
     waiting_ball = State()
     post_report = State()
-    competitor_view = State()
-    competitor_detail = State()
     calc_choose_direction = State()
     calc_waiting_gap = State()
 
@@ -128,14 +125,6 @@ def _post_report_keyboard(abt_id: str | None) -> ReplyKeyboardMarkup:
     if abt_id:
         rows.append([KeyboardButton(text=BTN_COMPETITORS)])
     rows.append([KeyboardButton(text=BTN_CALCULATOR)])
-    rows.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
-    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
-
-
-def _competitor_keyboard(detailed: bool) -> ReplyKeyboardMarkup:
-    rows = []
-    if not detailed:
-        rows.append([KeyboardButton(text=BTN_DETAILED)])
     rows.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
@@ -427,7 +416,7 @@ async def qv_post_report_menu(message: Message, state: FSMContext):
         await answer_safe(message, UNIVERSITY_RECOMMENDATION_TEXT, parse_mode="HTML")
         return
     if text == BTN_COMPETITORS and abt_id:
-        await _show_competitors(message, state, abt_id, detailed=False)
+        await _show_competitors(message, abt_id)
         return
     if text == BTN_CALCULATOR:
         matched = [MatchedChoice(**m) for m in data.get("matched", [])]
@@ -452,7 +441,7 @@ async def qv_post_report_menu(message: Message, state: FSMContext):
 
 
 # -- Raqobatchilar tahlili -------------------------------------------------
-async def _build_competitor_text(abt_id: str, detailed: bool) -> str:
+async def _build_competitor_text(abt_id: str) -> str:
     """`src/handlers/users/orin.py`dagi `_build()` bilan bir xil mantiq —
     'Mandat saytdagi o'rni' bo'limi allaqachon sinovdan o'tgan, shuni
     qayta ishlatamiz (nusxa ko'chirilgan, chunki asl funksiya o'sha
@@ -460,7 +449,10 @@ async def _build_competitor_text(abt_id: str, detailed: bool) -> str:
 
     QAYDVARAQA PDF qayta ishlanganda bu ma'lumot ALLAQACHON bir marta
     olib, keshlangan bo'lishi mumkin (`_fetch_and_cache_competitor_data`) —
-    shu holatda saytga QAYTA SO'ROV YUBORILMAYDI, kesh ishlatiladi."""
+    shu holatda saytga QAYTA SO'ROV YUBORILMAYDI, kesh ishlatiladi.
+
+    Xulosa + batafsil statistika ALOHIDA tugma/bosqichsiz, BITTA xabarda
+    birlashtirilib qaytariladi (foydalanuvchi so'roviga ko'ra)."""
     cached = _get_cached_competitor_data(abt_id)
     if cached:
         info, stats = cached
@@ -480,19 +472,21 @@ async def _build_competitor_text(abt_id: str, detailed: bool) -> str:
         _cache_competitor_data(abt_id, info, stats)
         stale = res.get("stale", False)
 
-    if detailed:
-        return orin_utils.format_details(info, stats)
-    return orin_utils.format_main(info, stats, stale=stale)
+    main_text = orin_utils.format_main(info, stats, stale=stale)
+    details_text = orin_utils.format_details(info, stats)
+    return main_text + "\n\n" + details_text
 
 
-async def _show_competitors(message: Message, state: FSMContext, abt_id: str, detailed: bool) -> None:
+async def _show_competitors(message: Message, abt_id: str) -> None:
+    """Natijani yuboradi va pastdagi (post_report) klaviaturani O'ZGARTIRMAYDI
+    — na state, na reply_markup almashtiriladi, faqat xabar yuboriladi."""
     if not rate_limit.allow(message.from_user.id):
         await message.answer("⏳ Juda tez-tez so'rov yubordingiz. Bir necha soniya kutib qayta urining.")
         return
     status = await message.answer("🔍 Raqobatchilar ma'lumoti aniqlanmoqda, iltimos kuting...")
 
     try:
-        text = await _build_competitor_text(abt_id, detailed)
+        text = await _build_competitor_text(abt_id)
     except MandatBusy:
         text = ("🚨 Hozir so'rovlar juda ko'p, navbat to'la.\n"
                 "Iltimos, 1-2 daqiqadan so'ng qayta urinib ko'ring.")
@@ -503,47 +497,7 @@ async def _show_competitors(message: Message, state: FSMContext, abt_id: str, de
         text = "🚨 Ichki xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring."
 
     await _safe_delete(status)
-    await state.set_state(QVState.competitor_detail if detailed else QVState.competitor_view)
-    await answer_safe(message, text, parse_mode="HTML", reply_markup=_competitor_keyboard(detailed))
-
-
-@qv_router.message(QVState.competitor_view, F.chat.type == ChatType.PRIVATE)
-async def qv_competitor_view(message: Message, state: FSMContext):
-    text = message.text or ""
-    if text in _MAIN_MENU_TEXTS or text in _ASOS_MENU_BTNS:
-        await _to_main_menu(message, state)
-        return
-    if text in _BACK_TEXTS:
-        await _return_to_post_report(message, state)
-        return
-    if text == BTN_DETAILED:
-        data = await state.get_data()
-        abt_id = (data.get("personal") or {}).get("abt_id")
-        if abt_id:
-            await _show_competitors(message, state, abt_id, detailed=True)
-            return
-    await message.answer(
-        "Quyidagi tugmalardan birini tanlang 👇", reply_markup=_competitor_keyboard(detailed=False),
-    )
-
-
-@qv_router.message(QVState.competitor_detail, F.chat.type == ChatType.PRIVATE)
-async def qv_competitor_detail(message: Message, state: FSMContext):
-    text = message.text or ""
-    if text in _MAIN_MENU_TEXTS or text in _ASOS_MENU_BTNS:
-        await _to_main_menu(message, state)
-        return
-    if text in _BACK_TEXTS:
-        data = await state.get_data()
-        abt_id = (data.get("personal") or {}).get("abt_id")
-        if abt_id:
-            await _show_competitors(message, state, abt_id, detailed=False)
-        else:
-            await _return_to_post_report(message, state)
-        return
-    await message.answer(
-        "Quyidagi tugmalardan birini tanlang 👇", reply_markup=_competitor_keyboard(detailed=True),
-    )
+    await answer_safe(message, text, parse_mode="HTML")
 
 
 # -- Super-kontrakt kalkulyatori --------------------------------------------
