@@ -135,6 +135,10 @@ class UserPanels:
         )
         keyboard = [
             [
+                # Eng tepada, yolg'iz o'zi turadi
+                KeyboardButton(text="🔍 Mandat tahlili")
+            ],
+            [
                 KeyboardButton(text="📊 Mandat saytdagi o'rni"),
                 KeyboardButton(text="🎯 Balingizga mos yo'nalish")
             ],
@@ -143,8 +147,7 @@ class UserPanels:
                 KeyboardButton(text="🎓 Perevod-2026")
             ],
             [
-                KeyboardButton(text="😎 Test ishlash"),
-                KeyboardButton(text="📋 Qaydvaraqa bo'yicha tekshirish")
+                KeyboardButton(text="😎 Test ishlash")
             ]
         ]
         btn = ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)

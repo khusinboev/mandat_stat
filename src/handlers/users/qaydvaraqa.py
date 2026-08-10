@@ -1,4 +1,4 @@
-"""'📋 Qaydvaraqa bo'yicha tekshirish' bo'limi.
+"""'🔍 Mandat tahlili' bo'limi.
 
 Oqim:
   tugma -> qaydvaraqa PDF so'raladi
@@ -31,7 +31,7 @@ from src.utils.qaydvaraqa import (
 
 qv_router = Router()
 
-QV_BTN = "📋 Qaydvaraqa bo'yicha tekshirish"
+QV_BTN = "🔍 Mandat tahlili"
 
 # `UserPanels.to_back()` shu ikki tugmani beradi — ikkalasi ham bosh menyuga qaytaradi.
 BACK_BUTTONS = {"🔙 Ortga", "🔙 Bosh menu", "◀️ Ortga"}
@@ -83,7 +83,7 @@ async def qv_start(message: Message, state: FSMContext):
         return
     await state.set_state(QVState.waiting_pdf)
     await message.answer(
-        "📋 <b>Qaydvaraqa bo'yicha tekshirish</b>\n\n"
+        "🔍 <b>Mandat tahlili</b>\n\n"
         "Bilim va malakalarni baholash agentligi saytidan yuklab olgan "
         "<b>Abituriyent qayd varaqasi</b> PDF faylini shu yerga <b>hujjat "
         "(📎)</b> sifatida yuboring:",
