@@ -42,6 +42,17 @@ MAX_QUEUE = 15
 _waiting = 0
 _inflight: dict[str, asyncio.Task] = {}
 
+# "Raqiblaringiz natijalari" uchun TO'LIQ agregatlarni hisoblash (_compute_stats)
+# bitta kombinatsiya uchun 100+ ketma-ket sahifa so'rovi talab qilishi mumkin
+# (13 ta chegara + narvon darajalari, har biri o'z ikkilik qidiruvi bilan).
+# Bu FON vazifasi — foydalanuvchi kutmaydi — lekin agar u YUQORIDAGI umumiy
+# `semaphore`ni ishlatsa, bir nechta kombinatsiya bir vaqtda hisoblansa,
+# JONLI (get_rank) so'rovlar navbatda qolib ketadi (production'da aniqlangan
+# qotish sabablaridan biri). Shu sabab ALOHIDA, kichikroq semaphore va umumiy
+# vaqt chegarasi bilan izolyatsiya qilingan.
+_stats_semaphore = asyncio.Semaphore(2)
+FULL_STATS_DEADLINE = 90  # soniya — fon vazifasi shundan ortiq davom etmasin
+
 FETCH_DEADLINE = 20      # foydalanuvchining kutish chegarasi
 RANK_FRESH_TTL = 3 * 3600    # o'rin snapshot'ining yangilik muddati
 STATS_FRESH_TTL = 12 * 3600  # kombinatsiya agregatlarining yangilik muddati
@@ -161,12 +172,12 @@ def _release_slot(_task: asyncio.Task, key: str) -> None:
     _inflight.pop(key, None)
 
 
-async def _request(url: str, params: dict) -> str:
+async def _request(url: str, params: dict, sem: asyncio.Semaphore = semaphore) -> str:
     session = await _get_session()
     last_err: Exception | None = None
     for attempt in range(1, RETRY_COUNT + 1):
         try:
-            async with semaphore:
+            async with sem:
                 async with session.get(url, params=params) as resp:
                     return await resp.text()
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
@@ -197,7 +208,7 @@ class _Scan:
         html = await _request(PAGINATE_URL, {
             "pageNumber": p, "pageSize": BULK_PAGE_SIZE,
             "s4subject": self.s4, "s5subject": self.s5, "edLangId": self.lang,
-        })
+        }, sem=_stats_semaphore)
         await asyncio.sleep(PROBE_DELAY)
         cards = parse_cards(html)
         self._cache[p] = cards
@@ -357,8 +368,10 @@ def _schedule_full_stats(s4: str, s5: str, lang: int, total: int | None) -> None
 
     async def _runner():
         try:
-            await _compute_stats(s4, s5, lang, total)
+            await asyncio.wait_for(_compute_stats(s4, s5, lang, total), timeout=FULL_STATS_DEADLINE)
             logging.info(f"O'rin agregatlari hisoblandi: {key}")
+        except asyncio.TimeoutError:
+            logging.warning(f"Agregatlar hisoblash vaqti tugadi ({FULL_STATS_DEADLINE}s): {key}")
         except Exception:
             logging.exception(f"Agregatlarni hisoblab bo'lmadi: {key}")
 
