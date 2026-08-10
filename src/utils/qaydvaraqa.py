@@ -579,6 +579,35 @@ _EXACT_RULES: dict[str, str] = {
 }
 
 
+# Kategoriya kaliti -> foydalanuvchiga ko'rsatiladigan o'qiladigan nom
+# (rasmiy jadvaldagi soha guruhlariga mos, taxminiy). Kalkulyator bo'limida
+# foydalanuvchiga "qaysi soha aniqlandi" deb ko'rsatish uchun ishlatiladi.
+_SOHA_DISPLAY_NAMES: dict[str, str] = {
+    "gumanitar_pedagogika": "Pedagogika",
+    "gumanitar_sanat": "San'at",
+    "gumanitar_fanlar": "Gumanitar fanlar",
+    "gumanitar_filologiya_maxsus": "Filologiya va tillarni o'qitish (tarjima nazariyasi va amaliyoti)",
+    "gumanitar_jahon_siyosati": "Jahon siyosati",
+    "gumanitar_matematika_tabiiy": "Matematika va tabiiy fanlar",
+    "ijtimoiy_baza": "Ijtimoiy-gumanitar (sotsiologiya, psixologiya, jurnalistika)",
+    "ijtimoiy_iqtisod": "Iqtisodiyot",
+    "ijtimoiy_jahon_iqtisod": "Jahon iqtisodiyoti va xalqaro iqtisodiy munosabatlar",
+    "ijtimoiy_huquq": "Yurisprudensiya (huquq)",
+    "texnik_muhandislik": "Muhandislik va ishlab chiqarish texnologiyalari",
+    "texnik_kompyuter": "Kompyuter va axborot-kommunikatsiya texnologiyalari",
+    "texnik_ikt_iqtisod_menejment": "AKT sohasida iqtisodiyot va menejment",
+    "texnik_arxitektura_qurilish": "Arxitektura va qurilish",
+    "texnik_arxitektura_qishloq": "Qishloq hududlarini arxitekturaviy loyihalash",
+    "qishloq_suv": "Qishloq, o'rmon, baliq va suv xo'jaligi, veterinariya",
+    "sogliq": "Sog'liqni saqlash",
+    "ijtimoiy_taminot": "Ijtimoiy ta'minot",
+    "xizmat_asosiy": "Xizmat ko'rsatish sohasi",
+    "xizmat_sport": "Jismoniy tarbiya va sport",
+    "transport": "Transport",
+    "atrofmuhit": "Atrof-muhit muhofazasi va hayot faoliyati xavfsizligi",
+}
+
+
 def classify_soha(nomi: str) -> Optional[str]:
     """Yo'nalish nomini rasmiy to'lov-kontrakt jadvalidagi 6 sohadan biriga
     (aniqrog'i, shu soha ichidagi narx-toifasiga) moslashtiradi.
@@ -610,15 +639,12 @@ def classify_soha(nomi: str) -> Optional[str]:
     return None
 
 
-def super_kontrakt_estimate(nomi: str, ty_text: str, gap: float) -> Optional[dict]:
-    """Ball yetishmovchiligi (gap, musbat son) asosida tabaqalashtirilgan
-    to'lov-kontrakt taxminini hisoblaydi.
-
-    `None` qaytadi: (a) gap > 4 (bu holatda OTM narxni O'ZI belgilaydi —
-    2025-yildan boshlab davlat buni tartibga solmaydi, hisoblash mumkin
-    emas), yoki (b) yo'nalish sohasi aniqlanmagan bo'lsa."""
-    if gap <= 0 or gap > 4.0:
-        return None
+def soha_info(nomi: str, ty_text: str) -> Optional[dict]:
+    """Yo'nalish nomi + ta'lim shakli asosida rasmiy to'lov-kontrakt sohasini
+    va bazaviy narxni aniqlaydi. `None` — soha aniqlanmadi (yangi/kutilmagan
+    yo'nalish nomi). Hisobot (`format_report`) va Super-kontrakt kalkulyatori
+    (bot handleri) bir xil funksiyadan foydalanadi — ikkalasida ham bir xil
+    natija kafolatlanadi."""
     category = classify_soha(nomi)
     if category is None:
         return None
@@ -627,16 +653,42 @@ def super_kontrakt_estimate(nomi: str, ty_text: str, gap: float) -> Optional[dic
         return None
     kunduzgi, boshqa = base
     is_kunduzgi = _norm(ty_text) == "kunduzgi"
-    base_amount = kunduzgi if is_kunduzgi else boshqa
-    multiplier = next(m for upper, m in _SUPER_KONTRAKT_TIERS if gap <= upper)
     return {
-        "base_amount": base_amount,
-        "multiplier": multiplier,
-        "amount": round(base_amount * multiplier),
+        "category": category,
+        "category_label": _SOHA_DISPLAY_NAMES.get(category, category),
+        "base_amount": kunduzgi if is_kunduzgi else boshqa,
+        "is_kunduzgi": is_kunduzgi,
     }
 
 
-def _format_som(amount: int) -> str:
+def super_kontrakt_amount_for_gap(base_amount: int, gap: float) -> Optional[dict]:
+    """Bazaviy narx + ball farqi (gap, musbat son) asosida tabaqalashtirilgan
+    to'lov-kontrakt miqdorini hisoblaydi. `None` — gap > 4 (bu holatda OTM
+    narxni O'ZI belgilaydi, 2025-yildan boshlab davlat buni tartibga
+    solmaydi) yoki gap <= 0 (ball yetarli, tabaqalashtirish shart emas)."""
+    if gap <= 0 or gap > 4.0:
+        return None
+    multiplier = next(m for upper, m in _SUPER_KONTRAKT_TIERS if gap <= upper)
+    return {"multiplier": multiplier, "amount": round(base_amount * multiplier)}
+
+
+def super_kontrakt_estimate(nomi: str, ty_text: str, gap: float) -> Optional[dict]:
+    """Ball yetishmovchiligi (gap, musbat son) asosida tabaqalashtirilgan
+    to'lov-kontrakt taxminini hisoblaydi (hisobotdagi avtomatik near-miss
+    ko'rsatuvi uchun) — `soha_info` + `super_kontrakt_amount_for_gap`ning
+    ustiga qurilgan qulay birlashtiruvchi funksiya."""
+    if gap <= 0 or gap > 4.0:
+        return None
+    info = soha_info(nomi, ty_text)
+    if info is None:
+        return None
+    calc = super_kontrakt_amount_for_gap(info["base_amount"], gap)
+    if calc is None:
+        return None
+    return {"base_amount": info["base_amount"], **calc}
+
+
+def format_som(amount: int) -> str:
     return f"{amount:,}".replace(",", " ") + " so'm"
 
 
@@ -699,7 +751,7 @@ def format_report(matched: list[MatchedChoice], user_ball: float, personal: Opti
             if est:
                 entry += (
                     f"   💰 <i>Taxminiy super-kontrakt (bazaviy narx × "
-                    f"{est['multiplier']:g}): <b>{_format_som(est['amount'])}</b></i>\n"
+                    f"{est['multiplier']:g}): <b>{format_som(est['amount'])}</b></i>\n"
                 )
             elif shortfall <= 4.0:
                 entry += (
@@ -721,6 +773,16 @@ def format_report(matched: list[MatchedChoice], user_ball: float, personal: Opti
         lines.append("")
 
     lines.append("—" * 20)
+
+    total_comparable = len(eligible) + len(not_eligible)
+    if total_comparable:
+        percent = round(len(eligible) / total_comparable * 100)
+        prob_icon = "✅" if percent == 100 else ("😕" if percent == 0 else "📊")
+        lines.append(
+            f"{prob_icon} <b>SIZNING O'QISHGA KIRISH EHTIMOLLIGINGIZ {percent}%</b> "
+            f"<i>(2025-yilgi ballar bilan solishtirganda)</i>\n"
+        )
+
     lines.append("📊 <b>Milliy minimal ballar (2025) bilan taqqoslash:</b>")
     if user_ball >= NATIONAL_GRANT_FLOOR:
         lines.append(f"🏆 Balingiz davlat granti milliy minimal balidan "
@@ -734,10 +796,12 @@ def format_report(matched: list[MatchedChoice], user_ball: float, personal: Opti
         lines.append(f"⚠️ Balingiz kontrakt minimal balidan ham (<b>{NATIONAL_CONTRACT_FLOOR:g}</b>) "
                      f"past.")
     lines.append(
-        "\n<i>ℹ️ Bu — milliy UMUMIY chegara, aniq yo'nalish bo'yicha grant balli "
-        "emas (bazamizda grant balllari mavjud emas). Yuqoridagi kontrakt "
-        "ballari 2025-yilga oid — 2026-yilda o'zgarishi mumkin, faqat mo'ljal "
-        "sifatida qarang.</i>"
+        "\n<i>ℹ️ Bu — Minimal grant o'tish balli, aniq yo'nalish bo'yicha "
+        "grant balli emas.</i>"
+    )
+    lines.append(
+        "<i>ℹ️ Yuqoridagi kontrakt ballari 2025-yilga oid — 2026-yilda "
+        "o'zgarishi mumkin, faqat mo'ljal sifatida qarang.</i>"
     )
 
     if any((user_ball - m.con_b) < 0 for m in matched if m.matched and m.con_b is not None):
@@ -749,7 +813,7 @@ def format_report(matched: list[MatchedChoice], user_ball: float, personal: Opti
             "➡️ 1,01–2 ball — 2 barobari\n"
             "➡️ 2,01–3 ball — 2,5 barobari\n"
             "➡️ 3,01–4 ball — 3 barobari</blockquote>\n"
-            "4 balldan ortiq yetmasa — bu holatda narxni OTM 2025-yildan beri "
+            "\n4 balldan ortiq yetmasa — bu holatda narxni OTM 2025-yildan beri "
             "mustaqil belgilaydi, biz hisoblay olmaymiz "
             "(<a href='https://t.me/nodavlattalim/4271'>manba</a>).\n"
             "<i>Bazaviy narxlar ham 2025/2026-yilga oid rasmiy jadvaldan — "

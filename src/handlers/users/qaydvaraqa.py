@@ -1,28 +1,35 @@
 """'🔍 Mandat tahlili' bo'limi.
 
+Hammasi REPLY-klaviatura asosida (inline/callback ISHLATILMAYDI) — har bir
+bosqichda "🔙 Ortga" (bir qadam orqaga) + "🔙 Bosh menu" (butunlay chiqish)
+tugmalari bor (birinchi qadam — PDF kutish — bundan mustasno, u yerda
+"Ortga" qiladigan oldingi bosqich yo'q).
+
 Oqim:
   tugma -> qaydvaraqa PDF so'raladi
   PDF kelgach -> tahlil qilinadi (matn qatlami sifatida, OCR/AI SHART EMAS —
     `src/utils/qaydvaraqa.py` docstringiga qarang), tanlovlar ko'rsatiladi,
-    ball so'raladi
-  ball kelgach -> har bir tanlov 2025-yil kontrakt balli bilan solishtirilib,
-    yakuniy hisobot yuboriladi (+ milliy kontrakt/grant chegaralari bilan
-    taqqoslash)
+    ID orqali ball saytdan AVTOMATIK olishga urinib ko'riladi (topilmasa —
+    qo'lda so'raladi)
+  ball aniqlangach -> yakuniy hisobot yuboriladi, keyin POST_REPORT menyusi:
+    - "🎓 Universitet tavsiyasi" (hozircha bo'sh joy — logika keyinroq beriladi)
+    - "📊 Raqobatchilar tahlil qilinsinmi?" (huddi "Mandat saytdagi o'rni"
+      bo'limidagi kabi, orin.py funksiyalari qayta ishlatiladi)
+    - "🧮 Super-kontrakt kalkulyatori" (tanlov tanlanadi -> soha aniqlanadi
+      -> ball farqi so'raladi -> tabaqalashtirilgan to'lov taxmini)
 
 Bu bo'lim `asos_manu()` oilasiga tegishli (orin.py/yonalish.py bilan bir
 xil uslub: rate_limit, CheckData.check_member, answer_safe, HTML format).
 """
 import logging
+import re
 import time
 
 from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import (
-    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton,
-    Message, ReplyKeyboardMarkup,
-)
+from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
 from config import bot
 from src.keyboards.buttons import UserPanels
@@ -30,7 +37,8 @@ from src.keyboards.keyboard_func import CheckData
 from src.utils import rate_limit
 from src.utils.safe_send import answer_safe
 from src.utils.qaydvaraqa import (
-    MatchedChoice, parse_pdf, match_choices, format_report, QaydvaraqaParseError,
+    MatchedChoice, parse_pdf, match_choices, format_report, format_som,
+    soha_info, super_kontrakt_amount_for_gap, QaydvaraqaParseError,
 )
 # "Raqobatchilarni tahlil qilish" -- '🎯 Balingizga mos yo'nalish'dagi bilan
 # AYNAN BIR XIL mantiq (get_rank + get_stats + format_main/format_details),
@@ -44,21 +52,26 @@ from src.utils.mandat_parser import MandatBusy, MandatUnavailable
 qv_router = Router()
 
 QV_BTN = "🔍 Mandat tahlili"
+BTN_UNI_RECO = "🎓 Universitet tavsiyasi"
+BTN_COMPETITORS = "📊 Raqobatchilar tahlil qilinsinmi?"
+BTN_CALCULATOR = "🧮 Super-kontrakt kalkulyatori"
+BTN_DETAILED = "📊 Batafsil"
 
-# "Ortga" va "Bosh menu" turlicha ma'noga ega: "Ortga" — bir bosqich orqaga
-# (masalan PDF qayta yuborish), "Bosh menu" — butunlay chiqish. PDF kutish
-# bosqichida ORTGA qilinadigan bosqich yo'q (bu birinchi qadam), shu sabab
-# o'sha yerda faqat "Bosh menu" ko'rsatiladi — ikkalasi bir xil natija
-# berib, chalkashtirmasin (production'da aniqlangan bug).
+# "Ortga" va "Bosh menu" turlicha ma'noga ega: "Ortga" — bir bosqich orqaga,
+# "Bosh menu" — butunlay chiqish. PDF kutish bosqichida ORTGA qilinadigan
+# bosqich yo'q (bu birinchi qadam), shu sabab o'sha yerda faqat "Bosh menu"
+# ko'rsatiladi — ikkalasi bir xil natija berib, chalkashtirmasin (production'da
+# aniqlangan bug). Qolgan BARCHA bosqichlarda ikkalasi ham bor (`UserPanels.
+# to_back()` yoki shu ikki tugmani o'zida saqlagan maxsus klaviatura orqali).
 _BACK_TEXTS = {"🔙 Ortga", "◀️ Ortga"}
 _MAIN_MENU_TEXTS = {"🔙 Bosh menu"}
 
-# `asos_manu()`dagi barcha bo'lim tugmalari. Mid-flow'da (PDF yoki ball
-# kutilayotganda) foydalanuvchi BOSHQA bo'limga o'tmoqchi bo'lsa, buni
-# "noto'g'ri fayl/ball" deb emas, bo'lim almashtirish deb tushunish kerak —
-# aks holda foydalanuvchi tugma bosib ham hech narsa bo'lmay qolib ketadi
-# (boshqa loyihada aynan shu turdagi bug production'da aniqlangan va
-# tuzatilgan — mantiqni shu yerda oldindan qo'llaymiz).
+# `asos_manu()`dagi barcha bo'lim tugmalari. Mid-flow'da (PDF, ball, yoki
+# hisobotdan keyingi istalgan bosqichda) foydalanuvchi BOSHQA bo'limga
+# o'tmoqchi bo'lsa, buni "noto'g'ri kiritish" deb emas, bo'lim almashtirish
+# deb tushunish kerak — aks holda foydalanuvchi tugma bosib ham hech narsa
+# bo'lmay qolib ketadi (boshqa loyihada aynan shu turdagi bug production'da
+# aniqlangan va tuzatilgan — mantiqni shu yerda oldindan qo'llaymiz).
 _ASOS_MENU_BTNS = {
     "📊 Mandat saytdagi o'rni", "🎯 Balingizga mos yo'nalish",
     "📊 O'tish ballari", "🎓 Perevod-2026", "😎 Test ishlash", QV_BTN,
@@ -67,10 +80,17 @@ _ASOS_MENU_BTNS = {
 # Real qaydvaraqa PDF ~60-70KB — ancha keng xavfsizlik chegarasi.
 MAX_PDF_SIZE = 5 * 1024 * 1024
 
+_CALC_CHOICE_RE = re.compile(r"^(\d+)-tanlov$")
+
 
 class QVState(StatesGroup):
     waiting_pdf = State()
     waiting_ball = State()
+    post_report = State()
+    competitor_view = State()
+    competitor_detail = State()
+    calc_choose_direction = State()
+    calc_waiting_gap = State()
 
 
 def _choices_preview(matched: list[MatchedChoice]) -> str:
@@ -96,6 +116,56 @@ def _main_menu_only_keyboard() -> ReplyKeyboardMarkup:
     boshqa bosqich yo'q, shu sabab faqat "Bosh menu" ko'rsatiladi."""
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="🔙 Bosh menu")]], resize_keyboard=True,
+    )
+
+
+def _post_report_keyboard(abt_id: str | None) -> ReplyKeyboardMarkup:
+    rows = [[KeyboardButton(text=BTN_UNI_RECO)]]
+    if abt_id:
+        rows.append([KeyboardButton(text=BTN_COMPETITORS)])
+    rows.append([KeyboardButton(text=BTN_CALCULATOR)])
+    rows.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
+def _competitor_keyboard(detailed: bool) -> ReplyKeyboardMarkup:
+    rows = []
+    if not detailed:
+        rows.append([KeyboardButton(text=BTN_DETAILED)])
+    rows.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
+def _calculable_choices(matched: list[MatchedChoice]) -> list[MatchedChoice]:
+    """Kalkulyator faqat BAZADA aniqlangan (nomi/ty_text tasdiqlangan)
+    tanlovlar bilan ishlay oladi — soha aniqlash shu ikkalasiga bog'liq."""
+    return [m for m in matched if m.matched and m.nomi]
+
+
+def _calc_choice_keyboard(calculable: list[MatchedChoice]) -> ReplyKeyboardMarkup:
+    rows = [[KeyboardButton(text=f"{m.rank}-tanlov")] for m in calculable]
+    rows.append([KeyboardButton(text="🔙 Ortga"), KeyboardButton(text="🔙 Bosh menu")])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
+def _calc_choice_list_text(calculable: list[MatchedChoice]) -> str:
+    lines = [
+        "🧮 <b>Super-kontrakt kalkulyatori</b>\n",
+        "Qaysi tanlov bo'yicha hisoblab ko'rmoqchisiz? Pastdagi tugmalardan "
+        "birini bosing:\n",
+    ]
+    for m in calculable:
+        lines.append(f"<b>{m.rank}-tanlov</b> — {m.un_text}\n    {m.nomi} ({m.ty_text})")
+    return "\n".join(lines)
+
+
+async def _return_to_post_report(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    abt_id = (data.get("personal") or {}).get("abt_id")
+    await state.set_state(QVState.post_report)
+    await message.answer(
+        "Quyidagilardan birini tanlashingiz mumkin 👇",
+        reply_markup=_post_report_keyboard(abt_id),
     )
 
 
@@ -253,19 +323,20 @@ async def _process_new_pdf(message: Message, state: FSMContext) -> None:
 
 async def _finalize_report(message: Message, state: FSMContext, ball: float) -> None:
     """Ball aniqlangach (avtomatik saytdan yoki foydalanuvchi qo'lda
-    kiritgach) yakuniy hisobotni yaratib yuboradi va undan keyingi
-    tugmalarni ko'rsatadi."""
+    kiritgach) yakuniy hisobotni yaratib yuboradi va POST_REPORT menyusiga
+    o'tadi (state TOZALANMAYDI — keyingi bo'limlar (raqobatchilar,
+    kalkulyator) xuddi shu `matched`/`personal` ma'lumotidan foydalanadi)."""
     data = await state.get_data()
     matched = [MatchedChoice(**m) for m in data.get("matched", [])]
     personal = data.get("personal") or {}
     report = format_report(matched, ball, personal=personal)
-    await state.clear()
 
-    await answer_safe(message, report, parse_mode="HTML", reply_markup=await UserPanels.asos_manu())
+    await answer_safe(message, report, parse_mode="HTML")
     abt_id = personal.get("abt_id")
+    await state.set_state(QVState.post_report)
     await message.answer(
         "Quyidagilardan birini tanlashingiz mumkin 👇",
-        reply_markup=_post_report_markup(abt_id),
+        reply_markup=_post_report_keyboard(abt_id),
     )
 
 
@@ -329,30 +400,55 @@ async def qv_ball_received(message: Message, state: FSMContext):
     await _finalize_report(message, state, ball)
 
 
-def _post_report_markup(abt_id: str | None) -> InlineKeyboardMarkup:
-    rows = [[InlineKeyboardButton(text="🎓 Universitet tavsiyasi", callback_data="qv:reco")]]
-    if abt_id:
-        rows.append([InlineKeyboardButton(
-            text="📊 Raqobatchilar tahlil qilinsinmi?", callback_data=f"qv:comp:{abt_id}",
-        )])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+# -- Hisobotdan keyingi menyu -------------------------------------------
+@qv_router.message(QVState.post_report, F.chat.type == ChatType.PRIVATE)
+async def qv_post_report_menu(message: Message, state: FSMContext):
+    text = message.text or ""
+    if text in _MAIN_MENU_TEXTS or text in _ASOS_MENU_BTNS:
+        await _to_main_menu(message, state)
+        return
+    if text in _BACK_TEXTS:
+        await state.set_state(QVState.waiting_pdf)
+        await message.answer(
+            "📋 Qaydvaraqa PDF faylini qayta yuboring:",
+            reply_markup=_main_menu_only_keyboard(),
+        )
+        return
 
+    data = await state.get_data()
+    personal = data.get("personal") or {}
+    abt_id = personal.get("abt_id")
 
-@qv_router.callback_query(F.data == "qv:reco")
-async def qv_recommendation_placeholder(call: CallbackQuery):
-    await call.answer("🔜 Bu bo'lim tez orada qo'shiladi.", show_alert=True)
+    if text == BTN_UNI_RECO:
+        await message.answer("🔜 Bu bo'lim tez orada qo'shiladi.")
+        return
+    if text == BTN_COMPETITORS and abt_id:
+        await _show_competitors(message, state, abt_id, detailed=False)
+        return
+    if text == BTN_CALCULATOR:
+        matched = [MatchedChoice(**m) for m in data.get("matched", [])]
+        calculable = _calculable_choices(matched)
+        if not calculable:
+            await message.answer(
+                "⚠️ Qaydvaraqangizdagi hech bir tanlov bazamizda aniqlanmagani "
+                "uchun kalkulyator ishlay olmaydi."
+            )
+            return
+        await state.set_state(QVState.calc_choose_direction)
+        await answer_safe(
+            message, _calc_choice_list_text(calculable), parse_mode="HTML",
+            reply_markup=_calc_choice_keyboard(calculable),
+        )
+        return
 
-
-def _competitor_markup(abt_id: str, detailed: bool) -> InlineKeyboardMarkup:
-    toggle = (
-        InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"qv:comp:{abt_id}")
-        if detailed else
-        InlineKeyboardButton(text="📊 Batafsil", callback_data=f"qv:compdet:{abt_id}")
+    await message.answer(
+        "Quyidagi tugmalardan birini tanlang 👇",
+        reply_markup=_post_report_keyboard(abt_id),
     )
-    return InlineKeyboardMarkup(inline_keyboard=[[toggle]])
 
 
-async def _build_competitor_text(abt_id: str, detailed: bool) -> tuple[str, InlineKeyboardMarkup | None]:
+# -- Raqobatchilar tahlili -------------------------------------------------
+async def _build_competitor_text(abt_id: str, detailed: bool) -> str:
     """`src/handlers/users/orin.py`dagi `_build()` bilan bir xil mantiq —
     'Mandat saytdagi o'rni' bo'limi allaqachon sinovdan o'tgan, shuni
     qayta ishlatamiz (nusxa ko'chirilgan, chunki asl funksiya o'sha
@@ -368,7 +464,7 @@ async def _build_competitor_text(abt_id: str, detailed: bool) -> tuple[str, Inli
     else:
         res = await orin_utils.get_rank(abt_id)
         if "info" not in res:
-            return res["text"], None
+            return res["text"]
         info = res["info"]
         stats = None
         try:
@@ -381,29 +477,18 @@ async def _build_competitor_text(abt_id: str, detailed: bool) -> tuple[str, Inli
         stale = res.get("stale", False)
 
     if detailed:
-        return orin_utils.format_details(info, stats), _competitor_markup(abt_id, True)
-    return (orin_utils.format_main(info, stats, stale=stale),
-            _competitor_markup(abt_id, False))
+        return orin_utils.format_details(info, stats)
+    return orin_utils.format_main(info, stats, stale=stale)
 
 
-async def _show_competitors(call: CallbackQuery, abt_id: str, detailed: bool) -> None:
-    if not rate_limit.allow(call.from_user.id):
-        await call.answer("⏳ Juda tez-tez so'rov yubordingiz. Bir necha soniya kutib qayta urining.",
-                          show_alert=True)
+async def _show_competitors(message: Message, state: FSMContext, abt_id: str, detailed: bool) -> None:
+    if not rate_limit.allow(message.from_user.id):
+        await message.answer("⏳ Juda tez-tez so'rov yubordingiz. Bir necha soniya kutib qayta urining.")
         return
-    await call.answer()
-    # Fon prefetch odatda buni allaqachon isitib qo'yadi, lekin isitilmagan
-    # bo'lsa (masalan ID qaydvaraqadan topilmagan holatlar) haqiqiy tarmoq
-    # so'rovi bir necha soniya cho'zilishi mumkin — foydalanuvchi kutish
-    # o'rniga jarayon ketayotganini ko'rishi uchun darhol yangilanadi.
-    try:
-        await call.message.edit_text("🔍 Raqobatchilar ma'lumoti aniqlanmoqda, iltimos kuting...")
-    except Exception:
-        pass
+    status = await message.answer("🔍 Raqobatchilar ma'lumoti aniqlanmoqda, iltimos kuting...")
 
-    text, markup = None, None
     try:
-        text, markup = await _build_competitor_text(abt_id, detailed)
+        text = await _build_competitor_text(abt_id, detailed)
     except MandatBusy:
         text = ("🚨 Hozir so'rovlar juda ko'p, navbat to'la.\n"
                 "Iltimos, 1-2 daqiqadan so'ng qayta urinib ko'ring.")
@@ -413,22 +498,170 @@ async def _show_competitors(call: CallbackQuery, abt_id: str, detailed: bool) ->
         logging.exception("Raqobatchilar tahlilida ichki xatolik (ID=%s)", abt_id)
         text = "🚨 Ichki xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring."
 
+    await _safe_delete(status)
+    await state.set_state(QVState.competitor_detail if detailed else QVState.competitor_view)
+    await answer_safe(message, text, parse_mode="HTML", reply_markup=_competitor_keyboard(detailed))
+
+
+@qv_router.message(QVState.competitor_view, F.chat.type == ChatType.PRIVATE)
+async def qv_competitor_view(message: Message, state: FSMContext):
+    text = message.text or ""
+    if text in _MAIN_MENU_TEXTS or text in _ASOS_MENU_BTNS:
+        await _to_main_menu(message, state)
+        return
+    if text in _BACK_TEXTS:
+        await _return_to_post_report(message, state)
+        return
+    if text == BTN_DETAILED:
+        data = await state.get_data()
+        abt_id = (data.get("personal") or {}).get("abt_id")
+        if abt_id:
+            await _show_competitors(message, state, abt_id, detailed=True)
+            return
+    await message.answer(
+        "Quyidagi tugmalardan birini tanlang 👇", reply_markup=_competitor_keyboard(detailed=False),
+    )
+
+
+@qv_router.message(QVState.competitor_detail, F.chat.type == ChatType.PRIVATE)
+async def qv_competitor_detail(message: Message, state: FSMContext):
+    text = message.text or ""
+    if text in _MAIN_MENU_TEXTS or text in _ASOS_MENU_BTNS:
+        await _to_main_menu(message, state)
+        return
+    if text in _BACK_TEXTS:
+        data = await state.get_data()
+        abt_id = (data.get("personal") or {}).get("abt_id")
+        if abt_id:
+            await _show_competitors(message, state, abt_id, detailed=False)
+        else:
+            await _return_to_post_report(message, state)
+        return
+    await message.answer(
+        "Quyidagi tugmalardan birini tanlang 👇", reply_markup=_competitor_keyboard(detailed=True),
+    )
+
+
+# -- Super-kontrakt kalkulyatori --------------------------------------------
+@qv_router.message(QVState.calc_choose_direction, F.chat.type == ChatType.PRIVATE)
+async def qv_calc_choose_direction(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+    if text in _MAIN_MENU_TEXTS or text in _ASOS_MENU_BTNS:
+        await _to_main_menu(message, state)
+        return
+    if text in _BACK_TEXTS:
+        await _return_to_post_report(message, state)
+        return
+
+    data = await state.get_data()
+    matched = [MatchedChoice(**m) for m in data.get("matched", [])]
+    calculable = _calculable_choices(matched)
+
+    rank_match = _CALC_CHOICE_RE.match(text)
+    chosen = None
+    if rank_match:
+        rank = int(rank_match.group(1))
+        chosen = next((c for c in calculable if c.rank == rank), None)
+    if not chosen:
+        await message.answer(
+            "Quyidagi tanlovlardan birini tugma orqali tanlang 👇",
+            reply_markup=_calc_choice_keyboard(calculable),
+        )
+        return
+
+    info = soha_info(chosen.nomi, chosen.ty_text)
+    if info is None:
+        await message.answer(
+            f"⚠️ <b>{chosen.rank}-tanlov</b> ({chosen.nomi}) sohasi aniqlanmadi, "
+            "shu sabab kalkulyator bu tanlov uchun ishlay olmaydi.\n\n"
+            "Boshqa tanlovni tanlang yoki ortga qayting.",
+            parse_mode="HTML",
+            reply_markup=_calc_choice_keyboard(calculable),
+        )
+        return
+
+    await state.update_data(calc_rank=chosen.rank)
+    await state.set_state(QVState.calc_waiting_gap)
+    ty_label = "kunduzgi" if info["is_kunduzgi"] else "sirtqi/kechki/masofaviy"
+    await message.answer(
+        f"📚 <b>{chosen.rank}-tanlov:</b> {chosen.nomi}\n"
+        f"🏷 Soha: <b>{info['category_label']}</b>\n"
+        f"💵 Bazaviy kontrakt narxi ({ty_label}): <b>{format_som(info['base_amount'])}</b>\n\n"
+        "Necha ball yetishmayotganini kiriting (masalan: 2.5):",
+        parse_mode="HTML",
+        reply_markup=await UserPanels.to_back(),
+    )
+
+
+@qv_router.message(QVState.calc_waiting_gap, F.chat.type == ChatType.PRIVATE)
+async def qv_calc_waiting_gap(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+    if text in _MAIN_MENU_TEXTS or text in _ASOS_MENU_BTNS:
+        await _to_main_menu(message, state)
+        return
+
+    data = await state.get_data()
+    matched = [MatchedChoice(**m) for m in data.get("matched", [])]
+    calculable = _calculable_choices(matched)
+
+    if text in _BACK_TEXTS:
+        await state.set_state(QVState.calc_choose_direction)
+        await answer_safe(
+            message, _calc_choice_list_text(calculable), parse_mode="HTML",
+            reply_markup=_calc_choice_keyboard(calculable),
+        )
+        return
+
+    raw = text.replace(",", ".")
     try:
-        await call.message.edit_text(text, parse_mode="HTML", reply_markup=markup)
-    except Exception:
-        await call.message.answer(text, parse_mode="HTML", reply_markup=markup)
+        gap = float(raw)
+    except ValueError:
+        await message.answer("⚠️ Iltimos, ball farqini raqam sifatida kiriting (masalan: 2.5):")
+        return
+    if gap < 0:
+        await message.answer("⚠️ Ball farqi manfiy bo'lishi mumkin emas. Qayta kiriting:")
+        return
 
+    rank = data.get("calc_rank")
+    chosen = next((c for c in calculable if c.rank == rank), None)
+    if not chosen:
+        await state.set_state(QVState.calc_choose_direction)
+        await answer_safe(
+            message, _calc_choice_list_text(calculable), parse_mode="HTML",
+            reply_markup=_calc_choice_keyboard(calculable),
+        )
+        return
 
-@qv_router.callback_query(F.data.startswith("qv:comp:"))
-async def qv_competitors_main(call: CallbackQuery):
-    abt_id = call.data.split(":", 2)[2]
-    await _show_competitors(call, abt_id, detailed=False)
+    info = soha_info(chosen.nomi, chosen.ty_text)
+    if info is None:
+        result_text = "⚠️ Bu tanlov sohasi aniqlanmadi, hisoblab bo'lmadi."
+    elif gap == 0:
+        result_text = (
+            "✅ Ball farqi 0 — tabaqalashtirilgan to'lov kerak emas, "
+            "oddiy kontrakt narxi qo'llanadi."
+        )
+    elif gap > 4.0:
+        result_text = (
+            f"👉 Ball farqi ({gap:g}) 4 dan katta — bu holatda to'lov-kontrakt "
+            "miqdorini OTM 2025-yildan beri mustaqil belgilaydi, biz hisoblay olmaymiz "
+            "(<a href='https://t.me/nodavlattalim/4271'>manba</a>)."
+        )
+    else:
+        calc = super_kontrakt_amount_for_gap(info["base_amount"], gap)
+        result_text = (
+            f"💰 <b>{chosen.rank}-tanlov</b> uchun taxminiy super-kontrakt:\n"
+            f"Bazaviy narx: {format_som(info['base_amount'])}\n"
+            f"Ko'paytiruvchi: ×{calc['multiplier']:g}\n"
+            f"<b>Jami: {format_som(calc['amount'])}</b>\n\n"
+            "<i>Bu — taxminiy hisob-kitob, aniq raqamni OTM'ning o'zidan tasdiqlang.</i>"
+        )
 
-
-@qv_router.callback_query(F.data.startswith("qv:compdet:"))
-async def qv_competitors_detailed(call: CallbackQuery):
-    abt_id = call.data.split(":", 2)[2]
-    await _show_competitors(call, abt_id, detailed=True)
+    await answer_safe(message, result_text, parse_mode="HTML")
+    await state.set_state(QVState.calc_choose_direction)
+    await message.answer(
+        "Boshqa tanlov uchun ham hisoblab ko'rishingiz mumkin, yoki ortga qayting 👇",
+        reply_markup=_calc_choice_keyboard(calculable),
+    )
 
 
 async def _safe_delete(message: Message) -> None:
