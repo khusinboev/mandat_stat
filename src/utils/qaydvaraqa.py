@@ -136,6 +136,31 @@ def _shift_tables(tables: list, shift: int) -> list:
     ]
 
 
+def _extract_choices_from_text(text: str) -> list[RawChoice]:
+    """`extract_tables()` chegarali jadval topmagan hollar uchun zaxira
+    yo'l — "N Ta'lim_shakli" qatorini (`_RANK_TY_RE`) qidirib, undan
+    OLDINGI eng yaqin bo'sh-bo'lmagan qatorni universitet, KEYINGISINI
+    yo'nalish sifatida oladi (real "kasbiy (ijodiy) imtihon" qaydvaraqada
+    koordinatalar bo'yicha tasdiqlangan — bu uch qator xuddi jadval
+    katakchasidagi kabi ketma-ket keladi, faqat pdfplumber ularni jadval
+    deb tanimaydi)."""
+    lines = [l.strip() for l in text.split("\n")]
+    choices: list[RawChoice] = []
+    for i, line in enumerate(lines):
+        m = _RANK_TY_RE.match(line)
+        if not m:
+            continue
+        university_raw = next((lines[j] for j in range(i - 1, -1, -1) if lines[j]), None)
+        direction_raw = next((lines[j] for j in range(i + 1, len(lines)) if lines[j]), None)
+        if not university_raw or not direction_raw:
+            continue
+        choices.append(RawChoice(
+            rank=int(m.group(1)), ty_text_raw=m.group(2),
+            university_raw=university_raw, direction_raw=direction_raw,
+        ))
+    return choices
+
+
 def parse_pdf(data: bytes) -> QaydvaraqaData:
     """Qaydvaraqa PDF'sini tahlil qiladi.
 
@@ -190,6 +215,16 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
                 rank=int(m.group(1)), ty_text_raw=m.group(2),
                 university_raw=parts[0], direction_raw=parts[2],
             ))
+
+    if not choices:
+        # Kasbiy (ijodiy) imtihon (mas. sport/san'at yo'nalishlari) orqali
+        # kirayotgan abituriyentlar qaydvaraqasida bitta tanlov ODATDAGI
+        # chegarali jadval sifatida CHIQMAYDI (pdfplumber uni jadval deb
+        # aniqlay olmaydi) — lekin xuddi shu "universitet / rank+shakl /
+        # yo'nalish" uch qatorlik ketma-ketlik oddiy matn oqimida ham
+        # saqlanib qoladi. Shu sabab jadval topilmasa, xuddi shu naqsh
+        # (_RANK_TY_RE) MATN QATORLARI orasidan qidiriladi.
+        choices = _extract_choices_from_text(text)
 
     if not choices:
         raise QaydvaraqaParseError(
