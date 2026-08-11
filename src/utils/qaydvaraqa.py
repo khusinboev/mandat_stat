@@ -89,6 +89,75 @@ _JSHSHIR_RE = re.compile(r"JShShIR[:\s]+([\d\s]*\d)")
 _BIRTH_RE = re.compile(r"Tug['ʻʼ`‘’]?ilgan sanasi[:\s]+(\S+)")
 _GENDER_RE = re.compile(r"Jinsi[:\s]+(\S+)")
 
+# -- Rus tilidagi qaydvaraqa ----------------------------------------------
+# t.me/BaholashUz qaydvaraqani rus tilida ham generatsiya qiladi — barcha
+# label VA universitet/yo'nalish nomlari kirillda chiqadi (F.I.O., pasport
+# seriyasi, ID kabi qiymatlar lotin/raqamlarda qoladi, chunki ular
+# tarjima qilinmaydigan xom ma'lumot). 2026-08-11 haqiqiy foydalanuvchi
+# xatosida aniqlangan (NURULLAYEVA A.M. namunasi).
+_RU_LANDMARK = "регистрационный лист абитуриента"
+_RU_FIO_RE = re.compile(r"Ф\.И\.О\.[:\s]+(.+)")
+_RU_ID_RE = re.compile(r"\bID[:\s]+(\d+)")
+_RU_PASSPORT_RE = re.compile(r"Серия и номер паспорта[^:\n]*:[:\s]*(.+)")
+_RU_JSHSHIR_RE = re.compile(r"ПИНФЛ[:\s]+([\d\s]*\d)")
+_RU_BIRTH_RE = re.compile(r"Дата рождения[:\s]+(\S+)")
+_RU_GENDER_RE = re.compile(r"Пол[:\s]+(\S+)")
+_RU_LANG_RE = re.compile(r"Язык обучения[:\s]+(.+)")
+
+_RU_GENDER_MAP = {"мужской": "Erkak", "женский": "Ayol"}
+# resolve_lang() "cha" qo'shimchasini kesib DB bilan solishtiradi (mas.
+# "Ruscha" -> "rus") — shu sabab tarjima ANIQ shu formatga qilinadi.
+_RU_LANG_MAP = {
+    "русский": "Ruscha", "узбекский": "O'zbekcha", "каракалпакский": "Qoraqalpoqcha",
+    "казахский": "Qozoqcha", "туркменский": "Turkmancha", "киргизский": "Qirg'izcha",
+    "таджикский": "Tadjikcha",
+}
+_RU_FORM_MAP = {
+    "очное": "Kunduzgi", "вечернее": "Kechki",
+    "заочное": "Sirtqi", "дистанционное": "Masofaviy",
+}
+_RU_RANK_TY_RE = re.compile(
+    r"^(\d+)\s*(Очное|Вечернее|Заочное|Дистанционное)\s*$", re.IGNORECASE
+)
+
+# Universitet/yo'nalish nomlaridagi eng ko'p uchraydigan so'zlarning
+# rus->o'zbek tarjimasi — TO'LIQ tarjima emas, faqat resolve_university()/
+# resolve_direction()ning mavjud (token-qamrov, TARTIBGA BOG'LIQ EMAS)
+# moslashtiruvchisi ishlashi uchun yetarli daraja (real DB nomlari bilan
+# tekshirilgan — mas. "Tarjima nazariyasi va amaliyoti: ingliz tili").
+# Noma'lum so'zlar o'zgarishsiz qoladi — noto'g'ri OTM/yo'nalishga
+# moslashtirishdan ko'ra "topilmadi" (0.7 chegaradan pastroq qolsa) afzal.
+_RU_UNI_WORD_MAP = {
+    "узбекский": "o'zbekiston", "узбекистана": "o'zbekiston", "узбекистан": "o'zbekiston",
+    "государственный": "davlat", "национальный": "milliy",
+    "университет": "universiteti", "институт": "instituti",
+    "мировых": "jahon", "языков": "tillari",
+    "технический": "texnika", "педагогический": "pedagogika",
+    "медицинский": "tibbiyot", "экономический": "iqtisodiyot",
+    "аграрный": "agrar", "юридический": "yuridik", "исламский": "islom",
+    "финансов": "moliya", "финансовый": "moliya", "технологический": "texnologiya",
+    "и": "va",
+    # Yo'nalish nomlarida uchraydigan umumiy akademik so'zlar:
+    "теория": "nazariyasi", "практика": "amaliyoti",
+    "перевода": "tarjima", "перевод": "tarjima",
+    "английский": "ingliz", "немецкий": "nemis", "французский": "fransuz",
+    "испанский": "ispan", "китайский": "xitoy", "корейский": "koreys",
+    "японский": "yapon", "арабский": "arab", "турецкий": "turk",
+    "язык": "tili", "языку": "tili", "иностранный": "xorijiy",
+    "литература": "adabiyoti", "филология": "filologiya",
+    "обучение": "o'qitish", "языкам": "tillarni",
+}
+
+
+def _translate_ru_words(text: str, word_map: dict[str, str]) -> str:
+    """Har bir so'zni (lug'atda bo'lsa) almashtiradi — TO'LIQ tarjima
+    EMAS, faqat token-qamrov moslashtiruvchisi uchun yetarli daraja."""
+    out_words = []
+    for word in text.split():
+        key = word.strip(".,;:()").lower()
+        out_words.append(word_map.get(key, word))
+    return " ".join(out_words)
+
 # -- Buzilgan shrift kodlashini tuzatish --------------------------------
 # Ba'zi PDF eksport yo'llari (mas. Safari brauzerining "Print to PDF"i —
 # haqiqiy hodisada aniqlangan) qaydvaraqa PDF'ining shriftini noto'g'ri
@@ -104,6 +173,19 @@ _ENCODING_LANDMARK = "Bilim va malakalarni"
 _MAX_SHIFT_PROBE = 60
 
 
+def _shift_char(c: str, shift: int) -> str:
+    if c in ("\n", " "):
+        return c
+    cp = ord(c) + shift
+    # Haqiqiy (buzilmagan) matnlarda ham siljish "sinab ko'riladi" (shift
+    # aniqlanmaguncha) — masalan kirill harflari ancha yuqori kod
+    # nuqtalarida, past manfiy siljish bilan 0 dan pastga tushib qolishi
+    # mumkin. Bunday holatda chr() ValueError beradi — belgini o'zgarishsiz
+    # qoldiramiz (bu shift baribir noto'g'ri bo'lib chiqadi, landmark
+    # topilmaydi, lekin CRASH bo'lmasligi kerak).
+    return chr(cp) if 0 <= cp <= 0x10FFFF else c
+
+
 def _apply_char_shift(text: str, shift: int) -> str:
     """Har bir belgini `shift` qadar siljitadi — qator ko'chirish (\\n) va
     ODDIY BO'SH JOY o'zgarishsiz qoladi, chunki ular pdfplumber'ning o'zi
@@ -112,7 +194,7 @@ def _apply_char_shift(text: str, shift: int) -> str:
     "1=Masofaviy" kabi buzilib qoladi)."""
     if not text or shift == 0:
         return text
-    return "".join(c if c in ("\n", " ") else chr(ord(c) + shift) for c in text)
+    return "".join(_shift_char(c, shift) for c in text)
 
 
 def _detect_char_shift(text: str) -> int:
@@ -136,9 +218,25 @@ def _shift_tables(tables: list, shift: int) -> list:
     ]
 
 
-def _extract_choices_from_text(text: str) -> list[RawChoice]:
+def _match_rank_ty(line: str, is_russian: bool) -> Optional[tuple[int, str]]:
+    """"N Ta'lim_shakli" qatorini moslashtiradi — rus tilidagi qaydvaraqada
+    shakl nomlari kirillda (Очное/Вечернее/...) chiqadi, shu sabab topilgach
+    darhol o'zbekcha ekvivalentga tarjima qilinadi (keyingi bosqichlar —
+    resolve_ty va h.k. — faqat o'zbekcha qiymatlarni biladi)."""
+    if is_russian:
+        m = _RU_RANK_TY_RE.match(line)
+        if not m:
+            return None
+        return int(m.group(1)), _RU_FORM_MAP[m.group(2).lower()]
+    m = _RANK_TY_RE.match(line)
+    if not m:
+        return None
+    return int(m.group(1)), m.group(2)
+
+
+def _extract_choices_from_text(text: str, is_russian: bool = False) -> list[RawChoice]:
     """`extract_tables()` chegarali jadval topmagan hollar uchun zaxira
-    yo'l — "N Ta'lim_shakli" qatorini (`_RANK_TY_RE`) qidirib, undan
+    yo'l — "N Ta'lim_shakli" qatorini (`_match_rank_ty`) qidirib, undan
     OLDINGI eng yaqin bo'sh-bo'lmagan qatorni universitet, KEYINGISINI
     yo'nalish sifatida oladi (real "kasbiy (ijodiy) imtihon" qaydvaraqada
     koordinatalar bo'yicha tasdiqlangan — bu uch qator xuddi jadval
@@ -147,18 +245,57 @@ def _extract_choices_from_text(text: str) -> list[RawChoice]:
     lines = [l.strip() for l in text.split("\n")]
     choices: list[RawChoice] = []
     for i, line in enumerate(lines):
-        m = _RANK_TY_RE.match(line)
-        if not m:
+        matched = _match_rank_ty(line, is_russian)
+        if not matched:
             continue
+        rank, ty_text = matched
         university_raw = next((lines[j] for j in range(i - 1, -1, -1) if lines[j]), None)
         direction_raw = next((lines[j] for j in range(i + 1, len(lines)) if lines[j]), None)
         if not university_raw or not direction_raw:
             continue
         choices.append(RawChoice(
-            rank=int(m.group(1)), ty_text_raw=m.group(2),
+            rank=rank, ty_text_raw=ty_text,
             university_raw=university_raw, direction_raw=direction_raw,
         ))
     return choices
+
+
+def _diagnose_missing_choices(text: str, is_scanned_image: bool) -> str:
+    """Tanlovlar topilmasa, sababi aniq bo'lsa moslashtirilgan xabar
+    qaytaradi — real foydalanuvchi xatolaridan (2026-08-11, admin'ga
+    yuborilgan muvaffaqiyatsiz PDF'lar) aniqlangan naqshlar: (1) skaner/
+    skrinshot, (2) "Abituriyent ruxsatnomasi" (imtihon ruxsatnomasi,
+    boshqa hujjat), (3) test javoblari varag'i (boshqa hujjat), (4) haqiqiy
+    qaydvaraqa, lekin tanlovlar hali BELGILANMAGAN (test natijalaridan
+    keyin 15 kun ichida tanlanadi — bu muddatdan oldin yuklab olingan)."""
+    if is_scanned_image:
+        return (
+            "Bu fayl skanerlangan rasm/skrinshot ko'rinishida — matn qatlami "
+            "yo'q, shu sabab o'qib bo'lmadi. Iltimos, rasmiy saytdan (yoki "
+            "t.me/BaholashUz) TO'G'RIDAN-TO'G'RI yuklab olingan asl PDF "
+            "faylni yuboring (skrinshot yoki skaner emas)."
+        )
+    norm = _norm(text)
+    if "ruxsatnomasi" in norm:
+        return (
+            "Bu fayl \"Abituriyent ruxsatnomasi\" (imtihonga ruxsat varaqasi) "
+            "ekan, \"Abituriyent qayd varaqasi\" (tanlovlar ro'yxati) emas. "
+            "Iltimos, to'g'ri hujjatni yuklab oling."
+        )
+    if "umumiy bali" in norm:
+        return (
+            "Bu fayl test natijalari (javoblar varag'i) ekan, \"Abituriyent "
+            "qayd varaqasi\" (tanlovlar ro'yxati) emas. Iltimos, to'g'ri "
+            "hujjatni yuklab oling."
+        )
+    if "yo'nalishlari" in norm:
+        return (
+            "Qaydvaraqangizda hali tanlovlar ko'rsatilmagan — test "
+            "natijalari chiqqach, 15 kun ichida universitet/yo'nalish "
+            "tanlashingiz kerak. Tanlovlarni belgilagach, YANGI qaydvaraqani "
+            "qayta yuklab oling va shuni yuboring."
+        )
+    return "Tanlovlar jadvali topilmadi — bu qaydvaraqa fayliga o'xshamaydi"
 
 
 def parse_pdf(data: bytes) -> QaydvaraqaData:
@@ -175,31 +312,55 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
             page = pdf.pages[0]
             text = page.extract_text() or ""
             tables = page.extract_tables()
+            is_scanned_image = not page.chars and bool(page.images)
     except QaydvaraqaParseError:
         raise
     except Exception as exc:
         raise QaydvaraqaParseError(f"PDF ochilmadi: {exc}") from exc
 
-    shift = _detect_char_shift(text)
-    if shift:
-        text = _apply_char_shift(text, shift)
-        tables = _shift_tables(tables, shift)
+    # Rus tilidagi qaydvaraqada label VA universitet/yo'nalish nomlari
+    # kirillda chiqadi (t.me/BaholashUz saytining o'zi shunday generatsiya
+    # qiladi — bu BUZILGAN kodlash EMAS). Shrift-siljish tuzatishi bunga
+    # daxldor emas, shu sabab avval tekshiriladi (siljishni behuda 120 marta
+    # sinab ko'rishning ham hojati yo'q).
+    is_russian = _RU_LANDMARK in _norm(text)
+    if not is_russian:
+        shift = _detect_char_shift(text)
+        if shift:
+            text = _apply_char_shift(text, shift)
+            tables = _shift_tables(tables, shift)
 
     def _grp(pattern: re.Pattern) -> Optional[str]:
         m = pattern.search(text)
         return m.group(1).strip() if m else None
 
-    fio = _grp(_FIO_RE)
-    lang_raw = _grp(_LANG_RE)
-    abt_id = _grp(_ID_RE)
-    passport = _grp(_PASSPORT_RE)
-    # Buzilgan kodlashda raqamlar ichiga tasodifiy bo'sh joy tushib qolishi
-    # mumkin (mas. "5200 085470064") — bitta yaxlit raqamga birlashtiriladi.
-    jshshir = _grp(_JSHSHIR_RE)
+    if is_russian:
+        fio = _grp(_RU_FIO_RE)
+        lang_raw = _grp(_RU_LANG_RE)
+        abt_id = _grp(_RU_ID_RE)
+        passport = _grp(_RU_PASSPORT_RE)
+        jshshir = _grp(_RU_JSHSHIR_RE)
+        birth_date = _grp(_RU_BIRTH_RE)
+        gender = _grp(_RU_GENDER_RE)
+        if lang_raw:
+            lang_raw = _RU_LANG_MAP.get(lang_raw.strip().lower(), lang_raw)
+        if gender:
+            gender = _RU_GENDER_MAP.get(gender.strip().lower(), gender)
+    else:
+        fio = _grp(_FIO_RE)
+        lang_raw = _grp(_LANG_RE)
+        abt_id = _grp(_ID_RE)
+        passport = _grp(_PASSPORT_RE)
+        jshshir = _grp(_JSHSHIR_RE)
+        birth_date = _grp(_BIRTH_RE)
+        gender = _grp(_GENDER_RE)
+    # Buzilgan kodlashda (yoki rus PINFL formatida) raqamlar ichiga tasodifiy
+    # bo'sh joy tushib qolishi mumkin — bitta yaxlit raqamga birlashtiriladi.
     if jshshir:
         jshshir = jshshir.replace(" ", "")
-    birth_date = _grp(_BIRTH_RE)
-    gender = _grp(_GENDER_RE)
+
+    def _maybe_translate(value: str) -> str:
+        return _translate_ru_words(value, _RU_UNI_WORD_MAP) if is_russian else value
 
     choices: list[RawChoice] = []
     for table in tables:
@@ -208,12 +369,14 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
             parts = [p.strip() for p in cell.split("\n") if p.strip()]
             if len(parts) < 3:
                 continue
-            m = _RANK_TY_RE.match(parts[1])
-            if not m:
+            matched = _match_rank_ty(parts[1], is_russian)
+            if not matched:
                 continue
+            rank, ty_text = matched
             choices.append(RawChoice(
-                rank=int(m.group(1)), ty_text_raw=m.group(2),
-                university_raw=parts[0], direction_raw=parts[2],
+                rank=rank, ty_text_raw=ty_text,
+                university_raw=_maybe_translate(parts[0]),
+                direction_raw=_maybe_translate(parts[2]),
             ))
 
     if not choices:
@@ -224,12 +387,19 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
         # yo'nalish" uch qatorlik ketma-ketlik oddiy matn oqimida ham
         # saqlanib qoladi. Shu sabab jadval topilmasa, xuddi shu naqsh
         # (_RANK_TY_RE) MATN QATORLARI orasidan qidiriladi.
-        choices = _extract_choices_from_text(text)
+        choices = _extract_choices_from_text(text, is_russian)
+        if is_russian:
+            choices = [
+                RawChoice(
+                    rank=c.rank, ty_text_raw=c.ty_text_raw,
+                    university_raw=_maybe_translate(c.university_raw),
+                    direction_raw=_maybe_translate(c.direction_raw),
+                )
+                for c in choices
+            ]
 
     if not choices:
-        raise QaydvaraqaParseError(
-            "Tanlovlar jadvali topilmadi — bu qaydvaraqa fayliga o'xshamaydi"
-        )
+        raise QaydvaraqaParseError(_diagnose_missing_choices(text, is_scanned_image))
     choices.sort(key=lambda c: c.rank)
     return QaydvaraqaData(
         fio=fio, lang_raw=lang_raw, choices=choices, abt_id=abt_id,
