@@ -29,9 +29,9 @@ from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import BufferedInputFile, KeyboardButton, Message, ReplyKeyboardMarkup
 
-from config import bot, BOT_USERNAME
+from config import bot, BOT_USERNAME, QAYDVARAQA_REPORT_CHAT_ID
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 from src.utils import rate_limit
@@ -270,6 +270,7 @@ async def _process_new_pdf(message: Message, state: FSMContext) -> None:
 
     loading = await message.answer("🔍 Qaydvaraqa tahlil qilinmoqda...")
     matched: list[MatchedChoice]
+    data: bytes | None = None
     try:
         buf = await bot.download(doc)
         data = buf.read() if buf else b""
@@ -281,11 +282,13 @@ async def _process_new_pdf(message: Message, state: FSMContext) -> None:
             f"⚠️ Faylni tahlil qilib bo'lmadi: {e}\n\n"
             "Iltimos, rasmiy \"Abituriyent qayd varaqasi\" PDF faylini yuboring."
         )
+        await _report_failed_pdf(message, data, doc.file_name, str(e))
         return
     except Exception:
         logging.exception("Qaydvaraqa tahlilida kutilmagan xato (user=%s)", user_id)
         await _safe_delete(loading)
         await message.answer("🚨 Ichki xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring.")
+        await _report_failed_pdf(message, data, doc.file_name, "Kutilmagan ichki xato (loglarga qarang)")
         return
 
     await _safe_delete(loading)
@@ -646,3 +649,32 @@ async def _safe_delete(message: Message) -> None:
         await message.delete()
     except Exception:
         pass
+
+
+async def _report_failed_pdf(
+    message: Message, data: bytes | None, filename: str | None, error_text: str,
+) -> None:
+    """Tahlil qilib bo'lmagan PDF'ning o'zini `QAYDVARAQA_REPORT_CHAT_ID`ga
+    yuboradi — yangi/kutilmagan qaydvaraqa formatlarini foydalanuvchi
+    shikoyat qilishini kutmasdan TEZ payqash uchun (aynan shu mexanizm bilan
+    Safari eksporti va "kasbiy imtihon" formatlari ilgari qo'lda topilgan
+    edi — endi bu avtomatik bo'ladi). Bildirishnoma yuborilmasa ham
+    foydalanuvchining o'z oqimi buzilmasligi uchun xatolar yutiladi."""
+    if not QAYDVARAQA_REPORT_CHAT_ID or not data:
+        return
+    try:
+        user = message.from_user
+        username_part = f", @{user.username}" if user.username else ""
+        caption = (
+            "⚠️ <b>Qaydvaraqa tahlil qilinmadi</b>\n"
+            f"👤 {user.full_name} (ID: <code>{user.id}</code>{username_part})\n"
+            f"❗ {error_text}"
+        )
+        await bot.send_document(
+            chat_id=QAYDVARAQA_REPORT_CHAT_ID,
+            document=BufferedInputFile(data, filename=filename or "qaydvaraqa.pdf"),
+            caption=caption[:1024],
+            parse_mode="HTML",
+        )
+    except Exception:
+        logging.exception("Tahlil qilinmagan PDF'ni administratorga yuborib bo'lmadi")
