@@ -181,12 +181,6 @@ db_pool = SimpleConnectionPool(DB_POOL_MIN_CONN, DB_POOL_MAX_CONN, **DB_CONFIG)
 
 ADMIN_ID = ADMINS = [int(admin_id) for admin_id in os.getenv("ADMINS_ID").split(",")]
 
-# Qaydvaraqa (PDF) tahlil qilinmasa, faylning o'zi shu chat'ga yuboriladi —
-# yangi/kutilmagan PDF formatlarini foydalanuvchi shikoyat qilishini
-# kutmasdan tez payqash uchun. Bo'sh qoldirilsa (masalan "0") bu funksiya
-# o'chadi.
-QAYDVARAQA_REPORT_CHAT_ID = int(os.getenv("QAYDVARAQA_REPORT_CHAT_ID", "5246872049"))
-
 # Referral / limit tizimi
 REFERRAL_SYSTEM_ENABLED = env_bool("REFERRAL_SYSTEM_ENABLED", "true")
 MSG_LIMIT = int(os.getenv("MSG_LIMIT", "10"))                   # Bepul xabarlar soni

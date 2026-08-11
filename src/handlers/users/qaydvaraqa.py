@@ -29,9 +29,9 @@ from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import BufferedInputFile, KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
-from config import bot, BOT_USERNAME, QAYDVARAQA_REPORT_CHAT_ID
+from config import bot, BOT_USERNAME
 from src.db import database
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
@@ -283,13 +283,13 @@ async def _process_new_pdf(message: Message, state: FSMContext) -> None:
             f"⚠️ Faylni tahlil qilib bo'lmadi: {e}\n\n"
             "Iltimos, rasmiy \"Abituriyent qayd varaqasi\" PDF faylini yuboring."
         )
-        await _report_failed_pdf(message, data, doc.file_name, str(e))
+        await _log_failed_pdf(message, doc, str(e))
         return
     except Exception:
         logging.exception("Qaydvaraqa tahlilida kutilmagan xato (user=%s)", user_id)
         await _safe_delete(loading)
         await message.answer("🚨 Ichki xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring.")
-        await _report_failed_pdf(message, data, doc.file_name, "Kutilmagan ichki xato (loglarga qarang)")
+        await _log_failed_pdf(message, doc, "Kutilmagan ichki xato (loglarga qarang)")
         return
 
     await _safe_delete(loading)
@@ -652,45 +652,21 @@ async def _safe_delete(message: Message) -> None:
         pass
 
 
-async def _report_failed_pdf(
-    message: Message, data: bytes | None, filename: str | None, error_text: str,
-) -> None:
-    """Tahlil qilib bo'lmagan PDF'ning o'zini `QAYDVARAQA_REPORT_CHAT_ID`ga
-    yuboradi — yangi/kutilmagan qaydvaraqa formatlarini foydalanuvchi
-    shikoyat qilishini kutmasdan TEZ payqash uchun (aynan shu mexanizm bilan
-    Safari eksporti va "kasbiy imtihon" formatlari ilgari qo'lda topilgan
-    edi — endi bu avtomatik bo'ladi). Yuborilgan faylning `file_id`si
-    `qaydvaraqa_failures` jadvaliga ham yoziladi — `scripts/
-    qaydvaraqa_failures.py` shu yerdan qo'lda qayta yuklab olib, tekshirib,
-    foydalanuvchiga javob yuborishi mumkin (fayl qayta so'ralmaydi).
-    Bildirishnoma yuborilmasa/yozilmasa ham foydalanuvchining o'z oqimi
-    buzilmasligi uchun xatolar yutiladi."""
-    if not QAYDVARAQA_REPORT_CHAT_ID or not data:
-        return
+async def _log_failed_pdf(message: Message, doc, error_text: str) -> None:
+    """Tahlil qilib bo'lmagan PDF haqida `qaydvaraqa_failures` jadvaliga
+    yozuv qoldiradi — foydalanuvchining ALLAQACHON yuborgan hujjatining
+    `file_id`si to'g'ridan-to'g'ri ishlatiladi (qayta yuklash/qayta
+    yuborish SHART EMAS). `scripts/qaydvaraqa_failures.py` shu yerdan
+    qo'lda ko'rib chiqish, faylni qayta yuklab olish va foydalanuvchiga
+    javob yuborish uchun ishlatiladi. Yozib bo'lmasa ham foydalanuvchining
+    o'z oqimi buzilmasligi uchun xato yutiladi."""
     try:
         user = message.from_user
-        username_part = f", @{user.username}" if user.username else ""
-        caption = (
-            "⚠️ <b>Qaydvaraqa tahlil qilinmadi</b>\n"
-            f"👤 {user.full_name} (ID: <code>{user.id}</code>{username_part})\n"
-            f"❗ {error_text}"
+        await database.execute(
+            """INSERT INTO public.qaydvaraqa_failures
+               (user_id, user_full_name, username, filename, file_id, error_text)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (user.id, user.full_name, user.username, doc.file_name, doc.file_id, error_text),
         )
-        sent = await bot.send_document(
-            chat_id=QAYDVARAQA_REPORT_CHAT_ID,
-            document=BufferedInputFile(data, filename=filename or "qaydvaraqa.pdf"),
-            caption=caption[:1024],
-            parse_mode="HTML",
-        )
-        file_id = sent.document.file_id if sent.document else None
-        if file_id:
-            try:
-                await database.execute(
-                    """INSERT INTO public.qaydvaraqa_failures
-                       (user_id, user_full_name, username, filename, file_id, error_text)
-                       VALUES (%s, %s, %s, %s, %s, %s)""",
-                    (user.id, user.full_name, user.username, filename, file_id, error_text),
-                )
-            except Exception:
-                logging.exception("qaydvaraqa_failures jadvaliga yozib bo'lmadi")
     except Exception:
-        logging.exception("Tahlil qilinmagan PDF'ni administratorga yuborib bo'lmadi")
+        logging.exception("qaydvaraqa_failures jadvaliga yozib bo'lmadi")

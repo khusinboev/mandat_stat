@@ -1,12 +1,12 @@
 """Tahlil qilib bo'lmagan qaydvaraqa PDF'larini boshqarish (qo'lda ishga
 tushiriladi, cron YO'Q).
 
-`src/handlers/users/qaydvaraqa.py`dagi `_report_failed_pdf` har bir
-muvaffaqiyatsiz PDF'ni `QAYDVARAQA_REPORT_CHAT_ID`ga yuboradi VA
-`qaydvaraqa_failures` jadvaliga (file_id bilan) yozadi. Bu skript o'sha
-yozuvlarni ko'rish, PDF'larni qayta yuklab olish (fayl qayta so'ralmaydi —
-file_id orqali) va foydalanuvchiga tayyor shablon bilan javob yuborishni
-avtomatlashtiradi.
+`src/handlers/users/qaydvaraqa.py`dagi `_log_failed_pdf` har bir
+muvaffaqiyatsiz PDF haqida `qaydvaraqa_failures` jadvaliga (foydalanuvchi
+hujjatining o'zidagi file_id bilan, qayta yuklashsiz) yozadi. Bu skript
+o'sha yozuvlarni ko'rish, PDF'larni qayta yuklab olish (fayl qayta
+so'ralmaydi — file_id orqali) va foydalanuvchiga tayyor shablon bilan
+javob yuborishni avtomatlashtiradi.
 
 Ishlatish (repo ildizidan, PYTHONPATH kerak emas — config import qiladi):
     .venv/bin/python -m scripts.qaydvaraqa_failures list
