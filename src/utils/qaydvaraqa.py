@@ -89,67 +89,121 @@ _JSHSHIR_RE = re.compile(r"JShShIR[:\s]+([\d\s]*\d)")
 _BIRTH_RE = re.compile(r"Tug['ʻʼ`‘’]?ilgan sanasi[:\s]+(\S+)")
 _GENDER_RE = re.compile(r"Jinsi[:\s]+(\S+)")
 
-# -- Rus tilidagi qaydvaraqa ----------------------------------------------
-# t.me/BaholashUz qaydvaraqani rus tilida ham generatsiya qiladi — barcha
-# label VA universitet/yo'nalish nomlari kirillda chiqadi (F.I.O., pasport
-# seriyasi, ID kabi qiymatlar lotin/raqamlarda qoladi, chunki ular
-# tarjima qilinmaydigan xom ma'lumot). 2026-08-11 haqiqiy foydalanuvchi
-# xatosida aniqlangan (NURULLAYEVA A.M. namunasi).
-_RU_LANDMARK = "регистрационный лист абитуриента"
-_RU_FIO_RE = re.compile(r"Ф\.И\.О\.[:\s]+(.+)")
-_RU_ID_RE = re.compile(r"\bID[:\s]+(\d+)")
-_RU_PASSPORT_RE = re.compile(r"Серия и номер паспорта[^:\n]*:[:\s]*(.+)")
-_RU_JSHSHIR_RE = re.compile(r"ПИНФЛ[:\s]+([\d\s]*\d)")
-_RU_BIRTH_RE = re.compile(r"Дата рождения[:\s]+(\S+)")
-_RU_GENDER_RE = re.compile(r"Пол[:\s]+(\S+)")
-_RU_LANG_RE = re.compile(r"Язык обучения[:\s]+(.+)")
+# -- Boshqa tillardagi qaydvaraqalar --------------------------------------
+# t.me/BaholashUz qaydvaraqani o'zbekchadan tashqari boshqa tillarda ham
+# generatsiya qiladi — barcha label VA universitet/yo'nalish nomlari o'sha
+# tilda chiqadi (F.I.O., pasport seriyasi, ID kabi qiymatlar lotin/
+# raqamlarda qoladi, chunki ular tarjima qilinmaydigan xom ma'lumot).
+# Har til uchun `_LangProfile` — label regexlari + kichik lug'atlar
+# (TO'LIQ tarjima EMAS, faqat resolve_university()/resolve_direction()ning
+# mavjud token-qamrov moslashtiruvchisi ishlashi uchun yetarli daraja;
+# noma'lum so'zlar o'zgarishsiz qoladi — noto'g'ri moslashtirishdan ko'ra
+# "topilmadi" afzal).
+@dataclass(frozen=True)
+class _LangProfile:
+    name: str
+    landmark: str
+    fio_re: re.Pattern
+    id_re: re.Pattern
+    passport_re: re.Pattern
+    jshshir_re: re.Pattern
+    birth_re: re.Pattern
+    gender_re: re.Pattern
+    lang_re: re.Pattern
+    gender_map: dict[str, str]
+    lang_map: dict[str, str]
+    rank_ty_re: re.Pattern
+    form_map: dict[str, str]
+    word_map: dict[str, str]
 
-_RU_GENDER_MAP = {"мужской": "Erkak", "женский": "Ayol"}
-# resolve_lang() "cha" qo'shimchasini kesib DB bilan solishtiradi (mas.
-# "Ruscha" -> "rus") — shu sabab tarjima ANIQ shu formatga qilinadi.
-_RU_LANG_MAP = {
-    "русский": "Ruscha", "узбекский": "O'zbekcha", "каракалпакский": "Qoraqalpoqcha",
-    "казахский": "Qozoqcha", "туркменский": "Turkmancha", "киргизский": "Qirg'izcha",
-    "таджикский": "Tadjikcha",
-}
-_RU_FORM_MAP = {
-    "очное": "Kunduzgi", "вечернее": "Kechki",
-    "заочное": "Sirtqi", "дистанционное": "Masofaviy",
-}
-_RU_RANK_TY_RE = re.compile(
-    r"^(\d+)\s*(Очное|Вечернее|Заочное|Дистанционное)\s*$", re.IGNORECASE
+
+# 2026-08-11 haqiqiy foydalanuvchi xatosida aniqlangan (NURULLAYEVA A.M.).
+_RU_PROFILE = _LangProfile(
+    name="ru",
+    landmark="регистрационный лист абитуриента",
+    fio_re=re.compile(r"Ф\.И\.О\.[:\s]+(.+)"),
+    id_re=re.compile(r"\bID[:\s]+(\d+)"),
+    passport_re=re.compile(r"Серия и номер паспорта[^:\n]*:[:\s]*(.+)"),
+    jshshir_re=re.compile(r"ПИНФЛ[:\s]+([\d\s]*\d)"),
+    birth_re=re.compile(r"Дата рождения[:\s]+(\S+)"),
+    gender_re=re.compile(r"Пол[:\s]+(\S+)"),
+    lang_re=re.compile(r"Язык обучения[:\s]+(.+)"),
+    gender_map={"мужской": "Erkak", "женский": "Ayol"},
+    # resolve_lang() "cha" qo'shimchasini kesib DB bilan solishtiradi (mas.
+    # "Ruscha" -> "rus") — shu sabab tarjima ANIQ shu formatga qilinadi.
+    lang_map={
+        "русский": "Ruscha", "узбекский": "O'zbekcha", "каракалпакский": "Qoraqalpoqcha",
+        "казахский": "Qozoqcha", "туркменский": "Turkmancha", "киргизский": "Qirg'izcha",
+        "таджикский": "Tadjikcha",
+    },
+    rank_ty_re=re.compile(r"^(\d+)\s*(Очное|Вечернее|Заочное|Дистанционное)\s*$", re.IGNORECASE),
+    form_map={
+        "очное": "Kunduzgi", "вечернее": "Kechki",
+        "заочное": "Sirtqi", "дистанционное": "Masofaviy",
+    },
+    word_map={
+        "узбекский": "o'zbekiston", "узбекистана": "o'zbekiston", "узбекистан": "o'zbekiston",
+        "государственный": "davlat", "национальный": "milliy",
+        "университет": "universiteti", "институт": "instituti",
+        "мировых": "jahon", "языков": "tillari",
+        "технический": "texnika", "педагогический": "pedagogika",
+        "медицинский": "tibbiyot", "экономический": "iqtisodiyot",
+        "аграрный": "agrar", "юридический": "yuridik", "исламский": "islom",
+        "финансов": "moliya", "финансовый": "moliya", "технологический": "texnologiya",
+        "и": "va",
+        # Yo'nalish nomlarida uchraydigan umumiy akademik so'zlar:
+        "теория": "nazariyasi", "практика": "amaliyoti",
+        "перевода": "tarjima", "перевод": "tarjima",
+        "английский": "ingliz", "немецкий": "nemis", "французский": "fransuz",
+        "испанский": "ispan", "китайский": "xitoy", "корейский": "koreys",
+        "японский": "yapon", "арабский": "arab", "турецкий": "turk",
+        "язык": "tili", "языку": "tili", "иностранный": "xorijiy",
+        "литература": "adabiyoti", "филология": "filologiya",
+        "обучение": "o'qitish", "языкам": "tillarni",
+    },
 )
 
-# Universitet/yo'nalish nomlaridagi eng ko'p uchraydigan so'zlarning
-# rus->o'zbek tarjimasi — TO'LIQ tarjima emas, faqat resolve_university()/
-# resolve_direction()ning mavjud (token-qamrov, TARTIBGA BOG'LIQ EMAS)
-# moslashtiruvchisi ishlashi uchun yetarli daraja (real DB nomlari bilan
-# tekshirilgan — mas. "Tarjima nazariyasi va amaliyoti: ingliz tili").
-# Noma'lum so'zlar o'zgarishsiz qoladi — noto'g'ri OTM/yo'nalishga
-# moslashtirishdan ko'ra "topilmadi" (0.7 chegaradan pastroq qolsa) afzal.
-_RU_UNI_WORD_MAP = {
-    "узбекский": "o'zbekiston", "узбекистана": "o'zbekiston", "узбекистан": "o'zbekiston",
-    "государственный": "davlat", "национальный": "milliy",
-    "университет": "universiteti", "институт": "instituti",
-    "мировых": "jahon", "языков": "tillari",
-    "технический": "texnika", "педагогический": "pedagogika",
-    "медицинский": "tibbiyot", "экономический": "iqtisodiyot",
-    "аграрный": "agrar", "юридический": "yuridik", "исламский": "islom",
-    "финансов": "moliya", "финансовый": "moliya", "технологический": "texnologiya",
-    "и": "va",
-    # Yo'nalish nomlarida uchraydigan umumiy akademik so'zlar:
-    "теория": "nazariyasi", "практика": "amaliyoti",
-    "перевода": "tarjima", "перевод": "tarjima",
-    "английский": "ingliz", "немецкий": "nemis", "французский": "fransuz",
-    "испанский": "ispan", "китайский": "xitoy", "корейский": "koreys",
-    "японский": "yapon", "арабский": "arab", "турецкий": "turk",
-    "язык": "tili", "языку": "tili", "иностранный": "xorijiy",
-    "литература": "adabiyoti", "филология": "filologiya",
-    "обучение": "o'qitish", "языкам": "tillarni",
-}
+# 2026-08-11 haqiqiy foydalanuvchi xatosida aniqlangan (BISENBAEV M.S.
+# namunasi). Pasport maydoni label bilan bir qatorda emas (pdfplumber'ning
+# 2 ustunli blokni aralashtirishi tufayli) — shu sabab label o'rniga
+# TO'G'RIDAN-TO'G'RI pasport formatining o'zi (2 harf + 7 raqam) qidiriladi.
+_KK_PROFILE = _LangProfile(
+    name="kk",
+    landmark="mamanlıqlardı bahalaw",
+    fio_re=re.compile(r"F\.I\.Sh\.[:\s]+(.+)"),
+    id_re=re.compile(r"\bID[:\s]+(\d+)"),
+    passport_re=re.compile(r"\b([A-Z]{2}\s?\d{7})\b"),
+    jshshir_re=re.compile(r"FShJIN[^:\n]*:[:\s]*([\d\s]*\d)"),
+    birth_re=_BIRTH_RE,  # xuddi shu label ("Tug'ilgan sanasi:") — tarjima qilinmagan
+    gender_re=_GENDER_RE,  # xuddi shu label ("Jinsi:") — tarjima qilinmagan
+    lang_re=re.compile(r"T[áa]lim tili[:\s]+(.+)"),
+    gender_map={"erkek": "Erkak", "ayel": "Ayol"},
+    lang_map={
+        "ózbekshe": "O'zbekcha", "qaraqalpaqsha": "Qoraqalpoqcha",
+        "rússha": "Ruscha", "qazaqsha": "Qozoqcha",
+    },
+    rank_ty_re=re.compile(r"^(\d+)\s*(Kúndizgi|Keshki|Aralıq)\s*$", re.IGNORECASE),
+    form_map={"kúndizgi": "Kunduzgi", "keshki": "Kechki", "aralıq": "Masofaviy"},
+    word_map={
+        "qaraqalpaq": "qoraqalpoq", "mámleketlik": "davlat", "nókis": "nukus",
+        "pedagogikalıq": "pedagogika", "institutı": "instituti",
+        "tashkent": "toshkent", "shıǵıstanıw": "sharqshunoslik", "hám": "va",
+        "úniversiteti": "universiteti",
+    },
+)
+
+_LANG_PROFILES: tuple[_LangProfile, ...] = (_RU_PROFILE, _KK_PROFILE)
 
 
-def _translate_ru_words(text: str, word_map: dict[str, str]) -> str:
+def _detect_lang_profile(text: str) -> Optional[_LangProfile]:
+    norm = _norm(text)
+    for profile in _LANG_PROFILES:
+        if profile.landmark in norm:
+            return profile
+    return None
+
+
+def _translate_words(text: str, word_map: dict[str, str]) -> str:
     """Har bir so'zni (lug'atda bo'lsa) almashtiradi — TO'LIQ tarjima
     EMAS, faqat token-qamrov moslashtiruvchisi uchun yetarli daraja."""
     out_words = []
@@ -218,23 +272,24 @@ def _shift_tables(tables: list, shift: int) -> list:
     ]
 
 
-def _match_rank_ty(line: str, is_russian: bool) -> Optional[tuple[int, str]]:
-    """"N Ta'lim_shakli" qatorini moslashtiradi — rus tilidagi qaydvaraqada
-    shakl nomlari kirillda (Очное/Вечернее/...) chiqadi, shu sabab topilgach
+def _match_rank_ty(line: str, profile: Optional[_LangProfile]) -> Optional[tuple[int, str]]:
+    """"N Ta'lim_shakli" qatorini moslashtiradi — boshqa tildagi
+    qaydvaraqada shakl nomlari o'sha tilda (mas. rus: Очное/Вечернее/...,
+    qoraqalpoq: Kúndizgi/Keshki/Aralıq) chiqadi, shu sabab topilgach
     darhol o'zbekcha ekvivalentga tarjima qilinadi (keyingi bosqichlar —
     resolve_ty va h.k. — faqat o'zbekcha qiymatlarni biladi)."""
-    if is_russian:
-        m = _RU_RANK_TY_RE.match(line)
+    if profile:
+        m = profile.rank_ty_re.match(line)
         if not m:
             return None
-        return int(m.group(1)), _RU_FORM_MAP[m.group(2).lower()]
+        return int(m.group(1)), profile.form_map[m.group(2).lower()]
     m = _RANK_TY_RE.match(line)
     if not m:
         return None
     return int(m.group(1)), m.group(2)
 
 
-def _extract_choices_from_text(text: str, is_russian: bool = False) -> list[RawChoice]:
+def _extract_choices_from_text(text: str, profile: Optional[_LangProfile] = None) -> list[RawChoice]:
     """`extract_tables()` chegarali jadval topmagan hollar uchun zaxira
     yo'l — "N Ta'lim_shakli" qatorini (`_match_rank_ty`) qidirib, undan
     OLDINGI eng yaqin bo'sh-bo'lmagan qatorni universitet, KEYINGISINI
@@ -245,7 +300,7 @@ def _extract_choices_from_text(text: str, is_russian: bool = False) -> list[RawC
     lines = [l.strip() for l in text.split("\n")]
     choices: list[RawChoice] = []
     for i, line in enumerate(lines):
-        matched = _match_rank_ty(line, is_russian)
+        matched = _match_rank_ty(line, profile)
         if not matched:
             continue
         rank, ty_text = matched
@@ -318,13 +373,13 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
     except Exception as exc:
         raise QaydvaraqaParseError(f"PDF ochilmadi: {exc}") from exc
 
-    # Rus tilidagi qaydvaraqada label VA universitet/yo'nalish nomlari
-    # kirillda chiqadi (t.me/BaholashUz saytining o'zi shunday generatsiya
-    # qiladi — bu BUZILGAN kodlash EMAS). Shrift-siljish tuzatishi bunga
-    # daxldor emas, shu sabab avval tekshiriladi (siljishni behuda 120 marta
-    # sinab ko'rishning ham hojati yo'q).
-    is_russian = _RU_LANDMARK in _norm(text)
-    if not is_russian:
+    # Boshqa tildagi (rus, qoraqalpoq, ...) qaydvaraqada label VA
+    # universitet/yo'nalish nomlari o'sha tilda chiqadi (t.me/BaholashUz
+    # saytining o'zi shunday generatsiya qiladi — bu BUZILGAN kodlash
+    # EMAS). Shrift-siljish tuzatishi bunga daxldor emas, shu sabab avval
+    # tekshiriladi (siljishni behuda 120 marta sinab ko'rishning hojati yo'q).
+    profile = _detect_lang_profile(text)
+    if not profile:
         shift = _detect_char_shift(text)
         if shift:
             text = _apply_char_shift(text, shift)
@@ -334,18 +389,18 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
         m = pattern.search(text)
         return m.group(1).strip() if m else None
 
-    if is_russian:
-        fio = _grp(_RU_FIO_RE)
-        lang_raw = _grp(_RU_LANG_RE)
-        abt_id = _grp(_RU_ID_RE)
-        passport = _grp(_RU_PASSPORT_RE)
-        jshshir = _grp(_RU_JSHSHIR_RE)
-        birth_date = _grp(_RU_BIRTH_RE)
-        gender = _grp(_RU_GENDER_RE)
+    if profile:
+        fio = _grp(profile.fio_re)
+        lang_raw = _grp(profile.lang_re)
+        abt_id = _grp(profile.id_re)
+        passport = _grp(profile.passport_re)
+        jshshir = _grp(profile.jshshir_re)
+        birth_date = _grp(profile.birth_re)
+        gender = _grp(profile.gender_re)
         if lang_raw:
-            lang_raw = _RU_LANG_MAP.get(lang_raw.strip().lower(), lang_raw)
+            lang_raw = profile.lang_map.get(lang_raw.strip().lower(), lang_raw)
         if gender:
-            gender = _RU_GENDER_MAP.get(gender.strip().lower(), gender)
+            gender = profile.gender_map.get(gender.strip().lower(), gender)
     else:
         fio = _grp(_FIO_RE)
         lang_raw = _grp(_LANG_RE)
@@ -354,13 +409,14 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
         jshshir = _grp(_JSHSHIR_RE)
         birth_date = _grp(_BIRTH_RE)
         gender = _grp(_GENDER_RE)
-    # Buzilgan kodlashda (yoki rus PINFL formatida) raqamlar ichiga tasodifiy
-    # bo'sh joy tushib qolishi mumkin — bitta yaxlit raqamga birlashtiriladi.
+    # Buzilgan kodlashda (yoki boshqa til shaxsiy raqam formatida) raqamlar
+    # ichiga tasodifiy bo'sh joy tushib qolishi mumkin — bitta yaxlit
+    # raqamga birlashtiriladi.
     if jshshir:
         jshshir = jshshir.replace(" ", "")
 
     def _maybe_translate(value: str) -> str:
-        return _translate_ru_words(value, _RU_UNI_WORD_MAP) if is_russian else value
+        return _translate_words(value, profile.word_map) if profile else value
 
     choices: list[RawChoice] = []
     for table in tables:
@@ -369,7 +425,7 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
             parts = [p.strip() for p in cell.split("\n") if p.strip()]
             if len(parts) < 3:
                 continue
-            matched = _match_rank_ty(parts[1], is_russian)
+            matched = _match_rank_ty(parts[1], profile)
             if not matched:
                 continue
             rank, ty_text = matched
@@ -387,8 +443,8 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
         # yo'nalish" uch qatorlik ketma-ketlik oddiy matn oqimida ham
         # saqlanib qoladi. Shu sabab jadval topilmasa, xuddi shu naqsh
         # (_RANK_TY_RE) MATN QATORLARI orasidan qidiriladi.
-        choices = _extract_choices_from_text(text, is_russian)
-        if is_russian:
+        choices = _extract_choices_from_text(text, profile)
+        if profile:
             choices = [
                 RawChoice(
                     rank=c.rank, ty_text_raw=c.ty_text_raw,
