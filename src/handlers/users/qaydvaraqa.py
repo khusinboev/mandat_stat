@@ -127,7 +127,7 @@ def _main_menu_only_keyboard() -> ReplyKeyboardMarkup:
 # ko'rishi uchun — "TANLANGAN TA'LIM YO'NALISHLARI" jadvali borligini o'zi
 # tekshirib ko'rsin (real xato sabablarining aksariyati aynan shu bo'lim
 # yo'q hujjat yuborishdan kelib chiqqan, 2026-08-11 tahlilida aniqlangan).
-_NAMUNA_IMAGE_PATH = Path(__file__).resolve().parents[2] / "src" / "assets" / "qaydvaraqa_namuna.jpg"
+_NAMUNA_IMAGE_PATH = Path(__file__).resolve().parents[2] / "assets" / "qaydvaraqa_namuna.jpg"
 _NAMUNA_CACHE_KEY = "qaydvaraqa_namuna_photo"
 
 
