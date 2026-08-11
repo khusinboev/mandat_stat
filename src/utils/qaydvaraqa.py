@@ -36,8 +36,16 @@ def _tokens(text: Optional[str]) -> set[str]:
     return set(_TOKEN_RE.findall(_norm(text)))
 
 
+_WHITESPACE_RE = re.compile(r"\s+", re.UNICODE)
+
+
 def _strip_apos(text: Optional[str]) -> str:
-    return _norm(text).replace("'", "")
+    # BARCHA bo'sh joy turlari (\s, shu jumladan \xa0 — uzilmas bo'sh joy)
+    # ham olib tashlanadi — til nomlari hech qachon ICHIDA bo'sh joy
+    # bo'lmaydi, shu sabab bu xavfsiz (va ba'zi PDF eksport yo'llarida
+    # apostrof o'rniga tasodifiy bo'sh joy tushib qolishini ham qoplaydi —
+    # masalan "O\xa0zbekcha" -> "ozbekcha").
+    return _WHITESPACE_RE.sub("", _norm(text).replace("'", ""))
 
 
 # -- PDF parsing ---------------------------------------------------------
@@ -67,16 +75,65 @@ class QaydvaraqaParseError(Exception):
 
 
 _RANK_TY_RE = re.compile(r"^(\d+)\s*(Kunduzgi|Kechki|Masofaviy)\s*$", re.IGNORECASE)
-_FIO_RE = re.compile(r"F\.I\.O\.:\s*(.+)")
-_LANG_RE = re.compile(r"Ta['ʻʼ`‘’]lim tili:\s*(\S+)")
+# Label bilan qiymat orasidagi ":" ba'zi PDF eksport yo'llarida (pastga
+# qarang — shrift kodlash buzilishi) yo'qolib qolishi mumkin, shu sabab
+# "[:\s]+" ishlatiladi (":" ixtiyoriy, kamida bitta bo'sh joy yetarli).
+_FIO_RE = re.compile(r"F\.I\.O\.[:\s]+(.+)")
+_LANG_RE = re.compile(r"Ta['ʻʼ`‘’]?\s*lim tili[:\s]+(.+)")
 # Shaxsiy ma'lumot maydonlari — barchasi qaydvaraqada bitta qatorda (2 ustunli
 # blokning ICHIDA emas), shu sabab boshqa maydonlardek aralashib ketmaydi
 # (sinovda 6/6 real qaydvaraqada tasdiqlangan).
-_ID_RE = re.compile(r"\bID:\s*(\d+)")
-_PASSPORT_RE = re.compile(r"Pasport \(ID karta\) seriya va raqami:\s*(.+)")
-_JSHSHIR_RE = re.compile(r"JShShIR:\s*(\d+)")
-_BIRTH_RE = re.compile(r"Tug['ʻʼ`‘’]ilgan sanasi:\s*(\S+)")
-_GENDER_RE = re.compile(r"Jinsi:\s*(\S+)")
+_ID_RE = re.compile(r"\bID[:\s]+(\d+)")
+_PASSPORT_RE = re.compile(r"Pasport\s*\(?ID karta\)?\s*seriya va raqami[:\s]+(.+)")
+_JSHSHIR_RE = re.compile(r"JShShIR[:\s]+([\d\s]*\d)")
+_BIRTH_RE = re.compile(r"Tug['ʻʼ`‘’]?ilgan sanasi[:\s]+(\S+)")
+_GENDER_RE = re.compile(r"Jinsi[:\s]+(\S+)")
+
+# -- Buzilgan shrift kodlashini tuzatish --------------------------------
+# Ba'zi PDF eksport yo'llari (mas. Safari brauzerining "Print to PDF"i —
+# haqiqiy hodisada aniqlangan) qaydvaraqa PDF'ining shriftini noto'g'ri
+# subset qiladi: har bir belgi bir xil DOIMIY siljish bilan noto'g'ri
+# Unicode kod nuqtasiga tushib qoladi (mas. "Bilim" -> "%LOLP", +29
+# siljitilsa asliga qaytadi). Bu www.uzbmb.uz saytidan TO'G'RIDAN-TO'G'RI
+# yuklab olingan (6 ta sinov namunasi) qaydvaraqalarda kuzatilmagan — faqat
+# muqobil (brauzer orqali qayta eksport qilingan) PDF'larda. Ma'lum
+# "landmark" matnni (agentlik nomi, HAR bir qaydvaraqada bor) qidirib,
+# TO'G'RI siljish avtomatik aniqlanadi va butun matn/jadvallarga
+# qo'llaniladi — noldan shrift xaritasini bilish shart emas.
+_ENCODING_LANDMARK = "Bilim va malakalarni"
+_MAX_SHIFT_PROBE = 60
+
+
+def _apply_char_shift(text: str, shift: int) -> str:
+    """Har bir belgini `shift` qadar siljitadi — qator ko'chirish (\\n) va
+    ODDIY BO'SH JOY o'zgarishsiz qoladi, chunki ular pdfplumber'ning o'zi
+    (glif joylashuviga qarab) qo'shgan STRUKTURAVIY belgilar, shrift
+    kodlash oqimidan emas (aralashtirilsa "1 Masofaviy" kabi qiymatlar
+    "1=Masofaviy" kabi buzilib qoladi)."""
+    if not text or shift == 0:
+        return text
+    return "".join(c if c in ("\n", " ") else chr(ord(c) + shift) for c in text)
+
+
+def _detect_char_shift(text: str) -> int:
+    if not text or _ENCODING_LANDMARK in text:
+        return 0
+    for shift in list(range(1, _MAX_SHIFT_PROBE + 1)) + list(range(-1, -_MAX_SHIFT_PROBE - 1, -1)):
+        if _ENCODING_LANDMARK in _apply_char_shift(text, shift):
+            return shift
+    return 0
+
+
+def _shift_tables(tables: list, shift: int) -> list:
+    if shift == 0:
+        return tables
+    return [
+        [
+            [(_apply_char_shift(cell, shift) if cell else cell) for cell in row] if row else row
+            for row in table
+        ]
+        for table in tables
+    ]
 
 
 def parse_pdf(data: bytes) -> QaydvaraqaData:
@@ -98,6 +155,11 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
     except Exception as exc:
         raise QaydvaraqaParseError(f"PDF ochilmadi: {exc}") from exc
 
+    shift = _detect_char_shift(text)
+    if shift:
+        text = _apply_char_shift(text, shift)
+        tables = _shift_tables(tables, shift)
+
     def _grp(pattern: re.Pattern) -> Optional[str]:
         m = pattern.search(text)
         return m.group(1).strip() if m else None
@@ -106,7 +168,11 @@ def parse_pdf(data: bytes) -> QaydvaraqaData:
     lang_raw = _grp(_LANG_RE)
     abt_id = _grp(_ID_RE)
     passport = _grp(_PASSPORT_RE)
+    # Buzilgan kodlashda raqamlar ichiga tasodifiy bo'sh joy tushib qolishi
+    # mumkin (mas. "5200 085470064") — bitta yaxlit raqamga birlashtiriladi.
     jshshir = _grp(_JSHSHIR_RE)
+    if jshshir:
+        jshshir = jshshir.replace(" ", "")
     birth_date = _grp(_BIRTH_RE)
     gender = _grp(_GENDER_RE)
 
