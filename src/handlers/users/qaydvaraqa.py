@@ -32,6 +32,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import BufferedInputFile, KeyboardButton, Message, ReplyKeyboardMarkup
 
 from config import bot, BOT_USERNAME, QAYDVARAQA_REPORT_CHAT_ID
+from src.db import database
 from src.keyboards.buttons import UserPanels
 from src.keyboards.keyboard_func import CheckData
 from src.utils import rate_limit
@@ -658,8 +659,12 @@ async def _report_failed_pdf(
     yuboradi — yangi/kutilmagan qaydvaraqa formatlarini foydalanuvchi
     shikoyat qilishini kutmasdan TEZ payqash uchun (aynan shu mexanizm bilan
     Safari eksporti va "kasbiy imtihon" formatlari ilgari qo'lda topilgan
-    edi — endi bu avtomatik bo'ladi). Bildirishnoma yuborilmasa ham
-    foydalanuvchining o'z oqimi buzilmasligi uchun xatolar yutiladi."""
+    edi — endi bu avtomatik bo'ladi). Yuborilgan faylning `file_id`si
+    `qaydvaraqa_failures` jadvaliga ham yoziladi — `scripts/
+    qaydvaraqa_failures.py` shu yerdan qo'lda qayta yuklab olib, tekshirib,
+    foydalanuvchiga javob yuborishi mumkin (fayl qayta so'ralmaydi).
+    Bildirishnoma yuborilmasa/yozilmasa ham foydalanuvchining o'z oqimi
+    buzilmasligi uchun xatolar yutiladi."""
     if not QAYDVARAQA_REPORT_CHAT_ID or not data:
         return
     try:
@@ -670,11 +675,22 @@ async def _report_failed_pdf(
             f"👤 {user.full_name} (ID: <code>{user.id}</code>{username_part})\n"
             f"❗ {error_text}"
         )
-        await bot.send_document(
+        sent = await bot.send_document(
             chat_id=QAYDVARAQA_REPORT_CHAT_ID,
             document=BufferedInputFile(data, filename=filename or "qaydvaraqa.pdf"),
             caption=caption[:1024],
             parse_mode="HTML",
         )
+        file_id = sent.document.file_id if sent.document else None
+        if file_id:
+            try:
+                await database.execute(
+                    """INSERT INTO public.qaydvaraqa_failures
+                       (user_id, user_full_name, username, filename, file_id, error_text)
+                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (user.id, user.full_name, user.username, filename, file_id, error_text),
+                )
+            except Exception:
+                logging.exception("qaydvaraqa_failures jadvaliga yozib bo'lmadi")
     except Exception:
         logging.exception("Tahlil qilinmagan PDF'ni administratorga yuborib bo'lmadi")

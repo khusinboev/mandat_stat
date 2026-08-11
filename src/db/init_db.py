@@ -262,3 +262,25 @@ async def create_all_base():
     );
     """)
     db.commit()
+
+    # Tahlil qilib bo'lmagan qaydvaraqa PDF'lari — admin'ga yuborilganda
+    # shu yerga ham yoziladi (file_id bilan), keyinroq skript orqali
+    # (scripts/qaydvaraqa_failures.py) qayta yuklab olish va foydalanuvchiga
+    # javob yuborish mumkin bo'lishi uchun.
+    sql.execute("""
+    CREATE TABLE IF NOT EXISTS public.qaydvaraqa_failures (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        user_full_name TEXT,
+        username TEXT,
+        filename TEXT,
+        file_id TEXT NOT NULL,
+        error_text TEXT,
+        created_at TIMESTAMP DEFAULT now(),
+        resolved_at TIMESTAMP,
+        resolution_category TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_qaydvaraqa_failures_resolved
+        ON public.qaydvaraqa_failures (resolved_at);
+    """)
+    db.commit()
