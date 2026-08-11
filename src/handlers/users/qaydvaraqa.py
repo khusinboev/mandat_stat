@@ -24,12 +24,13 @@ xil uslub: rate_limit, CheckData.check_member, answer_safe, HTML format).
 import logging
 import re
 import time
+from pathlib import Path
 
 from aiogram import Router, F
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
-from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import FSInputFile, KeyboardButton, Message, ReplyKeyboardMarkup
 
 from config import bot, BOT_USERNAME
 from src.db import database
@@ -119,6 +120,55 @@ def _main_menu_only_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="🔙 Bosh menu")]], resize_keyboard=True,
     )
+
+
+# -- Namuna qaydvaraqa rasmi -------------------------------------------------
+# Foydalanuvchi PDF yuborishdan OLDIN to'g'ri hujjat qanday ko'rinishini
+# ko'rishi uchun — "TANLANGAN TA'LIM YO'NALISHLARI" jadvali borligini o'zi
+# tekshirib ko'rsin (real xato sabablarining aksariyati aynan shu bo'lim
+# yo'q hujjat yuborishdan kelib chiqqan, 2026-08-11 tahlilida aniqlangan).
+_NAMUNA_IMAGE_PATH = Path(__file__).resolve().parents[2] / "src" / "assets" / "qaydvaraqa_namuna.jpg"
+_NAMUNA_CACHE_KEY = "qaydvaraqa_namuna_photo"
+
+
+async def _get_static_file_id(key: str) -> str | None:
+    try:
+        row = await database.fetchone("SELECT file_id FROM public.bot_static_files WHERE key=%s", (key,))
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
+async def _set_static_file_id(key: str, file_id: str) -> None:
+    try:
+        await database.execute(
+            "INSERT INTO public.bot_static_files (key, file_id) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO UPDATE SET file_id=EXCLUDED.file_id, updated_at=now()",
+            (key, file_id),
+        )
+    except Exception:
+        logging.exception("static file_id saqlab bo'lmadi")
+
+
+async def _send_namuna_photo(
+    message: Message, caption: str, reply_markup: ReplyKeyboardMarkup | None = None,
+) -> None:
+    """Namuna qaydvaraqa rasmini yuboradi — birinchi safar diskdan
+    yuklanadi, keyingi safarlar uchun file_id keshlanadi (`bot_static_files`
+    orqali — asosiy va klon bot HAR BIRI o'z file_id'sini saqlaydi, chunki
+    file_id boshqa bot tokenida ishlamaydi). Rasm yuborilmasa ham (masalan
+    fayl topilmasa) kamida matn yuborilishi kafolatlanadi."""
+    try:
+        cached = await _get_static_file_id(_NAMUNA_CACHE_KEY)
+        photo = cached or FSInputFile(_NAMUNA_IMAGE_PATH)
+        sent = await message.answer_photo(
+            photo=photo, caption=caption, parse_mode="HTML", reply_markup=reply_markup,
+        )
+        if not cached and sent.photo:
+            await _set_static_file_id(_NAMUNA_CACHE_KEY, sent.photo[-1].file_id)
+    except Exception:
+        logging.exception("Namuna rasm yuborilmadi")
+        await message.answer(caption, parse_mode="HTML", reply_markup=reply_markup)
 
 
 def _post_report_keyboard(abt_id: str | None) -> ReplyKeyboardMarkup:
@@ -239,12 +289,14 @@ async def qv_start(message: Message, state: FSMContext):
                              reply_markup=await CheckData.channels_btn(channels))
         return
     await state.set_state(QVState.waiting_pdf)
-    await message.answer(
+    await _send_namuna_photo(
+        message,
         "🔍 <b>Mandat tahlili</b>\n\n"
         "Bilim va malakalarni baholash agentligi saytidan yuklab olgan "
         "<b>Abituriyent qayd varaqasi</b> PDF faylini shu yerga <b>hujjat "
-        "(📎)</b> sifatida yuboring:",
-        parse_mode="HTML",
+        "(📎)</b> sifatida yuboring.\n\n"
+        "☝️ Yuqoridagi rasm — TO'G'RI hujjat namunasi (\"TANLANGAN TA'LIM "
+        "YO'NALISHLARI\" jadvali ko'rinib turishi shart).",
         reply_markup=_main_menu_only_keyboard(),
     )
 
@@ -279,16 +331,23 @@ async def _process_new_pdf(message: Message, state: FSMContext) -> None:
         matched = match_choices(parsed)
     except QaydvaraqaParseError as e:
         await _safe_delete(loading)
-        await message.answer(
+        await _send_namuna_photo(
+            message,
             f"⚠️ Faylni tahlil qilib bo'lmadi: {e}\n\n"
-            "Iltimos, rasmiy \"Abituriyent qayd varaqasi\" PDF faylini yuboring."
+            "☝️ Yuqoridagi rasm — TO'G'RI hujjat namunasi.\n\n"
+            "Agar to'g'ri hujjatni yuborganingizga ishonchingiz komil "
+            "bo'lsa-yu, baribir shu xato chiqsa, dasturchiga murojaat "
+            "qiling: @adkhambek_4",
         )
         await _log_failed_pdf(message, doc, str(e))
         return
     except Exception:
         logging.exception("Qaydvaraqa tahlilida kutilmagan xato (user=%s)", user_id)
         await _safe_delete(loading)
-        await message.answer("🚨 Ichki xatolik yuz berdi. Iltimos, keyinroq qayta urinib ko'ring.")
+        await message.answer(
+            "🚨 Ichki xatolik yuz berdi. Iltimos, keyinroq qayta urinib "
+            "ko'ring. Davom etsa, dasturchiga murojaat qiling: @adkhambek_4"
+        )
         await _log_failed_pdf(message, doc, "Kutilmagan ichki xato (loglarga qarang)")
         return
 
@@ -392,8 +451,10 @@ async def qv_ball_received(message: Message, state: FSMContext):
         return
     if message.text in _BACK_TEXTS:
         await state.set_state(QVState.waiting_pdf)
-        await message.answer(
-            "📋 Qaydvaraqa PDF faylini qayta yuboring:",
+        await _send_namuna_photo(
+            message,
+            "📋 Qaydvaraqa PDF faylini qayta yuboring (yuqoridagi rasmdagidek, "
+            "\"TANLANGAN TA'LIM YO'NALISHLARI\" jadvali bilan):",
             reply_markup=_main_menu_only_keyboard(),
         )
         return
@@ -425,8 +486,10 @@ async def qv_post_report_menu(message: Message, state: FSMContext):
         return
     if text in _BACK_TEXTS:
         await state.set_state(QVState.waiting_pdf)
-        await message.answer(
-            "📋 Qaydvaraqa PDF faylini qayta yuboring:",
+        await _send_namuna_photo(
+            message,
+            "📋 Qaydvaraqa PDF faylini qayta yuboring (yuqoridagi rasmdagidek, "
+            "\"TANLANGAN TA'LIM YO'NALISHLARI\" jadvali bilan):",
             reply_markup=_main_menu_only_keyboard(),
         )
         return
