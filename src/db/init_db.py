@@ -242,12 +242,44 @@ async def create_all_base():
         s5subject TEXT,
         ed_lang_id INT,
         jami INT,
+        topshirgan INT,
         max_ball_count INT,
         below_pass_count INT,
         ladder JSONB,
+        thresholds JSONB,
         full_computed BOOLEAN DEFAULT FALSE,
         computed_at TIMESTAMP DEFAULT NOW()
     );
+    """)
+    db.commit()
+
+    # `topshirgan` va `thresholds` orin_stats yaratilgandan KEYIN qo'shilgan.
+    # CREATE TABLE IF NOT EXISTS mavjud jadvalni o'zgartirmaydi, shu sababli
+    # eski deploylarda bu ustunlar yo'q edi va src/utils/orin.py dagi
+    # INSERT/SELECT "column ... does not exist" xatosi bilan yiqilardi.
+    sql.execute("""
+    DO $$
+    BEGIN
+        IF to_regclass('public.orin_stats') IS NOT NULL THEN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'orin_stats'
+                  AND column_name = 'topshirgan'
+            ) THEN
+                ALTER TABLE public.orin_stats ADD COLUMN topshirgan INT;
+            END IF;
+
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'orin_stats'
+                  AND column_name = 'thresholds'
+            ) THEN
+                ALTER TABLE public.orin_stats ADD COLUMN thresholds JSONB;
+            END IF;
+        END IF;
+    END $$;
     """)
     db.commit()
 
